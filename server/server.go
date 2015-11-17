@@ -3,18 +3,36 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
 )
 
+func sendJSONError(w http.ResponseWriter, err error) {
+	json.NewEncoder(w).Encode(struct {
+		Error string `json:"error"`
+	}{
+		Error: err.Error(),
+	})
+}
+
+func sendJSONContainerID(w http.ResponseWriter, containerID string) {
+	json.NewEncoder(w).Encode(struct {
+		ID string `json:"Id"`
+	}{
+		ID: containerID,
+	})
+}
+
 //IsolateServer is a HTTP wrapper around PortoIsolation
 type IsolateServer struct {
+	*log.Entry
+
 	Router *mux.Router
 	isolate.Isolation
 	ctx context.Context
@@ -31,16 +49,18 @@ type dockerPluginProfile struct {
 
 func (i *IsolateServer) spoolApplication(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-IsolateServer", "Porto")
-	// image := r.FormValue("fromImage")
-	// if err := i.Isolation.Spool(i.ctx, image, "latest"); err != nil {
-	// 	w.WriteHeader(http.StatusOK)
-	// 	json.NewEncoder(w).Encode(struct {
-	// 		Error string `json:"error"`
-	// 	}{
-	// 		Error: err.Error(),
-	// 	})
-	// 	return
-	// }
+	image := r.FormValue("fromImage")
+
+	i.WithField("image", image).Info("spooling image")
+	if err := i.Isolation.Spool(i.ctx, image, "latest"); err != nil {
+		// Error is sent in body
+		w.WriteHeader(http.StatusOK)
+		sendJSONError(w, err)
+		i.WithFields(log.Fields{
+			"image": image, "error": err,
+		}).Error("spooling failed")
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "{}")
@@ -76,17 +96,15 @@ func (i *IsolateServer) containersCreate(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "%v", err)
+		i.Errorf("unable to create container %v", err)
 		return
 	}
 
-	json.NewEncoder(w).Encode(struct {
-		ID string `json:"Id"`
-	}{
-		ID: container,
-	})
+	sendJSONContainerID(w, container)
 }
 
 func (i *IsolateServer) containerAttach(w http.ResponseWriter, r *http.Request) {
+	// ToDo: implement via hijacking
 	w.Header().Add("X-IsolateServer", "Porto")
 }
 
@@ -102,6 +120,7 @@ func (i *IsolateServer) containerStart(w http.ResponseWriter, r *http.Request) {
 
 	if err := i.Isolation.Start(i.ctx, container); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		i.Errorf("start container error: %v", err)
 		fmt.Fprintf(w, "%v", err)
 		return
 	}
@@ -115,6 +134,7 @@ func (i *IsolateServer) containerKill(w http.ResponseWriter, r *http.Request) {
 
 	if err := i.Isolation.Terminate(i.ctx, container); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		i.Errorf("kill container error: %v", err)
 		fmt.Fprintf(w, "%v", err)
 		return
 	}
@@ -123,7 +143,7 @@ func (i *IsolateServer) containerKill(w http.ResponseWriter, r *http.Request) {
 }
 
 func (i *IsolateServer) fallback(w http.ResponseWriter, r *http.Request) {
-	log.Printf("fallback %s", r.URL.String())
+	i.Errorf("fallback %s", r.URL.String())
 	w.WriteHeader(http.StatusBadGateway)
 }
 
@@ -135,6 +155,8 @@ func NewIsolateServer() (*IsolateServer, error) {
 	}
 
 	isolateServer := &IsolateServer{
+		Entry: log.WithField("source", "server"),
+
 		Router:    mux.NewRouter().Path("/{version}").Subrouter(),
 		Isolation: isolation,
 		ctx:       context.Background(),
