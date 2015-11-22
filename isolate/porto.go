@@ -16,45 +16,131 @@ import (
 	"golang.org/x/net/context"
 
 	porto "github.com/yandex/porto/src/api/go"
+	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
 
+func splitHostImagename(image string) (string, string) {
+	index := strings.LastIndexByte(image, '/')
+	return image[:index], image[index+1:]
+}
+
+func parseImageID(input io.Reader) (string, error) {
+	body, err := ioutil.ReadAll(input)
+	if err != nil {
+		return "", err
+	}
+
+	imageid := string(body[1 : len(body)-1])
+	return imageid, nil
+}
+
+func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) error {
+	layerPath := path.Join(downloadPath, layer+".tar.gz")
+	file, err := os.OpenFile(layerPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
+	if err != nil {
+		if os.IsExist(err) {
+			log.WithField("layer", layer).Info("skip downloaded layer")
+			return nil
+		}
+		return err
+	}
+	defer os.Remove(layerPath)
+	defer file.Close()
+
+	layerURL := fmt.Sprintf("http://%s/v1/images/%s/layer", host, layer)
+	log.Infof("layerUrl %s", layerURL)
+	resp, err := http.Get(layerURL)
+	if err != nil {
+		file.Close()
+		return err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if _, err := io.Copy(file, resp.Body); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown reply %s", resp.Status)
+	}
+
+	err = portoConn.ImportLayer(layer, layerPath, false)
+	if err != nil {
+		// TODO: wrap into function
+		switch err := err.(type) {
+		case (*porto.Error):
+			if err.Errno != portorpc.EError_LayerAlreadyExists {
+				log.WithFields(log.Fields{
+					"layer": layer, "error": err}).Error("unbale to import layer")
+				return err
+			}
+			log.WithField("layer", layer).Infof("skip an already existed layer")
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
 type portoIsolation struct {
-	// handlers    map[string]*portoHandler
+	// Temporary place to download layers
 	layersCache string
+	// Path where volumes are created
+	volumesPath string
+	// Name of Root container
+	rootNamespace string
 }
 
 //NewPortoIsolation creates Isolation instance which uses Porto
 func NewPortoIsolation() (Isolation, error) {
+	cachePath := "/tmp/isolate"
+	volumesPath := "/cocaine-porto"
+	if !path.IsAbs(volumesPath) {
+		return nil, fmt.Errorf("volumesPath must absolute: %s", volumesPath)
+	}
+
 	return &portoIsolation{
-		layersCache: "/tmp/isolate",
+		layersCache:   cachePath,
+		volumesPath:   volumesPath,
+		rootNamespace: "cocs",
 	}, nil
 }
 
-func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
-	index := strings.LastIndexByte(image, '/')
-	host, imagename := image[:index], image[index+1:]
+func (pi *portoIsolation) volumePathForApp(appname string) string {
+	return path.Join(pi.volumesPath, appname)
+}
 
-	url := fmt.Sprintf("https://%s/v1/repositories/%s/tags/%s", host, imagename, tag)
+func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
+	host, imagename := splitHostImagename(image)
+	appname := imagename
+	// get ImageId
+	url := fmt.Sprintf("http://%s/v1/repositories/%s/tags/%s", host, imagename, tag)
 	log.WithFields(log.Fields{
-		"imagename": imagename,
-		"tag":       tag,
-		"host":      host}).Info("pull image  ", url)
+		"imagename": imagename, "tag": tag, "host": host, "url": url}).Info("fetching image id")
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
+	var imageid string
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if imageid, err = parseImageID(resp.Body); err != nil {
+			log.WithField("error", err).Error("unable to parse image ID")
+			return err
+		}
+	default:
+		err := fmt.Errorf("invalid status code %s", resp.Status)
+		log.WithField("error", err).Error("unable to fetch image id")
 		return err
 	}
+	log.WithField("imagename", imagename).Infof("imageid has been fetched successfully")
 
-	imageid := string(body[1 : len(body)-1])
-	log.Infof("imageid %s", imageid)
-
-	ancestryURL := fmt.Sprintf("https://%s/v1/images/%s/ancestry", host, imageid)
-	log.WithField("ancestryurl", ancestryURL).Info("fetch ancestry")
+	// get Ancestry
+	ancestryURL := fmt.Sprintf("http://%s/v1/images/%s/ancestry", host, imageid)
+	log.WithField("ancestryurl", ancestryURL).Info("fetching ancestry")
 	resp, err = http.Get(ancestryURL)
 	if err != nil {
 		return err
@@ -65,103 +151,107 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&layers); err != nil {
 		return err
 	}
-	log.Infof("layers %v", layers)
-	for _, layer := range layers {
-		layerPath := path.Join(pi.layersCache, layer+".tar.gz")
-		file, err := os.OpenFile(layerPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
-		if err != nil {
-			if os.IsExist(err) {
-				log.Infof("Skip %s", layer)
-				continue
-			}
-			return err
-		}
 
-		layerURL := fmt.Sprintf("https://%s/v1/images/%s/layer", host, layer)
-		log.Infof("layerUrl %s", layerURL)
-		resp, err = http.Get(layerURL)
-		if err != nil {
-			file.Close()
-			return err
-		}
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			if _, err := io.Copy(file, resp.Body); err != nil {
-				file.Close()
-				return err
-			}
-		default:
-			file.Close()
-			return fmt.Errorf("unknown reply %s", resp.Status)
-		}
+	if len(layers) == 0 {
+		return fmt.Errorf("an image without layers")
 	}
 
-	body, err = json.Marshal(layers)
+	log.Debugf("layers %s", strings.Join(layers, " "))
+	portoConn, err := porto.Connect()
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path.Join(pi.layersCache, strings.Replace(image, "/", "__", -1)), body, 0666); err != nil {
+	defer portoConn.Close()
+
+	// ImportLayers
+	for _, layer := range layers {
+		err := createLayerInPorto(host, pi.layersCache, layer, portoConn)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Create volume
+	volumeProperties := map[string]string{
+		"backend": "overlay",
+		"layers":  strings.Join(layers, ";"),
+		// "private": "cocaine-app:" + imagename,
+	}
+
+	// NOTE: path must be empty for autogeneration
+	volumePath := pi.volumePathForApp(appname)
+	if err := os.MkdirAll(volumePath, 0775); err != nil {
+		log.WithFields(log.Fields{
+			"imagename": imagename, "error": err, "path": volumePath}).Error("unable to create a volume dir")
 		return err
 	}
+
+	volumeDescription, err := portoConn.CreateVolume(volumePath, volumeProperties)
+	if err != nil {
+		// TODO: wrap into function
+		switch err := err.(type) {
+		case (*porto.Error):
+			if err.Errno != portorpc.EError_VolumeAlreadyExists {
+				log.WithFields(log.Fields{"imageid": imageid, "error": err}).Error("unable to create volume")
+				return err
+			}
+			log.WithField("imageid", imageid).Info("volume already exists")
+		default:
+			return err
+		}
+	}
+	log.WithFields(log.Fields{
+		"appname": appname, "path": volumePath}).Infof("volume has been created successfully %s", volumeDescription.Path)
+	log.Debugf("%#v", volumeDescription)
+
+	// NOTE: create parent container
+	parentContainer := path.Join(pi.rootNamespace, appname)
+	err = portoConn.Create(parentContainer)
+	if err != nil {
+		// TODO: wrap into function
+		switch err := err.(type) {
+		case (*porto.Error):
+			if err.Errno != portorpc.EError_ContainerAlreadyExists {
+				log.WithFields(log.Fields{"parent": parentContainer, "error": err}).Error("unable to create container")
+				return err
+			}
+			log.WithField("parent", parentContainer).Info("parent container already exists")
+		default:
+			return err
+		}
+	}
+
+	// NOTE: it looks like a bug in Porto 2.6
+	if err := portoConn.SetProperty(parentContainer, "isolate", "true"); err != nil {
+		log.WithField("appname", appname).Errorf("unable to set `isolate` property: %v", err)
+	}
+
 	return nil
 }
 
 func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, error) {
-	// Create contatiner
-	// Start
-
 	image := profile.Image
-	log.Infof("Create layers for image %s", image)
-	body, err := ioutil.ReadFile(path.Join(pi.layersCache, strings.Replace(image, "/", "__", -1)))
-	if err != nil {
-		return "", err
-	}
-
-	var layers []string
-	if err := json.Unmarshal(body, &layers); err != nil {
-		return "", err
-	}
-
-	portoConn, err := porto.NewPortoConnection()
+	portoConn, err := porto.Connect()
 	if err != nil {
 		return "", err
 	}
 	defer portoConn.Close()
 
-	// Create layers
-	for _, layer := range layers {
-		layerPath := path.Join(pi.layersCache, layer+".tar.gz")
-		log.Infof("importing layer %s %s", layer, layerPath)
+	// TODO: insert image nane in ID
+	_, appname := splitHostImagename(image)
+	// TODO: check existance of the directory
+	volumePath := pi.volumePathForApp(appname)
 
-		if err := portoConn.ImportLayer(layer, layerPath, false); err != nil {
-			if err.Error() == "LayerAlreadyExists" {
-				log.Infof("layer %s already exists. Skip it", layer)
-				continue
-			}
-			return "", err
-		}
-	}
-	// Create volume
-	volumeProperties := map[string]string{
-		"backend": "overlay",
-		"layers":  strings.Join(layers, ";"),
-	}
+	log.WithField("app", appname).Info("generate container id for an application")
+	containerID := path.Join(pi.rootNamespace, appname, uuid.New())
 
-	log.Infof("%v", volumeProperties)
-	// path  must be empty for autogeneration
-	volumeDescription, err := portoConn.CreateVolume("", volumeProperties)
-	if err != nil {
-		log.Errorf("unable to create volume %v", err)
+	log.WithFields(log.Fields{"containerID": containerID, "app": appname}).Info("generated container id")
+	if err := portoConn.Create(containerID); err != nil {
 		return "", err
 	}
 
-	log.Infof("%v", volumeDescription)
-	// ToDo: insert image nane in ID
-	containerID := uuid.New()
-	log.Infof("containerId %s", containerID)
-	if err := portoConn.Create(containerID); err != nil {
+	if err := portoConn.LinkVolume(volumePath, containerID); err != nil {
+		log.Error(err)
 		return "", err
 	}
 
@@ -177,14 +267,14 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	if err := portoConn.SetProperty(containerID, "bind", profile.Bind); err != nil {
 		return "", err
 	}
-	if err := portoConn.SetProperty(containerID, "root", volumeDescription.Path); err != nil {
+	if err := portoConn.SetProperty(containerID, "root", volumePath); err != nil {
 		return "", err
 	}
 	return containerID, nil
 }
 
 func (pi *portoIsolation) Start(ctx context.Context, container string) error {
-	portoConn, err := porto.NewPortoConnection()
+	portoConn, err := porto.Connect()
 	if err != nil {
 		return err
 	}
@@ -194,7 +284,7 @@ func (pi *portoIsolation) Start(ctx context.Context, container string) error {
 }
 
 func (pi *portoIsolation) Output(ctx context.Context, container string) (io.ReadCloser, error) {
-	portoConn, err := porto.NewPortoConnection()
+	portoConn, err := porto.Connect()
 	if err != nil {
 		return nil, err
 	}
@@ -209,16 +299,17 @@ func (pi *portoIsolation) Output(ctx context.Context, container string) (io.Read
 }
 
 func (pi *portoIsolation) Terminate(ctx context.Context, container string) error {
-	portoConn, err := porto.NewPortoConnection()
+	portoConn, err := porto.Connect()
 	if err != nil {
 		return err
 	}
 	defer portoConn.Close()
 	defer portoConn.Destroy(container)
 
-	if err := portoConn.Kill(container, int32(syscall.SIGTERM)); err != nil {
+	if err := portoConn.Kill(container, syscall.SIGTERM); err != nil {
 		return err
 	}
+	// TODO: add defer with Wait & syscall.SIGKILL
 
 	return nil
 }

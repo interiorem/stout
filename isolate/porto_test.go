@@ -3,8 +3,16 @@ package isolate
 import (
 	"testing"
 
+	log "github.com/Sirupsen/logrus"
+	logformatter "github.com/noxiouz/Combaine/common/formatter"
+
 	"golang.org/x/net/context"
 )
+
+func init() {
+	log.SetFormatter(&logformatter.CombaineFormatter{})
+	log.SetLevel(log.DebugLevel)
+}
 
 func TestMain(t *testing.T) {
 	p, err := NewPortoIsolation()
@@ -18,8 +26,8 @@ func TestMain(t *testing.T) {
 		WorkingDir:  "/",
 		NetworkMode: "host",
 		Image:       "registry.ape.yandex.net/echo",
-		Command:     "ls /abc",
-		Bind:        "/tmp/ /abc",
+		Command:     "sleep 100",
+		Bind:        "",
 	}
 	container, err := p.Create(ctx, profile)
 	if err != nil {
