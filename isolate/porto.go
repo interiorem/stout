@@ -34,6 +34,28 @@ func parseImageID(input io.Reader) (string, error) {
 	return imageid, nil
 }
 
+func dirExists(path string) error {
+	finfo, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	if !finfo.IsDir() {
+		return fmt.Errorf("%s must be a directory", path)
+	}
+
+	return nil
+}
+
+func isItemExist(err error, expectedErrno portorpc.EError) bool {
+	switch err := err.(type) {
+	case (*porto.Error):
+		return err.Errno == expectedErrno
+	default:
+		return false
+	}
+}
+
 func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) error {
 	layerPath := path.Join(downloadPath, layer+".tar.gz")
 	file, err := os.OpenFile(layerPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
@@ -67,18 +89,11 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 	err = portoConn.ImportLayer(layer, layerPath, false)
 	if err != nil {
-		// TODO: wrap into function
-		switch err := err.(type) {
-		case (*porto.Error):
-			if err.Errno != portorpc.EError_LayerAlreadyExists {
-				log.WithFields(log.Fields{
-					"layer": layer, "error": err}).Error("unbale to import layer")
-				return err
-			}
-			log.WithField("layer", layer).Infof("skip an already existed layer")
-		default:
+		if !isItemExist(err, portorpc.EError_LayerAlreadyExists) {
+			log.WithFields(log.Fields{"layer": layer, "error": err}).Error("unbale to import layer")
 			return err
 		}
+		log.WithField("layer", layer).Infof("skip an already existed layer")
 	}
 	return nil
 }
@@ -95,9 +110,16 @@ type portoIsolation struct {
 //NewPortoIsolation creates Isolation instance which uses Porto
 func NewPortoIsolation() (Isolation, error) {
 	cachePath := "/tmp/isolate"
+	if err := dirExists(cachePath); err != nil {
+		return nil, err
+	}
+
 	volumesPath := "/cocaine-porto"
 	if !path.IsAbs(volumesPath) {
 		return nil, fmt.Errorf("volumesPath must absolute: %s", volumesPath)
+	}
+	if err := dirExists(volumesPath); err != nil {
+		return nil, err
 	}
 
 	return &portoIsolation{
@@ -175,10 +197,9 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	volumeProperties := map[string]string{
 		"backend": "overlay",
 		"layers":  strings.Join(layers, ";"),
-		// "private": "cocaine-app:" + imagename,
+		"private": "cocaine-app:" + imagename,
 	}
 
-	// NOTE: path must be empty for autogeneration
 	volumePath := pi.volumePathForApp(appname)
 	if err := os.MkdirAll(volumePath, 0775); err != nil {
 		log.WithFields(log.Fields{
@@ -188,42 +209,29 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 
 	volumeDescription, err := portoConn.CreateVolume(volumePath, volumeProperties)
 	if err != nil {
-		// TODO: wrap into function
-		switch err := err.(type) {
-		case (*porto.Error):
-			if err.Errno != portorpc.EError_VolumeAlreadyExists {
-				log.WithFields(log.Fields{"imageid": imageid, "error": err}).Error("unable to create volume")
-				return err
-			}
-			log.WithField("imageid", imageid).Info("volume already exists")
-		default:
+		if !isItemExist(err, portorpc.EError_VolumeAlreadyExists) {
+			log.WithFields(log.Fields{"imageid": imageid, "error": err}).Error("unable to create volume")
 			return err
 		}
+		log.WithField("imageid", imageid).Info("volume already exists")
+	} else {
+		log.WithField("imageid", imageid).Infof("Created volume %v", volumeDescription)
 	}
-	log.WithFields(log.Fields{
-		"appname": appname, "path": volumePath}).Infof("volume has been created successfully %s", volumeDescription.Path)
-	log.Debugf("%#v", volumeDescription)
 
 	// NOTE: create parent container
 	parentContainer := path.Join(pi.rootNamespace, appname)
 	err = portoConn.Create(parentContainer)
 	if err != nil {
-		// TODO: wrap into function
-		switch err := err.(type) {
-		case (*porto.Error):
-			if err.Errno != portorpc.EError_ContainerAlreadyExists {
-				log.WithFields(log.Fields{"parent": parentContainer, "error": err}).Error("unable to create container")
-				return err
-			}
-			log.WithField("parent", parentContainer).Info("parent container already exists")
-		default:
+		if !isItemExist(err, portorpc.EError_ContainerAlreadyExists) {
+			log.WithFields(log.Fields{"parent": parentContainer, "error": err}).Error("unable to create container")
 			return err
 		}
+		log.WithField("parent", parentContainer).Info("parent container already exists")
 	}
 
 	// NOTE: it looks like a bug in Porto 2.6
 	if err := portoConn.SetProperty(parentContainer, "isolate", "true"); err != nil {
-		log.WithField("appname", appname).Errorf("unable to set `isolate` property: %v", err)
+		log.WithField("appname", appname).Warnf("unable to set `isolate` property: %v", err)
 	}
 
 	return nil
