@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -34,6 +35,11 @@ func parseImageID(input io.Reader) (string, error) {
 	return imageid, nil
 }
 
+func layerImported(layer string, importedLayers []string) bool {
+	i := sort.SearchStrings(importedLayers, layer)
+	return i < len(importedLayers) && importedLayers[i] == layer
+}
+
 func dirExists(path string) error {
 	finfo, err := os.Stat(path)
 	if err != nil {
@@ -57,6 +63,7 @@ func isItemExist(err error, expectedErrno portorpc.EError) bool {
 }
 
 func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) error {
+	// TODO: don't download the same layer twice
 	layerPath := path.Join(downloadPath, layer+".tar.gz")
 	file, err := os.OpenFile(layerPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
@@ -192,16 +199,30 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		return fmt.Errorf("an image without layers")
 	}
 
-	log.Debugf("layers %s", strings.Join(layers, " "))
+	if log.GetLevel() <= log.DebugLevel {
+		log.Debugf("layers %s", strings.Join(layers, " "))
+	}
+
 	portoConn, err := porto.Connect()
 	if err != nil {
 		return err
 	}
 	defer portoConn.Close()
 
-	// ImportLayers
+	importedLayers, err := portoConn.ListLayers()
+	if err != nil {
+		return err
+	}
+	sort.Strings(importedLayers)
+
 	for _, layer := range layers {
-		err := createLayerInPorto(host, pi.layersCache, layer, portoConn)
+		if layerImported(layer, importedLayers) {
+			log.WithFields(log.Fields{
+				"layer": layer, "image": imagename}).Info("layer is already imported")
+			continue
+		}
+
+		err = createLayerInPorto(host, pi.layersCache, layer, portoConn)
 		if err != nil {
 			return err
 		}
