@@ -109,6 +109,20 @@ type portoIsolation struct {
 
 //NewPortoIsolation creates Isolation instance which uses Porto
 func NewPortoIsolation() (Isolation, error) {
+	rootNamespace := "cocs"
+
+	portoConn, err := porto.Connect()
+	if err != nil {
+		return nil, err
+	}
+	defer portoConn.Close()
+
+	// TODO: check vital properties of the parent container
+	_, err = portoConn.GetProperty(rootNamespace, "isolate")
+	if err != nil {
+		return nil, err
+	}
+
 	cachePath := "/tmp/isolate"
 	if err := dirExists(cachePath); err != nil {
 		return nil, err
@@ -125,7 +139,7 @@ func NewPortoIsolation() (Isolation, error) {
 	return &portoIsolation{
 		layersCache:   cachePath,
 		volumesPath:   volumesPath,
-		rootNamespace: "cocs",
+		rootNamespace: rootNamespace,
 	}, nil
 }
 
@@ -245,11 +259,9 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	}
 	defer portoConn.Close()
 
-	// TODO: insert image nane in ID
 	_, appname := splitHostImagename(image)
 	// TODO: check existance of the directory
 	volumePath := pi.volumePathForApp(appname)
-
 	log.WithField("app", appname).Info("generate container id for an application")
 	containerID := path.Join(pi.rootNamespace, appname, uuid.New())
 
