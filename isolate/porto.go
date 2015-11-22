@@ -107,8 +107,8 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 type PortoIsolationConfig struct {
 	RootNamespace string
-	CachePath     string
-	VolumesPath   string
+	Layers        string
+	Volumes       string
 }
 
 type portoIsolation struct {
@@ -123,8 +123,8 @@ type portoIsolation struct {
 //NewPortoIsolation creates Isolation instance which uses Porto
 func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 	rootNamespace := config.RootNamespace
-	cachePath := config.CachePath
-	volumesPath := config.VolumesPath
+	cachePath := config.Layers
+	volumesPath := config.Volumes
 
 	portoConn, err := porto.Connect()
 	if err != nil {
@@ -240,6 +240,8 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		"layers":  strings.Join(layers, ";"),
 		"private": "cocaine-app:" + imagename,
 	}
+
+	log.Info("%v", volumeProperties)
 
 	volumePath := pi.volumePathForApp(appname)
 	if err := os.MkdirAll(volumePath, 0775); err != nil {

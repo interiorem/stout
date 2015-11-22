@@ -17,8 +17,8 @@ func init() {
 func TestMain(t *testing.T) {
 	config := &PortoIsolationConfig{
 		RootNamespace: "cocs",
-		CachePath:     "/tmp/isolate",
-		VolumesPath:   "/cocaine-porto",
+		Layers:        "/tmp/isolate",
+		Volumes:       "/cocaine-porto",
 	}
 
 	p, err := NewPortoIsolation(config)

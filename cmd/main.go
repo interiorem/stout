@@ -37,12 +37,21 @@ var (
 	showVersion bool
 
 	loglevel = logLevelFlag(log.DebugLevel)
+
+	root    string
+	layers  string
+	volumes string
 )
 
 func init() {
 	flag.StringVar(&httpFlag, "http", ":5432", "endpoint to serve http on")
 	flag.BoolVar(&showVersion, "version", false, "show version")
 	flag.Var(&loglevel, "loglevel", "debug|info|warn|warning|error|panic")
+
+	flag.StringVar(&root, "root", "cocs", "name of the root container")
+	flag.StringVar(&layers, "layers", "/tmp/isolate", "path to a temp dir for layers")
+	flag.StringVar(&volumes, "volumes", "/cocaine-porto", "dir for volumes")
+
 	flag.Parse()
 
 	log.SetFormatter(&logformatter.CombaineFormatter{})
@@ -55,7 +64,12 @@ func main() {
 		return
 	}
 
-	isolateServer, err := server.NewIsolateServer()
+	config := server.Config{}
+	config.PortoIsolationConfig.RootNamespace = root
+	config.PortoIsolationConfig.Layers = layers
+	config.PortoIsolationConfig.Volumes = volumes
+
+	isolateServer, err := server.NewIsolateServer(&config)
 	if err != nil {
 		log.Fatal(err)
 	}

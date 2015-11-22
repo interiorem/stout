@@ -147,9 +147,13 @@ func (i *IsolateServer) fallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadGateway)
 }
 
+type Config struct {
+	isolate.PortoIsolationConfig
+}
+
 //NewIsolateServer returns a HTTP wrapper around PortoIsolation
-func NewIsolateServer() (*IsolateServer, error) {
-	isolation, err := isolate.NewPortoIsolation()
+func NewIsolateServer(config *Config) (*IsolateServer, error) {
+	isolation, err := isolate.NewPortoIsolation(&config.PortoIsolationConfig)
 	if err != nil {
 		return nil, err
 	}
