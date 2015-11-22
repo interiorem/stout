@@ -15,7 +15,13 @@ func init() {
 }
 
 func TestMain(t *testing.T) {
-	p, err := NewPortoIsolation()
+	config := &PortoIsolationConfig{
+		RootNamespace: "cocs",
+		CachePath:     "/tmp/isolate",
+		VolumesPath:   "/cocaine-porto",
+	}
+
+	p, err := NewPortoIsolation(config)
 	t.Log(p, err)
 	ctx := context.Background()
 	if err := p.Spool(ctx, "registry.ape.yandex.net/echo", "latest"); err != nil {

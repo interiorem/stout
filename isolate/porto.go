@@ -105,6 +105,12 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 	return nil
 }
 
+type PortoIsolationConfig struct {
+	RootNamespace string
+	CachePath     string
+	VolumesPath   string
+}
+
 type portoIsolation struct {
 	// Temporary place to download layers
 	layersCache string
@@ -115,8 +121,10 @@ type portoIsolation struct {
 }
 
 //NewPortoIsolation creates Isolation instance which uses Porto
-func NewPortoIsolation() (Isolation, error) {
-	rootNamespace := "cocs"
+func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
+	rootNamespace := config.RootNamespace
+	cachePath := config.CachePath
+	volumesPath := config.VolumesPath
 
 	portoConn, err := porto.Connect()
 	if err != nil {
@@ -130,12 +138,10 @@ func NewPortoIsolation() (Isolation, error) {
 		return nil, err
 	}
 
-	cachePath := "/tmp/isolate"
 	if err := dirExists(cachePath); err != nil {
 		return nil, err
 	}
 
-	volumesPath := "/cocaine-porto"
 	if !path.IsAbs(volumesPath) {
 		return nil, fmt.Errorf("volumesPath must absolute: %s", volumesPath)
 	}
