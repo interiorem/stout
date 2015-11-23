@@ -147,6 +147,7 @@ func (i *IsolateServer) fallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadGateway)
 }
 
+// Config for IsolateServer
 type Config struct {
 	isolate.PortoIsolationConfig
 }
@@ -165,6 +166,8 @@ func NewIsolateServer(config *Config) (*IsolateServer, error) {
 		Isolation: isolation,
 		ctx:       context.Background(),
 	}
+
+	isolateServer.Router.StrictSlash(true)
 
 	isolateServer.Router.Path("/images/create").HandlerFunc(isolateServer.spoolApplication)
 	isolateServer.Router.Path("/containers/create").HandlerFunc(isolateServer.containersCreate).Methods("POST")

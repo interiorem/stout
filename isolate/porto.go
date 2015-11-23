@@ -10,6 +10,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -124,6 +125,9 @@ type portoIsolation struct {
 	volumesPath string
 	// Name of Root container
 	rootNamespace string
+
+	mu         sync.RWMutex
+	containers map[string]string
 }
 
 //NewPortoIsolation creates Isolation instance which uses Porto
@@ -159,6 +163,10 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 		layersCache:   cachePath,
 		volumesPath:   volumesPath,
 		rootNamespace: rootNamespace,
+
+		// TODO: fill it from Porto
+		// available containers
+		containers: make(map[string]string),
 	}, nil
 }
 
@@ -299,12 +307,17 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	// TODO: check existance of the directory
 	volumePath := pi.volumePathForApp(appname)
 	log.WithField("app", appname).Info("generate container id for an application")
-	containerID := path.Join(pi.rootNamespace, appname, uuid.New())
+	salt := uuid.New()
+	containerID := path.Join(pi.rootNamespace, appname, salt)
 
-	log.WithFields(log.Fields{"containerID": containerID, "app": appname}).Info("generated container id")
+	log.WithFields(log.Fields{"containerID": containerID, "app": appname, "salt": salt}).Info("generated container id")
 	if err := portoConn.Create(containerID); err != nil {
 		return "", err
 	}
+
+	pi.mu.Lock()
+	pi.containers[salt] = containerID
+	pi.mu.Unlock()
 
 	if err := portoConn.LinkVolume(volumePath, containerID); err != nil {
 		log.Error(err)
@@ -326,7 +339,7 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	if err := portoConn.SetProperty(containerID, "root", volumePath); err != nil {
 		return "", err
 	}
-	return containerID, nil
+	return salt, nil
 }
 
 func (pi *portoIsolation) Start(ctx context.Context, container string) error {
@@ -336,7 +349,18 @@ func (pi *portoIsolation) Start(ctx context.Context, container string) error {
 	}
 	defer portoConn.Close()
 
-	return portoConn.Start(container)
+	pi.mu.RLock()
+	containerID, ok := pi.containers[container]
+	pi.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("no such container %s", container)
+	}
+
+	if err := portoConn.Start(containerID); err != nil {
+		log.WithField("container", container).Errorf("unable to start container: %v", container)
+	}
+
+	return nil
 }
 
 func (pi *portoIsolation) Output(ctx context.Context, container string) (io.ReadCloser, error) {
@@ -346,7 +370,14 @@ func (pi *portoIsolation) Output(ctx context.Context, container string) (io.Read
 	}
 	defer portoConn.Close()
 
-	stdErrFile, err := portoConn.GetProperty(container, "stdout_path")
+	pi.mu.RLock()
+	containerID, ok := pi.containers[container]
+	pi.mu.RUnlock()
+	if !ok {
+		return nil, fmt.Errorf("no such container %s", container)
+	}
+
+	stdErrFile, err := portoConn.GetProperty(containerID, "stdout_path")
 	if err != nil {
 		return nil, err
 	}
@@ -360,9 +391,19 @@ func (pi *portoIsolation) Terminate(ctx context.Context, container string) error
 		return err
 	}
 	defer portoConn.Close()
-	defer portoConn.Destroy(container)
 
-	if err := portoConn.Kill(container, syscall.SIGTERM); err != nil {
+	pi.mu.Lock()
+	containerID, ok := pi.containers[container]
+	delete(pi.containers, container)
+	pi.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("no such container %s", container)
+	}
+
+	defer portoConn.Destroy(containerID)
+
+	if err := portoConn.Kill(containerID, syscall.SIGTERM); err != nil {
 		return err
 	}
 	// TODO: add defer with Wait & syscall.SIGKILL
