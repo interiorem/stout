@@ -54,7 +54,7 @@ func dirExists(path string) error {
 	return nil
 }
 
-func isItemExist(err error, expectedErrno portorpc.EError) bool {
+func isEqualPortoError(err error, expectedErrno portorpc.EError) bool {
 	switch err := err.(type) {
 	case (*porto.Error):
 		return err.Errno == expectedErrno
@@ -97,7 +97,7 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 	err = portoConn.ImportLayer(layer, layerPath, false)
 	if err != nil {
-		if !isItemExist(err, portorpc.EError_LayerAlreadyExists) {
+		if !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
 			log.WithFields(log.Fields{"layer": layer, "error": err}).Error("unbale to import layer")
 			return err
 		}
@@ -281,7 +281,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 
 	volumeDescription, err := portoConn.CreateVolume(volumePath, volumeProperties)
 	if err != nil {
-		if !isItemExist(err, portorpc.EError_VolumeAlreadyExists) {
+		if !isEqualPortoError(err, portorpc.EError_VolumeAlreadyExists) {
 			log.WithFields(log.Fields{"imageid": imageid, "error": err}).Error("unable to create volume")
 			return err
 		}
@@ -294,11 +294,20 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	parentContainer := path.Join(pi.rootNamespace, appname)
 	err = portoConn.Create(parentContainer)
 	if err != nil {
-		if !isItemExist(err, portorpc.EError_ContainerAlreadyExists) {
+		if !isEqualPortoError(err, portorpc.EError_ContainerAlreadyExists) {
 			log.WithFields(log.Fields{"parent": parentContainer, "error": err}).Error("unable to create container")
 			return err
 		}
 		log.WithField("parent", parentContainer).Info("parent container already exists")
+	}
+
+	// Link a created voluume to the parent container
+	// It's just a ref counter
+	if err := portoConn.LinkVolume(volumePath, parentContainer); err != nil {
+		if !isEqualPortoError(err, portorpc.EError_VolumeAlreadyLinked) {
+			log.WithFields(log.Fields{"parent": parentContainer, "error": err, "volume": volumePath}).Error("unable to link volume")
+			return err
+		}
 	}
 
 	// NOTE: it looks like a bug in Porto 2.6
@@ -347,23 +356,6 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (salt str
 			pi.mu.Unlock()
 		}
 	}(containerID)
-
-	if err := portoConn.LinkVolume(volumePath, containerID); err != nil {
-		log.Error(err)
-		return "", err
-	}
-	// NOTE: It's better to unlinkk
-	// TODO: wrap into ScopeExit
-	defer func(containeID, volumePath string) {
-		if err != nil {
-			log.WithFields(log.Fields{"container": containerID, "volumePath": volumePath}).Info("unlink volume from container")
-			if err := portoConn.Destroy(containerID); err != nil {
-				log.WithFields(log.Fields{
-					"container": containerID, "volumePath": volumePath, "error": err,
-				}).Warning("unable to unlink volume from container")
-			}
-		}
-	}(containerID, volumePath)
 
 	if err := portoConn.SetProperty(containerID, "command", profile.Command); err != nil {
 		return "", err
