@@ -105,10 +105,16 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 	return nil
 }
 
+// PortoIsolationConfig is simple configuration options
+// for portoIsolation
 type PortoIsolationConfig struct {
+	// Name of the parent container
 	RootNamespace string
-	Layers        string
-	Volumes       string
+	// Path to the directory for temporary layers
+	// downloaded from Registry
+	Layers string
+	// Path to build Porto volumes
+	Volumes string
 }
 
 type portoIsolation struct {
@@ -238,7 +244,8 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	volumeProperties := map[string]string{
 		"backend": "overlay",
 		"layers":  strings.Join(layers, ";"),
-		"private": "cocaine-app:" + imagename,
+		// NOTE: disable temporary
+		// "private": "cocaine-app" + imagename,
 	}
 
 	log.Info("%v", volumeProperties)
