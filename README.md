@@ -13,15 +13,15 @@ It has just a few options:
  + `layers` - path, where layers from are download for importing to Porto
  + `volumes` - path, where new volumes will be created. Each app has its own volume
 
- ## How it works
+## How it works
 
- Currently Stout creates a namespace for each app inside the root namespace. Workers will be spawned inside its named namespace.
- It allows us to limit all the workers of one application.
+Currently Stout creates a namespace for each app inside the root namespace. Workers will be spawned inside its named namespace.
+It allows us to limit all the workers of one application.
 
- Example:
- ```
- root
- |____ example_app
-        |________ worker1
-        |________ worker2
- ```
+Example:
+```
+root
+|____ example_app
+    |________ worker1
+    |________ worker2
+```
