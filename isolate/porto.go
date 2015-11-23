@@ -149,14 +149,28 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 	}
 
 	if err := dirExists(cachePath); err != nil {
-		return nil, err
+		log.WithFields(log.Fields{
+			"error": err, "path": cachePath}).Warning("layers path does not exist")
+
+		if err := os.MkdirAll(cachePath, 0755); err != nil {
+			log.WithFields(log.Fields{
+				"error": err, "path": cachePath}).Error("unable to create layers directory")
+			return nil, err
+		}
 	}
 
 	if !path.IsAbs(volumesPath) {
 		return nil, fmt.Errorf("volumesPath must absolute: %s", volumesPath)
 	}
 	if err := dirExists(volumesPath); err != nil {
-		return nil, err
+		log.WithFields(log.Fields{
+			"error": err, "path": volumesPath}).Warning("volumes path does not exist")
+
+		if err := os.MkdirAll(volumesPath, 0755); err != nil {
+			log.WithFields(log.Fields{
+				"error": err, "path": volumesPath}).Error("unable to create volumes directory")
+			return nil, err
+		}
 	}
 
 	return &portoIsolation{
