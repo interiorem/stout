@@ -309,7 +309,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	return nil
 }
 
-func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, error) {
+func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (salt string, err error) {
 	image := profile.Image
 	portoConn, err := porto.Connect()
 	if err != nil {
@@ -321,7 +321,7 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	// TODO: check existance of the directory
 	volumePath := pi.volumePathForApp(appname)
 	log.WithField("app", appname).Info("generate container id for an application")
-	salt := uuid.New()
+	salt = uuid.New()
 	containerID := path.Join(pi.rootNamespace, appname, salt)
 
 	log.WithFields(log.Fields{"containerID": containerID, "app": appname, "salt": salt}).Info("generated container id")
@@ -333,10 +333,37 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (string, 
 	pi.containers[salt] = containerID
 	pi.mu.Unlock()
 
+	// NOTE: It's better to destroy container if something goes wrong
+	// TODO: wrap into ScopeExit
+	defer func(containeID string) {
+		if err != nil {
+			log.WithField("container", containerID).Info("destroy container")
+			if err := portoConn.Destroy(containerID); err != nil {
+				log.WithFields(log.Fields{"container": containerID, "error": err}).Warning("unable to destroy container")
+			}
+
+			pi.mu.Lock()
+			delete(pi.containers, salt)
+			pi.mu.Unlock()
+		}
+	}(containerID)
+
 	if err := portoConn.LinkVolume(volumePath, containerID); err != nil {
 		log.Error(err)
 		return "", err
 	}
+	// NOTE: It's better to unlinkk
+	// TODO: wrap into ScopeExit
+	defer func(containeID, volumePath string) {
+		if err != nil {
+			log.WithFields(log.Fields{"container": containerID, "volumePath": volumePath}).Info("unlink volume from container")
+			if err := portoConn.Destroy(containerID); err != nil {
+				log.WithFields(log.Fields{
+					"container": containerID, "volumePath": volumePath, "error": err,
+				}).Warning("unable to unlink volume from container")
+			}
+		}
+	}(containerID, volumePath)
 
 	if err := portoConn.SetProperty(containerID, "command", profile.Command); err != nil {
 		return "", err
