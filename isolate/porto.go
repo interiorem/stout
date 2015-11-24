@@ -145,6 +145,12 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 	}
 	defer portoConn.Close()
 
+	verTag, verRevision, err := portoConn.GetVersion()
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Porto version: %s %s", verTag, verRevision)
+
 	// TODO: check vital properties of the parent container
 	_, err = portoConn.GetProperty(rootNamespace, "isolate")
 	if err != nil {
