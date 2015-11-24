@@ -245,12 +245,28 @@ func (pi *portoIsolation) logContainerFootprint(portoConn porto.API, containerID
 		}
 		footprint[data] = value
 	}
-	body, err := json.Marshal(footprint)
-	if err != nil {
+
+	if body, err := json.Marshal(footprint); err != nil {
 		logger.Debugf("%v %+v", err, footprint)
-		return
+	} else {
+		logger.Debugf("%s", body)
 	}
-	logger.Debugf("%s", body)
+
+	// NOTE: read limited amount of lines in the future
+	if stderrPath, ok := footprint["stderr_path"]; ok {
+		if stderr, err := ioutil.ReadFile(stderrPath); err != nil {
+			logger.WithField("error", err).Error("unable to read stderr")
+		} else {
+			logger.Debugf("STDERR: %s", stderr)
+		}
+	}
+	if stdoutPath, ok := footprint["stdout_path"]; ok {
+		if stdout, err := ioutil.ReadFile(stdoutPath); err != nil {
+			logger.WithField("error", err).Error("unable to read stderr")
+		} else {
+			logger.Debugf("STDOUT: %s", stdout)
+		}
+	}
 }
 
 func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
