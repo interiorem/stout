@@ -44,19 +44,20 @@ func (f *CombaineFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	buf.WriteString(getLevel(entry.Level))
 	buf.WriteByte('\t')
 	buf.WriteString(entry.Message)
-	buf.WriteByte('\t')
-	buf.WriteByte('[')
+	if i := len(entry.Data); i > 0 {
+		buf.WriteByte('\t')
+		buf.WriteByte('[')
 
-	var i = len(entry.Data)
-	for _, k := range keys {
-		buf.WriteString(fmt.Sprintf("%s: %s", k, entry.Data[k]))
-		i--
-		if i > 0 {
-			buf.WriteByte(',')
-			buf.WriteByte(' ')
+		for _, k := range keys {
+			buf.WriteString(fmt.Sprintf("%s: %v", k, entry.Data[k]))
+			i--
+			if i > 0 {
+				buf.WriteByte(',')
+				buf.WriteByte(' ')
+			}
 		}
+		buf.WriteByte(']')
 	}
-	buf.WriteByte(']')
 	buf.WriteByte('\n')
 	return buf.Bytes(), nil
 }
