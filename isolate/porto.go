@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"code.google.com/p/go-uuid/uuid"
 	log "github.com/Sirupsen/logrus"
@@ -532,9 +533,22 @@ func (pi *portoIsolation) Terminate(ctx context.Context, container string) error
 	}()
 
 	if err := portoConn.Kill(containerID, syscall.SIGTERM); err != nil {
-		return err
+		if !isEqualPortoError(err, portorpc.EError_InvalidState) {
+			return err
+		}
+
+		return nil
 	}
-	// TODO: add defer with Wait & syscall.SIGKILL
+
+	defer func() {
+		stopped, err := portoConn.Wait([]string{containerID}, time.Second*5)
+		if err != nil {
+			portoConn.Kill(containerID, syscall.SIGTERM)
+			return
+		}
+		log.Debug(stopped)
+		return
+	}()
 
 	return nil
 }
