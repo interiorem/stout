@@ -128,6 +128,9 @@ type portoIsolation struct {
 
 	mu         sync.RWMutex
 	containers map[string]string
+
+	properties []string
+	data       []string
 }
 
 //NewPortoIsolation creates Isolation instance which uses Porto
@@ -173,6 +176,24 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 		}
 	}
 
+	var dataItems = []string{}
+	data, err := portoConn.Dlist()
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range data {
+		dataItems = append(dataItems, item.Name)
+	}
+
+	var propertyItems = []string{}
+	properties, err := portoConn.Plist()
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range properties {
+		propertyItems = append(propertyItems, item.Name)
+	}
+
 	return &portoIsolation{
 		layersCache:   cachePath,
 		volumesPath:   volumesPath,
@@ -181,11 +202,55 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 		// TODO: fill it from Porto
 		// available containers
 		containers: make(map[string]string),
+
+		properties: propertyItems,
+		data:       dataItems,
 	}, nil
 }
 
 func (pi *portoIsolation) volumePathForApp(appname string) string {
 	return path.Join(pi.volumesPath, appname)
+}
+
+func (pi *portoIsolation) logContainerFootprint(portoConn porto.API, containerID string) {
+	if log.GetLevel() < log.DebugLevel {
+		return
+	}
+
+	logger := log.WithField("container", containerID)
+
+	footprintLength := len(pi.properties) + len(pi.data)
+	if footprintLength == 0 {
+		logger.Debug("No footprints for container")
+		return
+	}
+
+	logger.Debug("Log container footprints")
+	footprint := make(map[string]string, footprintLength)
+
+	for _, property := range pi.properties {
+		value, err := portoConn.GetProperty(containerID, property)
+		if err != nil {
+			logger.WithField("error", err).Warnf("unable to get property %s", property)
+			continue
+		}
+		footprint[property] = value
+	}
+
+	for _, data := range pi.data {
+		value, err := portoConn.GetData(containerID, data)
+		if err != nil {
+			logger.WithField("error", err).Warnf("unable to get data %s", data)
+			continue
+		}
+		footprint[data] = value
+	}
+	body, err := json.Marshal(footprint)
+	if err != nil {
+		logger.Debugf("%v %+v", err, footprint)
+		return
+	}
+	logger.Debugf("%s", body)
 }
 
 func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
@@ -233,7 +298,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		return fmt.Errorf("an image without layers")
 	}
 
-	if log.GetLevel() <= log.DebugLevel {
+	if log.GetLevel() >= log.DebugLevel {
 		log.Debugf("layers %s", strings.Join(layers, " "))
 	}
 
@@ -270,7 +335,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		// "private": "cocaine-app" + imagename,
 	}
 
-	log.Info("%v", volumeProperties)
+	log.Infof("%v", volumeProperties)
 
 	volumePath := pi.volumePathForApp(appname)
 	if err := os.MkdirAll(volumePath, 0775); err != nil {
@@ -357,6 +422,11 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (salt str
 		}
 	}(containerID)
 
+	if log.GetLevel() <= log.DebugLevel {
+		log.WithFields(log.Fields{"container": containerID, "command": profile.Command, "cwd": profile.WorkingDir,
+			"net": profile.NetworkMode, "bind": profile.Bind, "root": volumePath}).Debug("set the properties explicitly")
+	}
+
 	if err := portoConn.SetProperty(containerID, "command", profile.Command); err != nil {
 		return "", err
 	}
@@ -434,7 +504,10 @@ func (pi *portoIsolation) Terminate(ctx context.Context, container string) error
 		return fmt.Errorf("no such container %s", container)
 	}
 
-	defer portoConn.Destroy(containerID)
+	defer func() {
+		pi.logContainerFootprint(portoConn, containerID)
+		portoConn.Destroy(containerID)
+	}()
 
 	if err := portoConn.Kill(containerID, syscall.SIGTERM); err != nil {
 		return err

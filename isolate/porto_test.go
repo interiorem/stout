@@ -53,7 +53,7 @@ func TestMain(t *testing.T) {
 	t.Log(output)
 	stderr := make([]byte, 10)
 	n, err := output.Read(stderr)
-	t.Logf("%d %v %s", n, err, stderr)
+	t.Logf("STDERR: %d %v %s", n, err, stderr)
 
 	if err := p.Terminate(ctx, container); err != nil {
 		t.Fatal(err)
