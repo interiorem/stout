@@ -65,35 +65,40 @@ func isEqualPortoError(err error, expectedErrno portorpc.EError) bool {
 }
 
 func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) error {
+	download := true
 	// TODO: don't download the same layer twice
 	layerPath := path.Join(downloadPath, layer+".tar.gz")
 	file, err := os.OpenFile(layerPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0666)
 	if err != nil {
-		if os.IsExist(err) {
-			log.WithField("layer", layer).Info("skip downloaded layer")
-			return nil
-		}
-		return err
-	}
-	defer os.Remove(layerPath)
-	defer file.Close()
+		if !os.IsExist(err) {
 
-	layerURL := fmt.Sprintf("http://%s/v1/images/%s/layer", host, layer)
-	log.Infof("layerUrl %s", layerURL)
-	resp, err := http.Get(layerURL)
-	if err != nil {
-		file.Close()
-		return err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		if _, err := io.Copy(file, resp.Body); err != nil {
 			return err
 		}
-	default:
-		return fmt.Errorf("unknown reply %s", resp.Status)
+		log.WithField("layer", layer).Info("skip downloaded layer")
+		download = false
+	}
+	defer os.Remove(layerPath)
+
+	if download {
+		defer file.Close()
+
+		layerURL := fmt.Sprintf("http://%s/v1/images/%s/layer", host, layer)
+		log.Infof("layerUrl %s", layerURL)
+		resp, err := http.Get(layerURL)
+		if err != nil {
+			file.Close()
+			return err
+		}
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			if _, err := io.Copy(file, resp.Body); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown reply %s", resp.Status)
+		}
 	}
 
 	log.WithFields(log.Fields{"layer": layer, "layerPath": layerPath, "merge": false}).Info("import layer")
@@ -399,9 +404,13 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		}
 	}
 
-	// NOTE: it looks like a bug in Porto 2.6
+	log.WithField("appname", appname).Info("Preparing parent container")
 	if err := portoConn.SetProperty(parentContainer, "isolate", "true"); err != nil {
 		log.WithField("appname", appname).Warnf("unable to set `isolate` property: %v", err)
+	}
+
+	if err := portoConn.SetProperty(parentContainer, "bind", "/run/cocaine /run/cocaine"); err != nil {
+		log.WithField("appname", appname).Warnf("unable to set `bind` property: %v", err)
 	}
 
 	return nil
@@ -484,7 +493,7 @@ func (pi *portoIsolation) Start(ctx context.Context, container string) error {
 	}
 
 	if err := portoConn.Start(containerID); err != nil {
-		log.WithField("container", container).Errorf("unable to start container: %v", container)
+		log.WithField("container", container).Errorf("unable to start container: %v", err)
 	}
 
 	return nil

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-	logformatter "github.com/noxiouz/Combaine/common/formatter"
+	logformatter "github.com/noxiouz/stout/pkg/formatter"
 
 	"golang.org/x/net/context"
 )
@@ -32,7 +32,7 @@ func TestMain(t *testing.T) {
 		WorkingDir:  "/",
 		NetworkMode: "host",
 		Image:       "registry.ape.yandex.net/echo",
-		Command:     "sleep 100",
+		Command:     "ls -la /",
 		Bind:        "",
 	}
 	container, err := p.Create(ctx, profile)
