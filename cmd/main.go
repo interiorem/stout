@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
-	logformatter "github.com/noxiouz/Combaine/common/formatter"
 
+	logformatter "github.com/noxiouz/stout/pkg/formatter"
 	"github.com/noxiouz/stout/server"
 	"github.com/noxiouz/stout/version"
 )
