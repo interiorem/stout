@@ -96,10 +96,11 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 		return fmt.Errorf("unknown reply %s", resp.Status)
 	}
 
+	log.WithFields(log.Fields{"layer": layer, "layerPath": layerPath, "merge": false}).Info("import layer")
 	err = portoConn.ImportLayer(layer, layerPath, false)
 	if err != nil {
 		if !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
-			log.WithFields(log.Fields{"layer": layer, "error": err}).Error("unbale to import layer")
+			log.WithFields(log.Fields{"layer": layer, "error": err}).Error("unable to import layer")
 			return err
 		}
 		log.WithField("layer", layer).Infof("skip an already existed layer")
