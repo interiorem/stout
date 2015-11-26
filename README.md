@@ -12,6 +12,21 @@ It has just a few options:
  + `root` - root namespace for applications containers. We use it to run Porto inside Porto
  + `layers` - path, where layers from are download for importing to Porto
  + `volumes` - path, where new volumes will be created. Each app has its own volume
+ * `config` - path to configuration file, which overrides values provided in args
+
+### Configuration file
+
+```json
+{
+    "http": ":10000",
+    "loglevel": "INFO",
+    "isolate": {
+        "layers": "/layers_cache",
+        "volumes": "/cocaine-porto",
+        "root": "cocs"
+    }
+}
+```
 
 ## How it works
 
