@@ -117,12 +117,12 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 // for portoIsolation
 type PortoIsolationConfig struct {
 	// Name of the parent container
-	RootNamespace string
+	RootNamespace string `json:"root"`
 	// Path to the directory for temporary layers
 	// downloaded from Registry
-	Layers string
+	Layers string `json:"layers"`
 	// Path to build Porto volumes
-	Volumes string
+	Volumes string `json:"volumes"`
 }
 
 type portoIsolation struct {
