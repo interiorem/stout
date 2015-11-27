@@ -48,12 +48,14 @@ var (
 
 	fileconfig  string
 	showVersion bool
+	showFullDebVersion bool
 )
 
 func init() {
 	config.Loglevel = logLevelFlag(log.DebugLevel)
 
 	flag.BoolVar(&showVersion, "version", false, "show version")
+	flag.BoolVar(&showFullDebVersion, "fulldebversion", false, "show full debian version")
 	flag.StringVar(&fileconfig, "config", "", "path to configuration file")
 
 	flag.Var(&config.Loglevel, "loglevel", "debug|info|warn|warning|error|panic")
@@ -69,6 +71,13 @@ func main() {
 		fmt.Printf("version: `%s`\n", version.Version)
 		return
 	}
+	if showFullDebVersion {
+		fmt.Printf("version: `%s`\n", version.Version)
+		fmt.Printf("hash: `%s`\n", version.GitHash)
+		fmt.Printf("build utc time: `%s`\n", version.Build)
+		return
+	}
+
 
 	if fileconfig != "" {
 		func() {
