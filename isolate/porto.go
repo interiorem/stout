@@ -1,14 +1,17 @@
 package isolate
 
 import (
+	"crypto"
 	"encoding/json"
 	"fmt"
+	"hash"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -81,23 +84,85 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 	if download {
 		defer file.Close()
+		var (
+			expectedSize int64
+			// expectedChecksum string
+			hashSummer hash.Hash
+		)
+		// fetch images metainfo
+		imageJSONURL := fmt.Sprintf("http://%s/v1/images/%s/json", host, layer)
+		log.Infof("imageJSONURL: %s", imageJSONURL)
+		resp, err := http.Get(imageJSONURL)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// checksumHeader := resp.Header.Get("X-Docker-Payload-Checksum")
+			// switch {
+			// case len(checksumHeader) == 0:
+			// 	log.Warning("empty X-Docker-Payload-Checksum header")
+			// case strings.HasPrefix(checksumHeader, "sha512:"):
+			// 	expectedChecksum = strings.TrimPrefix(checksumHeader, "sha512:")
+			// 	hashSummer = crypto.SHA512.New()
+			// case strings.HasPrefix(checksumHeader, "sha256:"):
+			// 	expectedChecksum = strings.TrimPrefix(checksumHeader, "sha256:")
+			// 	hashSummer = crypto.SHA256.New()
+			// case strings.HasPrefix(checksumHeader, "md5:"):
+			// 	expectedChecksum = strings.TrimPrefix(checksumHeader, "md5:")
+			// 	hashSummer = crypto.MD5.New()
+			// default:
+			// 	log.Warningf("unknown X-Docker-Payload-Checksum %s", checksumHeader)
+			// }
+
+			if expectedSize, err = strconv.ParseInt(resp.Header.Get("X-Docker-Size"), 10, 64); err != nil {
+				log.Warningf("unable to parse X-Docker-Size %s: %v", resp.Header.Get("X-Docker-Size"), err)
+			}
+		default:
+			log.Infof("bad response status: %s. skip checksum and size check", resp.Status)
+		}
 
 		layerURL := fmt.Sprintf("http://%s/v1/images/%s/layer", host, layer)
-		log.Infof("layerUrl %s", layerURL)
-		resp, err := http.Get(layerURL)
+		log.Infof("layerUrl: %s", layerURL)
+		resp, err = http.Get(layerURL)
 		if err != nil {
-			file.Close()
 			return err
 		}
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if _, err := io.Copy(file, resp.Body); err != nil {
-				return err
-			}
 		default:
 			return fmt.Errorf("unknown reply %s", resp.Status)
+		}
+
+		// NOTE: it means we did not find proper hashsum in images JSON
+		if hashSummer == nil {
+			hashSummer = crypto.MD5.New()
+		}
+
+		// NOTE: check, that it does not affect io.Copy performance
+		var src = io.TeeReader(resp.Body, hashSummer)
+		nn, err := io.Copy(file, src)
+		if err != nil {
+			return err
+		}
+
+		actualChecksum := fmt.Sprintf("%x", hashSummer.Sum(nil))
+		log.WithFields(log.Fields{"layer": layer, "layerPath": layerPath,
+			"size": nn, "checksum": actualChecksum}).Info("layer has been downloaded")
+
+		if expectedSize > 0 {
+			if expectedSize != nn {
+				log.WithFields(log.Fields{"layer": layer,
+					"layerPath": layerPath}).Errorf("invalid size. Expected %d, but %d", expectedSize, nn)
+				return fmt.Errorf("imvalid downloaded image size %d != %d", nn, expectedSize)
+			}
+		} else {
+			log.WithFields(log.Fields{"layer": layer,
+				"layerPath": layerPath,
+				"merge":     false}).Warning("size check is skipped")
 		}
 	}
 
@@ -360,8 +425,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	volumeProperties := map[string]string{
 		"backend": "overlay",
 		"layers":  strings.Join(layers, ";"),
-		// NOTE: disable temporary
-		// "private": "cocaine-app" + imagename,
+		"private": "cocaine-app",
 	}
 
 	log.Infof("%v", volumeProperties)
