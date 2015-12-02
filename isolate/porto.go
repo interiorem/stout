@@ -409,10 +409,6 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		log.WithField("appname", appname).Warnf("unable to set `isolate` property: %v", err)
 	}
 
-	if err := portoConn.SetProperty(parentContainer, "bind", "/run/cocaine /run/cocaine"); err != nil {
-		log.WithField("appname", appname).Warnf("unable to set `bind` property: %v", err)
-	}
-
 	return nil
 }
 
