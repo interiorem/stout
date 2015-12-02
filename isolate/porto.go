@@ -80,9 +80,9 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 		log.WithField("layer", layer).Info("skip downloaded layer")
 		download = false
 	}
-	defer os.Remove(layerPath)
 
 	if download {
+		defer os.Remove(layerPath)
 		defer file.Close()
 		var (
 			expectedSize int64
