@@ -1,3 +1,9 @@
+cocaine-porto (0.0.2) unstable; urgency=low
+
+  * Support empty namesapce
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Mon, 07 Dec 2015 15:07:04 +0300
+
 cocaine-porto (0.0.1) unstable; urgency=low
 
   * Initial release
