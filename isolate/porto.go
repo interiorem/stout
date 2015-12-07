@@ -223,10 +223,12 @@ func NewPortoIsolation(config *PortoIsolationConfig) (Isolation, error) {
 	}
 	log.Infof("Porto version: %s %s", verTag, verRevision)
 
-	// TODO: check vital properties of the parent container
-	_, err = portoConn.GetProperty(rootNamespace, "isolate")
-	if err != nil {
-		return nil, err
+	if len(rootNamespace) > 0 {
+		// TODO: check vital properties of the parent container
+		_, err = portoConn.GetProperty(rootNamespace, "isolate")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if err := dirExists(cachePath); err != nil {
