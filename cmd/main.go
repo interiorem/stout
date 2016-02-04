@@ -46,8 +46,8 @@ var (
 		isolate.PortoIsolationConfig `json:"isolate"`
 	}
 
-	fileconfig  string
-	showVersion bool
+	fileconfig         string
+	showVersion        bool
 	showFullDebVersion bool
 )
 
@@ -77,7 +77,6 @@ func main() {
 		fmt.Printf("build utc time: `%s`\n", version.Build)
 		return
 	}
-
 
 	if fileconfig != "" {
 		func() {
