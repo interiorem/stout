@@ -1,3 +1,9 @@
+cocaine-porto (0.0.3) unstable; urgency=low
+
+  * Support of logging to a file
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 04 Feb 2016 16:19:02 +0300
+
 cocaine-porto (0.0.2) unstable; urgency=low
 
   * Support empty namesapce

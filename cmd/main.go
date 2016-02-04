@@ -43,22 +43,24 @@ var (
 	config struct {
 		HTTP                         string       `json:"http"`
 		Loglevel                     logLevelFlag `json:"loglevel"`
+		LogFile                      string       `json:"logfile"`
 		isolate.PortoIsolationConfig `json:"isolate"`
 	}
 
-	fileconfig  string
-	showVersion bool
+	fileconfig         string
+	showVersion        bool
 	showFullDebVersion bool
 )
 
 func init() {
 	config.Loglevel = logLevelFlag(log.DebugLevel)
 
-	flag.BoolVar(&showVersion, "version", false, "show version")
+	flag.BoolVar(&showVersion, "version", false, "show the version")
 	flag.BoolVar(&showFullDebVersion, "fulldebversion", false, "show full debian version")
-	flag.StringVar(&fileconfig, "config", "", "path to configuration file")
+	flag.StringVar(&fileconfig, "config", "", "path to a configuration file")
 
 	flag.Var(&config.Loglevel, "loglevel", "debug|info|warn|warning|error|panic")
+	flag.StringVar(&config.LogFile, "logfile", "", "path to a logfile")
 	flag.StringVar(&config.HTTP, "http", ":5432", "endpoint to serve http on")
 	flag.StringVar(&config.RootNamespace, "root", "cocs", "name of the root container")
 	flag.StringVar(&config.Layers, "layers", "/tmp/isolate", "path to a temp dir for layers")
@@ -71,13 +73,13 @@ func main() {
 		fmt.Printf("version: `%s`\n", version.Version)
 		return
 	}
+
 	if showFullDebVersion {
 		fmt.Printf("version: `%s`\n", version.Version)
 		fmt.Printf("hash: `%s`\n", version.GitHash)
 		fmt.Printf("build utc time: `%s`\n", version.Build)
 		return
 	}
-
 
 	if fileconfig != "" {
 		func() {
@@ -93,6 +95,18 @@ func main() {
 				os.Exit(128)
 			}
 		}()
+	}
+
+	if config.LogFile != "" {
+		// TODO: wrap it to support SIGHUP
+		logfile, err := os.OpenFile(config.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			fmt.Printf("unable to open logfile `%s`: %v\n", config.LogFile, err)
+			os.Exit(128)
+		}
+		defer logfile.Close()
+
+		log.SetOutput(logfile)
 	}
 
 	log.SetFormatter(&logformatter.CombaineFormatter{})

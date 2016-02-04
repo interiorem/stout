@@ -1,0 +1,10 @@
+{
+    "http": ":10000",
+    "loglevel": "INFO",
+    "logfile": "logile.txt",
+    "isolate": {
+        "layers": "A",
+        "volumes": "B",
+        "root": "ROOT"
+    }
+}
