@@ -1,3 +1,9 @@
+cocaine-porto (0.0.4) unstable; urgency=low
+
+  * Fix: unlink an app volume from root namespace
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 05 Feb 2016 12:55:50 +0300
+
 cocaine-porto (0.0.3) unstable; urgency=low
 
   * Support of logging to a file
