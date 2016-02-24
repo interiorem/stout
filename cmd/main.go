@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/docker/distribution/registry/listener"
 
 	"github.com/noxiouz/stout/isolate"
 	logformatter "github.com/noxiouz/stout/pkg/formatter"
@@ -39,11 +42,22 @@ func (l *logLevelFlag) UnmarshalJSON(data []byte) error {
 	return l.Set(strings.Trim(string(data), "\" "))
 }
 
+type httpEndpoints []string
+
+func (e *httpEndpoints) Set(val string) error {
+	*e = strings.Split(val, ",")
+	return nil
+}
+
+func (e *httpEndpoints) String() string {
+	return strings.Join(*e, ",")
+}
+
 var (
 	config struct {
-		HTTP                         string       `json:"http"`
-		Loglevel                     logLevelFlag `json:"loglevel"`
-		LogFile                      string       `json:"logfile"`
+		HTTP                         httpEndpoints `json:"http"`
+		Loglevel                     logLevelFlag  `json:"loglevel"`
+		LogFile                      string        `json:"logfile"`
 		isolate.PortoIsolationConfig `json:"isolate"`
 	}
 
@@ -54,6 +68,7 @@ var (
 
 func init() {
 	config.Loglevel = logLevelFlag(log.DebugLevel)
+	config.HTTP = httpEndpoints{":5432"}
 
 	flag.BoolVar(&showVersion, "version", false, "show the version")
 	flag.BoolVar(&showFullDebVersion, "fulldebversion", false, "show full debian version")
@@ -61,7 +76,7 @@ func init() {
 
 	flag.Var(&config.Loglevel, "loglevel", "debug|info|warn|warning|error|panic")
 	flag.StringVar(&config.LogFile, "logfile", "", "path to a logfile")
-	flag.StringVar(&config.HTTP, "http", ":5432", "endpoint to serve http on")
+	flag.Var(&config.HTTP, "http", "comma separated list of endpoints to listen on")
 	flag.StringVar(&config.RootNamespace, "root", "cocs", "name of the root container")
 	flag.StringVar(&config.Layers, "layers", "/tmp/isolate", "path to a temp dir for layers")
 	flag.StringVar(&config.Volumes, "volumes", "/cocaine-porto", "dir for volumes")
@@ -117,18 +132,42 @@ func main() {
 		PortoIsolationConfig: config.PortoIsolationConfig,
 	}
 
+	_ = serverConfig
+
 	isolateServer, err := server.NewIsolateServer(&serverConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	server := http.Server{
-		Addr:    config.HTTP,
-		Handler: isolateServer.Router,
+	var wg sync.WaitGroup
+	for _, endpoint := range config.HTTP {
+		var (
+			proto = "tcp"
+			addr  = endpoint
+		)
+
+		if strings.HasPrefix(endpoint, "unix://") {
+			proto = "unix"
+			addr = endpoint[len("unix://"):]
+		}
+
+		l, err := listener.NewListener(proto, addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		wg.Add(1)
+		go func(l net.Listener) {
+			defer wg.Done()
+			defer l.Close()
+
+			server := http.Server{
+				Handler: isolateServer.Router,
+			}
+			log.WithField("endpoint", l.Addr()).Info("Starting cocaine-porto")
+			server.Serve(l)
+		}(l)
 	}
 
-	log.WithField("endpoint", config.HTTP).Info("Starting cocaine-porto")
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
+	wg.Wait()
 }
