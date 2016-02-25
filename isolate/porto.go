@@ -7,6 +7,7 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -17,13 +18,29 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pborman/uuid"
 	log "github.com/Sirupsen/logrus"
+	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
 
 	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
+
+var httpClient = http.Client{
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			DualStack: true,
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		// DefaultValue is 2. Assuming, that there are not so many
+		// different registries, increase the value
+		MaxIdleConnsPerHost: 10,
+	},
+}
 
 func splitHostImagename(image string) (string, string) {
 	index := strings.LastIndexByte(image, '/')
@@ -92,7 +109,7 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 		// fetch images metainfo
 		imageJSONURL := fmt.Sprintf("http://%s/v1/images/%s/json", host, layer)
 		log.Infof("imageJSONURL: %s", imageJSONURL)
-		resp, err := http.Get(imageJSONURL)
+		resp, err := httpClient.Get(imageJSONURL)
 		if err != nil {
 			return err
 		}
@@ -125,7 +142,7 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 		layerURL := fmt.Sprintf("http://%s/v1/images/%s/layer", host, layer)
 		log.Infof("layerUrl: %s", layerURL)
-		resp, err = http.Get(layerURL)
+		resp, err = httpClient.Get(layerURL)
 		if err != nil {
 			return err
 		}
@@ -356,7 +373,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	url := fmt.Sprintf("http://%s/v1/repositories/%s/tags/%s", host, imagename, tag)
 	log.WithFields(log.Fields{
 		"imagename": imagename, "tag": tag, "host": host, "url": url}).Info("fetching image id")
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return err
 	}
@@ -379,7 +396,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	// get Ancestry
 	ancestryURL := fmt.Sprintf("http://%s/v1/images/%s/ancestry", host, imageid)
 	log.WithField("ancestryurl", ancestryURL).Info("fetching ancestry")
-	resp, err = http.Get(ancestryURL)
+	resp, err = httpClient.Get(ancestryURL)
 	if err != nil {
 		return err
 	}
