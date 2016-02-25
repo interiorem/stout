@@ -18,7 +18,7 @@ It has just a few options:
 
 ```json
 {
-    "http": ":10000",
+    "http": [":10000", "unix:///var/run/stout.sock"],
     "loglevel": "INFO",
     "isolate": {
         "layers": "/layers_cache",

@@ -1,5 +1,5 @@
 {
-    "http": ":10000",
+    "http": [":10000", "unix:///var/run/stout.sock"],
     "loglevel": "INFO",
     "logfile": "logile.txt",
     "isolate": {
