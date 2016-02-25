@@ -1,3 +1,9 @@
+cocaine-porto (0.1.1) unstable; urgency=low
+
+  * HTTPClient uses DualStack dialer
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 26 Feb 2016 00:08:05 +0300
+
 cocaine-porto (0.1.0) unstable; urgency=low
 
   * Configuration changes: support listening of multi endpoints
