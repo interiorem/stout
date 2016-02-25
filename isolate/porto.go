@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
+	"github.com/pborman/uuid"
 	log "github.com/Sirupsen/logrus"
 	"golang.org/x/net/context"
 
