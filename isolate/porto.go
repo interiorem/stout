@@ -216,6 +216,7 @@ type portoIsolation struct {
 	rootNamespace string
 
 	mu         sync.RWMutex
+	spoolMu    sync.Mutex
 	containers map[string]string
 
 	properties []string
@@ -426,6 +427,9 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		return err
 	}
 	sort.Strings(importedLayers)
+
+	pi.spoolMu.Lock()
+	defer pi.spoolMu.Unlock()
 
 	for _, layer := range layers {
 		if layerImported(layer, importedLayers) {
