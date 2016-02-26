@@ -471,7 +471,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		log.WithField("imageid", imageid).Infof("Created volume %v", volumeDescription)
 	}
 
-	// NOTE: create a meta container for all the workers of an app
+	// NOTE: create parent container
 	parentContainer := path.Join(pi.rootNamespace, appname)
 	err = portoConn.Create(parentContainer)
 	if err != nil {
@@ -482,25 +482,12 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 		log.WithField("parent", parentContainer).Info("parent container already exists")
 	}
 
-	// NOTE: Link a created volume to the parent (meta application) container. It's just a ref counter.
-	// Also this volume has been already linked to a parent (root) namespace.
+	// Link a created voluume to the parent container
+	// It's just a ref counter
 	if err := portoConn.LinkVolume(volumePath, parentContainer); err != nil {
 		if !isEqualPortoError(err, portorpc.EError_VolumeAlreadyLinked) {
 			log.WithFields(log.Fields{"parent": parentContainer, "error": err, "volume": volumePath}).Error("unable to link volume")
 			return err
-		}
-	}
-
-	// NOTE: transfer the ownership of the volume for application meta container.
-	// Current links: `root_namespace` `root_namespace/app_meta_container_namespace`
-	// So unlink this volume from `root_namespace`
-	if pi.rootNamespace != "" {
-		if err := portoConn.UnlinkVolume(volumePath, pi.rootNamespace); err != nil {
-			if !isEqualPortoError(err, portorpc.EError_VolumeNotLinked) {
-				log.WithFields(log.Fields{"root": pi.rootNamespace, "error": err, "volume": volumePath}).Error("unable to unlink volume")
-				return err
-			}
-			log.WithFields(log.Fields{"root": pi.rootNamespace, "error": err, "volume": volumePath}).Warn("volume is not linked")
 		}
 	}
 
@@ -536,7 +523,7 @@ func (pi *portoIsolation) Create(ctx context.Context, profile Profile) (salt str
 	pi.containers[salt] = containerID
 	pi.mu.Unlock()
 
-	// NOTE: It's better to destroy a container if something goes wrong
+	// NOTE: It's better to destroy container if something goes wrong
 	// TODO: wrap into ScopeExit
 	defer func(containeID string) {
 		if err != nil {
