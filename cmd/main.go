@@ -59,6 +59,7 @@ var (
 		Loglevel                     logLevelFlag  `json:"loglevel"`
 		LogFile                      string        `json:"logfile"`
 		isolate.PortoIsolationConfig `json:"isolate"`
+		Rewrite                      server.RewriteConfig `json:"rewrite"`
 	}
 
 	fileconfig         string
@@ -130,6 +131,7 @@ func main() {
 	// TODO: rewrite this ugly code
 	serverConfig := server.Config{
 		PortoIsolationConfig: config.PortoIsolationConfig,
+		Rewrite:              config.Rewrite,
 	}
 
 	_ = serverConfig

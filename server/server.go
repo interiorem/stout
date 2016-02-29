@@ -36,6 +36,8 @@ type IsolateServer struct {
 	Router *mux.Router
 	isolate.Isolation
 	ctx context.Context
+
+	rewrite RewriteConfig
 }
 
 type dockerPluginProfile struct {
@@ -45,6 +47,10 @@ type dockerPluginProfile struct {
 	NetworkMode string
 	Env         []string
 	Volumes     map[string]json.RawMessage
+}
+
+func (i *IsolateServer) rewriteEnabled() bool {
+	return i.rewrite.Enabled
 }
 
 func (i *IsolateServer) spoolApplication(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +72,20 @@ func (i *IsolateServer) spoolApplication(w http.ResponseWriter, r *http.Request)
 	fmt.Fprint(w, "{}")
 }
 
+func applySocketPathRewrites(rcfg *RewriteConfig, profile *dockerPluginProfile) []string {
+	// NOTE: assume that we bind only a socket directory
+	var binds = []string{rcfg.Home + " " + rcfg.Target}
+
+	for i, arg := range profile.Cmd {
+		if strings.HasPrefix(arg, rcfg.Home) {
+			profile.Cmd[i] = rcfg.Target + arg[len(rcfg.Target):]
+			break
+		}
+	}
+
+	return binds
+}
+
 func (i *IsolateServer) containersCreate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-IsolateServer", "Porto")
 	defer r.Body.Close()
@@ -78,8 +98,13 @@ func (i *IsolateServer) containersCreate(w http.ResponseWriter, r *http.Request)
 	}
 
 	var binds []string
-	for k := range profile.Volumes {
-		binds = append(binds, k+" "+k)
+
+	if i.rewriteEnabled() {
+		binds = applySocketPathRewrites(&i.rewrite, &profile)
+	} else {
+		for k := range profile.Volumes {
+			binds = append(binds, k+" "+k)
+		}
 	}
 
 	portoProfile := isolate.Profile{
@@ -91,7 +116,7 @@ func (i *IsolateServer) containersCreate(w http.ResponseWriter, r *http.Request)
 		Bind:        strings.Join(binds, ";"),
 		Env:         strings.Join(profile.Env, ";") + ";",
 	}
-
+	i.Infof("portoProfile: %+v", portoProfile)
 	container, err := i.Isolation.Create(i.ctx, portoProfile)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -147,9 +172,16 @@ func (i *IsolateServer) fallback(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadGateway)
 }
 
+type RewriteConfig struct {
+	Enabled bool
+	Home    string
+	Target  string
+}
+
 // Config for IsolateServer
 type Config struct {
 	isolate.PortoIsolationConfig
+	Rewrite RewriteConfig
 }
 
 //NewIsolateServer returns a HTTP wrapper around PortoIsolation
@@ -165,6 +197,8 @@ func NewIsolateServer(config *Config) (*IsolateServer, error) {
 		Router:    mux.NewRouter().Path("/{version}").Subrouter(),
 		Isolation: isolation,
 		ctx:       context.Background(),
+
+		rewrite: config.Rewrite,
 	}
 
 	isolateServer.Router.StrictSlash(true)
