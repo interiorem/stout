@@ -5,6 +5,11 @@
     "isolate": {
         "layers": "A",
         "volumes": "B",
-        "root": "ROOT"
+        "root": "ROOT",
+        "rewrite": {
+            "enabled": true,
+            "home": "/var/cocaine",
+            "target": "/var/tmp"
+        }
     }
 }
