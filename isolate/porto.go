@@ -609,12 +609,32 @@ func (pi *portoIsolation) Output(ctx context.Context, container string) (io.Read
 		return nil, fmt.Errorf("no such container %s", container)
 	}
 
-	stdErrFile, err := portoConn.GetProperty(containerID, "stdout_path")
+	stdErrPath, err := portoConn.GetProperty(containerID, "stderr_path")
 	if err != nil {
+		log.WithField("container", container).Errorf("porto returns an error on GetProperty(`stderr_path`): %v", err)
 		return nil, err
 	}
 
-	return os.Open(stdErrFile)
+	stdOutPath, err := portoConn.GetProperty(containerID, "stdout_path")
+	if err != nil {
+		log.WithField("container", container).Errorf("porto returns an error on GetProperty(`stdout_path`): %v", err)
+		return nil, err
+	}
+
+	stdErrFile, err := os.Open(stdErrPath)
+	if err != nil {
+		log.WithField("container", container).Errorf("unbale to open stderr_file %s: %v", stdErrPath, err)
+		return nil, err
+	}
+
+	stdOutFile, err := os.Open(stdOutPath)
+	if err != nil {
+		log.WithField("container", container).Errorf("unbale to open stdout_file %s: %v", stdOutPath, err)
+		stdErrFile.Close()
+		return nil, err
+	}
+
+	return NewMultiReader(stdOutFile, stdErrFile), nil
 }
 
 func (pi *portoIsolation) Terminate(ctx context.Context, container string) error {
