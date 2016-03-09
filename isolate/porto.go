@@ -431,7 +431,8 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	pi.spoolMu.Lock()
 	defer pi.spoolMu.Unlock()
 
-	for _, layer := range layers {
+	for i := range layers {
+		layer := layers[len(layers)-1-i]
 		if layerImported(layer, importedLayers) {
 			log.WithFields(log.Fields{
 				"layer": layer, "image": imagename}).Info("layer is already imported")
