@@ -84,7 +84,7 @@ func isEqualPortoError(err error, expectedErrno portorpc.EError) bool {
 	}
 }
 
-func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) error {
+func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API, baselayer string) error {
 	download := true
 	// TODO: don't download the same layer twice
 	layerPath := path.Join(downloadPath, layer+".tar.gz")
@@ -94,7 +94,7 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 
 			return err
 		}
-		log.WithField("layer", layer).Info("skip downloaded layer")
+		log.WithFields(log.Fields{"baselayer": baselayer, "layer": layer}).Info("skip downloaded layer")
 		download = false
 	}
 
@@ -183,14 +183,15 @@ func createLayerInPorto(host, downloadPath, layer string, portoConn porto.API) e
 		}
 	}
 
-	log.WithFields(log.Fields{"layer": layer, "layerPath": layerPath, "merge": false}).Info("import layer")
-	err = portoConn.ImportLayer(layer, layerPath, false)
+	merge := true
+	log.WithFields(log.Fields{"baselayer": baselayer, "layer": layer, "layerPath": layerPath, "merge": merge}).Info("import layer")
+	err = portoConn.ImportLayer(baselayer, layerPath, merge)
 	if err != nil {
 		if !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
-			log.WithFields(log.Fields{"layer": layer, "error": err}).Error("unable to import layer")
+			log.WithFields(log.Fields{"baselayer": baselayer, "layer": layer, "error": err}).Error("unable to import layer")
 			return err
 		}
-		log.WithField("layer", layer).Infof("skip an already existed layer")
+		log.WithFields(log.Fields{"baselayer": baselayer, "layer": layer}).Infof("skip an already existed layer")
 	}
 	return nil
 }
@@ -433,13 +434,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 
 	for i := range layers {
 		layer := layers[len(layers)-1-i]
-		if layerImported(layer, importedLayers) {
-			log.WithFields(log.Fields{
-				"layer": layer, "image": imagename}).Info("layer is already imported")
-			continue
-		}
-
-		err = createLayerInPorto(host, pi.layersCache, layer, portoConn)
+		err = createLayerInPorto(host, pi.layersCache, layer, portoConn, imageid)
 		if err != nil {
 			return err
 		}
@@ -448,7 +443,7 @@ func (pi *portoIsolation) Spool(ctx context.Context, image, tag string) error {
 	// Create volume
 	volumeProperties := map[string]string{
 		"backend": "overlay",
-		"layers":  strings.Join(layers, ";"),
+		"layers":  imageid,
 		"private": "cocaine-app",
 	}
 
