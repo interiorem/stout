@@ -19,7 +19,18 @@ type (
 	}
 
 	isolationBox interface {
-		Spool(context.Context, string, profile) error
+		Spool(ctx context.Context, name string, opts profile) error
+		Spawn(ctx context.Context, name, executable string, args, env map[string]string) (process, error)
+	}
+
+	process interface {
+		Output() <-chan processOutput
+		Kill() error
+	}
+
+	processOutput struct {
+		err  error
+		data []byte
 	}
 
 	isolationBoxes map[string]isolationBox

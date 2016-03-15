@@ -15,13 +15,11 @@ const (
 
 	spawn     = 1
 	spawnKill = 0
+
+	replySpawnWrite = 0
+	replySpawnError = 1
+	replySpawnClose = 2
 )
-
-type noneDispatch struct{}
-
-func (d *noneDispatch) Handle(*message) (Dispatcher, error) {
-	return d, fmt.Errorf("no transitions from NonDispatch")
-}
 
 type initialDispatch struct {
 	ctx context.Context
@@ -68,7 +66,46 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 		return newSpoolCancelationDispatch(ctx, cancel), nil
 
 	case spawn:
-		return nil, fmt.Errorf("spawn is not implemented")
+		var (
+			opts             profile
+			name, executable string
+			args, env        map[string]string
+		)
+
+		if err := unpackArgs(d.ctx, msg.Args, &opts, &name, &executable, &args, &env); err != nil {
+			return nil, err
+		}
+
+		if opts.Isolate.Type == "" {
+			return nil, fmt.Errorf("corrupted profile: %v", opts)
+		}
+
+		box, ok := getIsolationBoxes(d.ctx)[opts.Isolate.Type]
+		if !ok {
+			return nil, fmt.Errorf("isolation type %s is not available", opts.Isolate.Type)
+		}
+
+		pr, err := box.Spawn(d.ctx, name, executable, args, env)
+		if err != nil {
+			return nil, err
+		}
+
+		go func() {
+			for {
+				select {
+				case output := <-pr.Output():
+					if output.err != nil {
+						reply(d.ctx, replySpawnError, [2]int{42, 42}, output.err.Error())
+					} else {
+						reply(d.ctx, replySpawnWrite, output.data)
+					}
+				case <-d.ctx.Done():
+					return
+				}
+			}
+		}()
+
+		return newSpawnDispatch(d.ctx, pr), nil
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
 	}
@@ -95,4 +132,32 @@ func (s *spoolCancelationDispatch) Handle(msg *message) (Dispatcher, error) {
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
 	}
+}
+
+type spawnDispatch struct {
+	ctx     context.Context
+	process process
+}
+
+func newSpawnDispatch(ctx context.Context, pr process) *spawnDispatch {
+	return &spawnDispatch{
+		ctx:     ctx,
+		process: pr,
+	}
+}
+
+func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
+	switch msg.Number {
+	case spawnKill:
+		d.process.Kill()
+		return &noneDispatch{}, nil
+	default:
+		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
+	}
+}
+
+type noneDispatch struct{}
+
+func (d *noneDispatch) Handle(*message) (Dispatcher, error) {
+	return d, fmt.Errorf("no transitions from NonDispatch")
 }

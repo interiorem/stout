@@ -2,6 +2,7 @@ package isolation
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -43,6 +44,53 @@ func (b *testBox) Spool(ctx context.Context, name string, opts profile) error {
 	case <-time.After(b.sleep):
 		return b.err
 	}
+}
+
+func (b *testBox) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (process, error) {
+	return spawnTestProcess(ctx), nil
+}
+
+type testProcess struct {
+	ctx    context.Context
+	killed chan struct{}
+	output chan processOutput
+}
+
+func spawnTestProcess(ctx context.Context) *testProcess {
+	pr := testProcess{
+		ctx:    ctx,
+		killed: make(chan struct{}),
+		output: make(chan processOutput),
+	}
+
+	go func() {
+		var i int
+		for {
+			var out = processOutput{data: []byte("")}
+			if i > 0 {
+				out.data = []byte(fmt.Sprintf("output_%d\n", i))
+			}
+			i++
+			select {
+			case pr.output <- out:
+			case <-pr.killed:
+				return
+			case <-pr.ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return &pr
+}
+
+func (pr *testProcess) Output() <-chan processOutput {
+	return pr.output
+}
+
+func (pr *testProcess) Kill() error {
+	close(pr.killed)
+	return nil
 }
 
 type initialDispatchSuite struct {
@@ -136,4 +184,44 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	msg := <-s.dw.ch
 	c.Assert(msg.code, Equals, replySpoolError)
+}
+
+func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
+	var (
+		opts = profile{
+			Isolate: Isolate{
+				Type: "testSleep",
+			},
+		}
+		appName    = "application"
+		executable = "test_app.exe"
+		args       = make(map[string]string, 0)
+		env        = make(map[string]string, 0)
+		spawnMsg   = message{s.session, spawn, []interface{}{opts, appName, executable, args, env}}
+		killMsg    = message{s.session, spawnKill, []interface{}{}}
+	)
+	spawnDisp, err := s.d.Handle(&spawnMsg)
+	c.Assert(err, IsNil)
+	c.Assert(spawnDisp, FitsTypeOf, &spawnDispatch{})
+
+	// First chunk must be empty to notify about start
+	msg := <-s.dw.ch
+	c.Assert(msg.code, Equals, replySpawnWrite)
+	c.Assert(msg.args, HasLen, 1)
+	data, ok := msg.args[0].([]byte)
+	c.Assert(ok, Equals, true)
+	c.Assert(data, HasLen, 0)
+
+	// Let's read some output
+	msg = <-s.dw.ch
+	c.Assert(msg.code, Equals, replySpawnWrite)
+	c.Assert(msg.args, HasLen, 1)
+
+	data, ok = msg.args[0].([]byte)
+	c.Assert(ok, Equals, true)
+	c.Assert(data, Not(HasLen), 0)
+
+	noneDisp, err := spawnDisp.Handle(&killMsg)
+	c.Assert(err, IsNil)
+	c.Assert(noneDisp, FitsTypeOf, &noneDispatch{})
 }
