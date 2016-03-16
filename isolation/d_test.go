@@ -111,7 +111,7 @@ func (s *initialDispatchSuite) SetUpTest(c *C) {
 		"test":      &testBox{err: nil},
 	}
 
-	ctx = withArgsUnpacker(ctx, jsonArgsDecoder{})
+	ctx = withArgsUnpacker(ctx, msgpackArgsDecoder{})
 	ctx = context.WithValue(ctx, BoxesTag, boxes)
 
 	s.ctx, s.cancel = ctx, cancel
@@ -133,9 +133,7 @@ func (s *initialDispatchSuite) TearDownTest(c *C) {
 func (s *initialDispatchSuite) TestSpool(c *C) {
 	var (
 		args = Profile{
-			Isolate: Isolate{
-				Type: "test",
-			},
+			"type": "test",
 		}
 		appName  = "application"
 		spoolMsg = message{s.session, spool, []interface{}{args, appName}}
@@ -151,9 +149,7 @@ func (s *initialDispatchSuite) TestSpool(c *C) {
 func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 	var (
 		args = Profile{
-			Isolate: Isolate{
-				Type: "testSleep",
-			},
+			"type": "testSleep",
 		}
 		appName   = "application"
 		spoolMsg  = message{s.session, spool, []interface{}{args, appName}}
@@ -171,9 +167,7 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 func (s *initialDispatchSuite) TestSpoolError(c *C) {
 	var (
 		args = Profile{
-			Isolate: Isolate{
-				Type: "testError",
-			},
+			"type": "testError",
 		}
 		appName  = "application"
 		spoolMsg = message{s.session, spool, []interface{}{args, appName}}
@@ -189,9 +183,7 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 	var (
 		opts = Profile{
-			Isolate: Isolate{
-				Type: "testSleep",
-			},
+			"type": "testSleep",
 		}
 		appName    = "application"
 		executable = "test_app.exe"

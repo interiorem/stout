@@ -7,8 +7,14 @@ import (
 	"golang.org/x/net/context"
 )
 
+// Decoder decodes messages from Cocaine-runtime
 type Decoder interface {
 	Decode(interface{}) error
+}
+
+// Encoder sends replies to the Cocaine-runtime
+type Encoder interface {
+	Encode(interface{}) error
 }
 
 type message struct {
@@ -17,11 +23,13 @@ type message struct {
 	Args    []interface{}
 }
 
+// Dispatcher handles incoming messages and keeps the state of the channel
 type Dispatcher interface {
 	Handle(msg *message) (Dispatcher, error)
 }
 
-type connectionHandler struct {
+// ConnectionHandler provides method to handle accepted connection for Listener
+type ConnectionHandler struct {
 	ctx            context.Context
 	session        map[int]Dispatcher
 	highestChannel int
@@ -30,8 +38,14 @@ type connectionHandler struct {
 	newDispatcher dispatcherInit
 }
 
-func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispatcherInit) (*connectionHandler, error) {
-	return &connectionHandler{
+// NewConnectionHandler creates new ConnectionHandler
+func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
+	ctx = withArgsUnpacker(ctx, msgpackArgsDecoder{})
+	return newConnectionHandler(ctx, newMsgpackDecoder, newInitialDispatch)
+}
+
+func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispatcherInit) (*ConnectionHandler, error) {
+	return &ConnectionHandler{
 		ctx:            ctx,
 		session:        make(map[int]Dispatcher),
 		highestChannel: 0,
@@ -41,9 +55,9 @@ func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispa
 	}, nil
 }
 
-func (h *connectionHandler) handleConn(conn io.ReadWriteCloser) error {
+func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) error {
 	defer conn.Close()
-	var decoder Decoder = h.newDecoder(conn)
+	var decoder = h.newDecoder(conn)
 LOOP:
 	for {
 		var (
@@ -62,12 +76,11 @@ LOOP:
 				continue LOOP
 			}
 
-			dispatcher, err = h.newDispatcher(h.ctx)
-			if err != nil {
-				log.Fatalf("unable to create initial dispatch: %v", err)
-			}
+			// TODO: refactor
+			var dw = newDownstream(newMsgpackEncoder(conn), msg.Channel)
+			ctx := withDownstream(h.ctx, dw)
+			dispatcher = h.newDispatcher(ctx)
 		}
-		log.Println(dispatcher)
 
 		dispatcher, err = dispatcher.Handle(&msg)
 		if err != nil {
@@ -76,4 +89,29 @@ LOOP:
 		}
 		h.session[msg.Channel] = dispatcher
 	}
+}
+
+type downstream struct {
+	enc     Encoder
+	channel int
+}
+
+func newDownstream(enc Encoder, channel int) Downstream {
+	return &downstream{
+		enc:     enc,
+		channel: channel,
+	}
+}
+
+func (d *downstream) Reply(code int, args ...interface{}) error {
+	if args == nil {
+		args = []interface{}{}
+	}
+	var msg = message{
+		Channel: d.channel,
+		Number:  code,
+		Args:    args,
+	}
+
+	return d.enc.Encode(msg)
 }

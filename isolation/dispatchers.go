@@ -2,6 +2,7 @@ package isolation
 
 import (
 	"fmt"
+	"log"
 
 	"golang.org/x/net/context"
 )
@@ -39,17 +40,25 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			name string
 		)
 
+		log.Printf("initialDispatch.Handle.Spool().Args. Profile `%+v`, appname `%s`",
+			msg.Args[0], msg.Args[1])
 		if err := unpackArgs(d.ctx, msg.Args, &opts, &name); err != nil {
+			reply(d.ctx, replySpoolError, [2]int{42, 42}, fmt.Sprintf("unbale to unpack args: %v", err))
 			return nil, err
 		}
 
-		if opts.Isolate.Type == "" {
-			return nil, fmt.Errorf("corrupted profile: %v", opts)
+		isolationType := opts.Type()
+		if isolationType == "" {
+			err := fmt.Errorf("the profile does not have `type` option: %v", opts)
+			reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
+			return nil, err
 		}
 
-		box, ok := getBoxes(d.ctx)[opts.Isolate.Type]
+		box, ok := getBoxes(d.ctx)[isolationType]
 		if !ok {
-			return nil, fmt.Errorf("isolation type %s is not available", opts.Isolate.Type)
+			err := fmt.Errorf("isolation type %s is not available", isolationType)
+			reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
+			return nil, err
 		}
 
 		ctx, cancel := context.WithCancel(d.ctx)
@@ -76,13 +85,14 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			return nil, err
 		}
 
-		if opts.Isolate.Type == "" {
+		isolationType := opts.Type()
+		if isolationType == "" {
 			return nil, fmt.Errorf("corrupted profile: %v", opts)
 		}
 
-		box, ok := getBoxes(d.ctx)[opts.Isolate.Type]
+		box, ok := getBoxes(d.ctx)[isolationType]
 		if !ok {
-			return nil, fmt.Errorf("isolation type %s is not available", opts.Isolate.Type)
+			return nil, fmt.Errorf("isolation type %s is not available", isolationType)
 		}
 
 		pr, err := box.Spawn(d.ctx, name, executable, args, env)

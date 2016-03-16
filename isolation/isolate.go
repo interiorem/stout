@@ -8,7 +8,7 @@ import (
 
 type (
 	decoderInit    func(io.Reader) Decoder
-	dispatcherInit func(context.Context) (Dispatcher, error)
+	dispatcherInit func(context.Context) Dispatcher
 
 	Downstream interface {
 		Reply(code int, args ...interface{}) error
