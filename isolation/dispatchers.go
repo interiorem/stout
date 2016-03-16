@@ -97,6 +97,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 
 		pr, err := box.Spawn(d.ctx, name, executable, args, env)
 		if err != nil {
+			log.Printf("initialDispatch.Handle.Spawn(): unable to spawn %v", err)
 			return nil, err
 		}
 

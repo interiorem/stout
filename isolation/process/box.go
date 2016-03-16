@@ -45,7 +45,12 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 }
 
 func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (isolation.Process, error) {
-	return nil, nil
+	workDir := filepath.Join(b.spoolPath, name)
+	execPath := filepath.Join(workDir, executable)
+	log.Printf("processBox.Spawn(): name `%s`, executable `%s`, workdir `%s`, exec_path `%s`",
+		name, executable, workDir, execPath)
+
+	return newProcess(ctx, execPath, args, env, workDir)
 }
 
 func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) error {
