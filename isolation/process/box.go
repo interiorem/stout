@@ -1,10 +1,11 @@
 package process
 
 import (
-	"io/ioutil"
+	"log"
 	"os"
-	"path"
+	"path/filepath"
 
+	"github.com/ugorji/go/codec"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolation"
@@ -48,6 +49,7 @@ func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[
 }
 
 func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) error {
+	log.Printf("processBox.Spool(): name `%s`, profile `%v`", name, opts)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err
@@ -57,15 +59,18 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) er
 		return nil
 	}
 
-	return unpackArchive(ctx, data, b.spoolPath)
+	return unpackArchive(ctx, data, filepath.Join(b.spoolPath, name))
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {
-	filepath := path.Join(b.fileStorage, "apps", appname)
-	f, err := os.Open(filepath)
+	path := filepath.Join(b.fileStorage, "apps", appname)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	return ioutil.ReadAll(f)
+
+	var data []byte
+	err = codec.NewDecoder(f, &codec.MsgpackHandle{}).Decode(&data)
+	return data, err
 }
