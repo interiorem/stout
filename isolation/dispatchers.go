@@ -136,10 +136,10 @@ func (s *spoolCancelationDispatch) Handle(msg *message) (Dispatcher, error) {
 
 type spawnDispatch struct {
 	ctx     context.Context
-	process process
+	process Process
 }
 
-func newSpawnDispatch(ctx context.Context, pr process) *spawnDispatch {
+func newSpawnDispatch(ctx context.Context, pr Process) *spawnDispatch {
 	return &spawnDispatch{
 		ctx:     ctx,
 		process: pr,

@@ -46,27 +46,27 @@ func (b *testBox) Spool(ctx context.Context, name string, opts profile) error {
 	}
 }
 
-func (b *testBox) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (process, error) {
+func (b *testBox) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (Process, error) {
 	return spawnTestProcess(ctx), nil
 }
 
 type testProcess struct {
 	ctx    context.Context
 	killed chan struct{}
-	output chan processOutput
+	output chan ProcessOutput
 }
 
 func spawnTestProcess(ctx context.Context) *testProcess {
 	pr := testProcess{
 		ctx:    ctx,
 		killed: make(chan struct{}),
-		output: make(chan processOutput),
+		output: make(chan ProcessOutput),
 	}
 
 	go func() {
 		var i int
 		for {
-			var out = processOutput{data: []byte("")}
+			var out = ProcessOutput{data: []byte("")}
 			if i > 0 {
 				out.data = []byte(fmt.Sprintf("output_%d\n", i))
 			}
@@ -84,7 +84,7 @@ func spawnTestProcess(ctx context.Context) *testProcess {
 	return &pr
 }
 
-func (pr *testProcess) Output() <-chan processOutput {
+func (pr *testProcess) Output() <-chan ProcessOutput {
 	return pr.output
 }
 
@@ -105,14 +105,14 @@ type initialDispatchSuite struct {
 func (s *initialDispatchSuite) SetUpTest(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	boxes := isolationBoxes{
+	boxes := IsolationBoxes{
 		"testError": &testBox{err: errors.New("dummy error from testBox")},
 		"testSleep": &testBox{err: nil, sleep: time.Second * 2},
 		"test":      &testBox{err: nil},
 	}
 
 	ctx = withArgsUnpacker(ctx, jsonArgsDecoder{})
-	ctx = context.WithValue(ctx, isolationBoxesTag, boxes)
+	ctx = context.WithValue(ctx, IsolationBoxesTag, boxes)
 
 	s.ctx, s.cancel = ctx, cancel
 	s.session = 100
