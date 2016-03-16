@@ -35,7 +35,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spool:
 		var (
-			opts profile
+			opts Profile
 			name string
 		)
 
@@ -47,7 +47,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			return nil, fmt.Errorf("corrupted profile: %v", opts)
 		}
 
-		box, ok := getIsolationBoxes(d.ctx)[opts.Isolate.Type]
+		box, ok := getBoxes(d.ctx)[opts.Isolate.Type]
 		if !ok {
 			return nil, fmt.Errorf("isolation type %s is not available", opts.Isolate.Type)
 		}
@@ -67,7 +67,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 
 	case spawn:
 		var (
-			opts             profile
+			opts             Profile
 			name, executable string
 			args, env        map[string]string
 		)
@@ -80,7 +80,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			return nil, fmt.Errorf("corrupted profile: %v", opts)
 		}
 
-		box, ok := getIsolationBoxes(d.ctx)[opts.Isolate.Type]
+		box, ok := getBoxes(d.ctx)[opts.Isolate.Type]
 		if !ok {
 			return nil, fmt.Errorf("isolation type %s is not available", opts.Isolate.Type)
 		}
@@ -94,10 +94,10 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			for {
 				select {
 				case output := <-pr.Output():
-					if output.err != nil {
-						reply(d.ctx, replySpawnError, [2]int{42, 42}, output.err.Error())
+					if output.Err != nil {
+						reply(d.ctx, replySpawnError, [2]int{42, 42}, output.Err.Error())
 					} else {
-						reply(d.ctx, replySpawnWrite, output.data)
+						reply(d.ctx, replySpawnWrite, output.Data)
 					}
 				case <-d.ctx.Done():
 					return

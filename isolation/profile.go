@@ -5,6 +5,6 @@ type Isolate struct {
 	Args map[string]interface{} `json:"args",codec:"args"`
 }
 
-type profile struct {
+type Profile struct {
 	Isolate `json:"isolate",codec:"isolate"`
 }

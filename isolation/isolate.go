@@ -18,8 +18,8 @@ type (
 		Unpack(in interface{}, out ...interface{}) error
 	}
 
-	IsolationBox interface {
-		Spool(ctx context.Context, name string, opts profile) error
+	Box interface {
+		Spool(ctx context.Context, name string, opts Profile) error
 		Spawn(ctx context.Context, name, executable string, args, env map[string]string) (Process, error)
 	}
 
@@ -29,18 +29,20 @@ type (
 	}
 
 	ProcessOutput struct {
-		err  error
-		data []byte
+		Err  error
+		Data []byte
 	}
 
-	IsolationBoxes map[string]IsolationBox
+	Boxes map[string]Box
+
+	BoxConfig map[string]interface{}
 )
 
 const (
-	IsolationBoxesTag = "isolation.boxes.tag"
-	downstreamTag     = "downstream.tag"
-	argsUnpackerTag   = "args.unpacker.tag"
-	decoderInitTag    = "decoder.init.tag"
+	BoxesTag        = "isolation.boxes.tag"
+	downstreamTag   = "downstream.tag"
+	argsUnpackerTag = "args.unpacker.tag"
+	decoderInitTag  = "decoder.init.tag"
 )
 
 func withArgsUnpacker(ctx context.Context, au ArgsUnpacker) context.Context {
@@ -55,11 +57,11 @@ func withDownstream(ctx context.Context, dw Downstream) context.Context {
 	return context.WithValue(ctx, downstreamTag, dw)
 }
 
-func getIsolationBoxes(ctx context.Context) IsolationBoxes {
-	val := ctx.Value(IsolationBoxesTag)
-	box, ok := val.(IsolationBoxes)
+func getBoxes(ctx context.Context) Boxes {
+	val := ctx.Value(BoxesTag)
+	box, ok := val.(Boxes)
 	if !ok {
-		panic("context.Context does not contain IsolationBox")
+		panic("context.Context does not contain Box")
 	}
 	return box
 }

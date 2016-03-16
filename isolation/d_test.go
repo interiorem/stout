@@ -37,7 +37,7 @@ type testBox struct {
 	sleep time.Duration
 }
 
-func (b *testBox) Spool(ctx context.Context, name string, opts profile) error {
+func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
 	select {
 	case <-ctx.Done():
 		return errors.New("canceled")
@@ -66,9 +66,9 @@ func spawnTestProcess(ctx context.Context) *testProcess {
 	go func() {
 		var i int
 		for {
-			var out = ProcessOutput{data: []byte("")}
+			var out = ProcessOutput{Data: []byte("")}
 			if i > 0 {
-				out.data = []byte(fmt.Sprintf("output_%d\n", i))
+				out.Data = []byte(fmt.Sprintf("output_%d\n", i))
 			}
 			i++
 			select {
@@ -105,14 +105,14 @@ type initialDispatchSuite struct {
 func (s *initialDispatchSuite) SetUpTest(c *C) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	boxes := IsolationBoxes{
+	boxes := Boxes{
 		"testError": &testBox{err: errors.New("dummy error from testBox")},
 		"testSleep": &testBox{err: nil, sleep: time.Second * 2},
 		"test":      &testBox{err: nil},
 	}
 
 	ctx = withArgsUnpacker(ctx, jsonArgsDecoder{})
-	ctx = context.WithValue(ctx, IsolationBoxesTag, boxes)
+	ctx = context.WithValue(ctx, BoxesTag, boxes)
 
 	s.ctx, s.cancel = ctx, cancel
 	s.session = 100
@@ -132,7 +132,7 @@ func (s *initialDispatchSuite) TearDownTest(c *C) {
 
 func (s *initialDispatchSuite) TestSpool(c *C) {
 	var (
-		args = profile{
+		args = Profile{
 			Isolate: Isolate{
 				Type: "test",
 			},
@@ -150,7 +150,7 @@ func (s *initialDispatchSuite) TestSpool(c *C) {
 
 func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 	var (
-		args = profile{
+		args = Profile{
 			Isolate: Isolate{
 				Type: "testSleep",
 			},
@@ -170,7 +170,7 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 
 func (s *initialDispatchSuite) TestSpoolError(c *C) {
 	var (
-		args = profile{
+		args = Profile{
 			Isolate: Isolate{
 				Type: "testError",
 			},
@@ -188,7 +188,7 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 
 func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 	var (
-		opts = profile{
+		opts = Profile{
 			Isolate: Isolate{
 				Type: "testSleep",
 			},
