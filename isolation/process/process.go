@@ -89,10 +89,7 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 
 		log.Printf("executable %s has been launched", pr.cmd.Path)
 		// NOTE: is it dangerous?
-		pr.output <- isolation.ProcessOutput{
-			Data: []byte(""),
-			Err:  nil,
-		}
+		isolation.NotifyAbouStart(pr.output)
 		log.Printf("the notification about launching of %s has been sent", pr.cmd.Path)
 		close(pr.started)
 	}()

@@ -45,6 +45,10 @@ const (
 	decoderInitTag  = "decoder.init.tag"
 )
 
+func NotifyAbouStart(ch chan ProcessOutput) {
+	ch <- ProcessOutput{Data: []byte(""), Err: nil}
+}
+
 func withArgsUnpacker(ctx context.Context, au ArgsUnpacker) context.Context {
 	return context.WithValue(ctx, argsUnpackerTag, au)
 }
