@@ -29,7 +29,7 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 }
 
 // Spawn spawns a prcess using container
-func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (isolation.Process, error) {
+func (b *Box) Spawn(ctx context.Context, opts isolation.Profile, name, executable string, args, env map[string]string) (isolation.Process, error) {
 	return nil, nil
 }
 

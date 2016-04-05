@@ -46,7 +46,7 @@ func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
 	}
 }
 
-func (b *testBox) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (Process, error) {
+func (b *testBox) Spawn(ctx context.Context, opts Profile, name, executable string, args, env map[string]string) (Process, error) {
 	return spawnTestProcess(ctx), nil
 }
 

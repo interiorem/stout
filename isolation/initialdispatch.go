@@ -102,7 +102,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		return nil, fmt.Errorf("isolation type %s is not available", isolationType)
 	}
 
-	pr, err := box.Spawn(d.ctx, name, executable, args, env)
+	pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
 	if err != nil {
 		GetLogger(d.ctx).Infof("initialDispatch.Handle.Spawn(): unable to spawn %v", err)
 		return nil, err

@@ -44,7 +44,7 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 }
 
 // Spawn spawns a new process
-func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (pr isolation.Process, err error) {
+func (b *Box) Spawn(ctx context.Context, opts isolation.Profile, name, executable string, args, env map[string]string) (pr isolation.Process, err error) {
 	workDir := filepath.Join(b.spoolPath, name)
 	execPath := filepath.Join(workDir, executable)
 	defer isolation.GetLogger(ctx).Trace("processBox.Spawn").WithFields(log.Fields{"name": name, "executable": executable, "workDir": workDir, "execPath": execPath}).Stop(&err)
