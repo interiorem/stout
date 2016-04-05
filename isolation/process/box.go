@@ -1,28 +1,33 @@
 package process
 
 import (
-	"os"
 	"path/filepath"
 
-	"github.com/ugorji/go/codec"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolation"
+
+	"github.com/apex/log"
 )
 
 const (
 	defaultSpoolPath = "/var/spool/cocaine"
-	// TODO: remove later
-	defaultFileStorage = "/var/lib/cocaine"
 )
 
 var (
-	_ isolation.Box = &Box{}
+	// can be overwritten for tests
+	createCodeStorage = func() codeStorage {
+		return &cocaineCodeStorage{}
+	}
 )
 
+type codeStorage interface {
+	Spool(ctx context.Context, appname string) ([]byte, error)
+}
+
 type Box struct {
-	spoolPath   string
-	fileStorage string
+	spoolPath string
+	storage   codeStorage
 }
 
 func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
@@ -31,29 +36,25 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 		spoolPath = defaultSpoolPath
 	}
 
-	fileStorage, ok := cfg["fileStorage"].(string)
-	if !ok {
-		fileStorage = defaultFileStorage
-	}
-
 	box := &Box{
-		spoolPath:   spoolPath,
-		fileStorage: fileStorage,
+		spoolPath: spoolPath,
+		storage:   createCodeStorage(),
 	}
 	return box, nil
 }
 
-func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (isolation.Process, error) {
+// Spawn spawns a new process
+func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (pr isolation.Process, err error) {
 	workDir := filepath.Join(b.spoolPath, name)
 	execPath := filepath.Join(workDir, executable)
-	isolation.GetLogger(ctx).Infof("processBox.Spawn(): name `%s`, executable `%s`, workdir `%s`, exec_path `%s`",
-		name, executable, workDir, execPath)
+	defer isolation.GetLogger(ctx).Trace("processBox.Spawn").WithFields(log.Fields{"name": name, "executable": executable, "workDir": workDir, "execPath": execPath}).Stop(&err)
 
 	return newProcess(ctx, execPath, args, env, workDir)
 }
 
-func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) error {
-	isolation.GetLogger(ctx).Infof("processBox.Spool(): name `%s`, profile `%v`", name, opts)
+// Spool spools code of an app from Cocaine Storage service
+func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) (err error) {
+	defer isolation.GetLogger(ctx).Trace("processBox.Spool").WithField("name", name).Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err
@@ -67,14 +68,5 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) er
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {
-	path := filepath.Join(b.fileStorage, "apps", appname)
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var data []byte
-	err = codec.NewDecoder(f, &codec.MsgpackHandle{}).Decode(&data)
-	return data, err
+	return b.storage.Spool(ctx, appname)
 }
