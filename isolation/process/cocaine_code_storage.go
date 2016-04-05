@@ -44,7 +44,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 	if err = st.lazyStorageCreate(ctx); err != nil {
 		return nil, err
 	}
-	defer isolation.GetLogger(ctx).Trace("read code from storage").WithField("app", appname).Stop(&err)
+	defer isolation.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
 
 	channel, err := st.service.Call(ctx, "read", "apps", appname)
 	if err != nil {

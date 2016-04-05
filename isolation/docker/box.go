@@ -1,10 +1,13 @@
 package docker
 
 import (
-	"io/ioutil"
+	"bufio"
+	"encoding/json"
+	"fmt"
 
 	"github.com/noxiouz/stout/isolation"
 
+	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
@@ -15,17 +18,20 @@ const (
 )
 
 var (
-	_ isolation.Box = &Box{}
+	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolation"}
 )
 
-// Box ...
-type Box struct {
-	ctx context.Context
+type spoolResponseProtocol struct {
+	Error  string `json:"error"`
+	Status string `json:"status"`
 }
+
+// Box ...
+type Box struct{}
 
 // NewBox ...
 func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
-	return nil, nil
+	return &Box{}, nil
 }
 
 // Spawn spawns a prcess using container
@@ -34,30 +40,50 @@ func (b *Box) Spawn(ctx context.Context, opts isolation.Profile, name, executabl
 }
 
 // Spool spools an image with a tag latest
-func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) error {
-	defaultHeaders := map[string]string{"User-Agent": "cocaine-universal-isolation"}
-	cli, err := client.NewClient(client.DefaultDockerHost, dockerVersionAPI, nil, defaultHeaders)
+func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) (err error) {
+	endpoint := Profile(opts).Endpoint()
+	defer isolation.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint}).Trace("spooling image").Stop(&err)
+
+	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
 		return err
 	}
 
 	pullOpts := types.ImagePullOptions{
 		ImageID: name,
-		// Tag:     "latest",
+		Tag:     "latest",
 	}
 
-	body, err := cli.ImagePull(b.ctx, pullOpts, nil)
+	body, err := cli.ImagePull(ctx, pullOpts, nil)
 	if err != nil {
 		return err
 	}
 	defer body.Close()
 
-	data, err := ioutil.ReadAll(body)
-	if err != nil {
-		isolation.GetLogger(ctx).Infof("Spool() read body error: %v", err)
+	var (
+		resp   spoolResponseProtocol
+		logger = isolation.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint})
+	)
+
+	scanner := bufio.NewScanner(body)
+	for scanner.Scan() {
+		if err = json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+			return err
+		}
+
+		if len(resp.Error) != 0 {
+			return fmt.Errorf("spooling error %s", resp.Error)
+		}
+
+		if len(resp.Status) != 0 {
+			logger.Infof("%s", resp.Status)
+		}
+
+	}
+
+	if err = scanner.Err(); err != nil {
 		return err
 	}
 
-	isolation.GetLogger(ctx).Infof("%s", data)
 	return nil
 }

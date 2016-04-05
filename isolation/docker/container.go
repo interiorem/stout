@@ -15,12 +15,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-var (
-	_ isolation.Process = &process{}
-
-	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolation"}
-)
-
 type process struct {
 	ctx    context.Context
 	output chan isolation.ProcessOutput

@@ -47,14 +47,14 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 func (b *Box) Spawn(ctx context.Context, opts isolation.Profile, name, executable string, args, env map[string]string) (pr isolation.Process, err error) {
 	workDir := filepath.Join(b.spoolPath, name)
 	execPath := filepath.Join(workDir, executable)
-	defer isolation.GetLogger(ctx).Trace("processBox.Spawn").WithFields(log.Fields{"name": name, "executable": executable, "workDir": workDir, "execPath": execPath}).Stop(&err)
+	defer isolation.GetLogger(ctx).WithFields(log.Fields{"name": name, "executable": executable, "workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
 	return newProcess(ctx, execPath, args, env, workDir)
 }
 
 // Spool spools code of an app from Cocaine Storage service
 func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) (err error) {
-	defer isolation.GetLogger(ctx).Trace("processBox.Spool").WithField("name", name).Stop(&err)
+	defer isolation.GetLogger(ctx).WithField("name", name).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err
