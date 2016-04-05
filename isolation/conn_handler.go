@@ -2,7 +2,6 @@ package isolation
 
 import (
 	"io"
-	"log"
 
 	"golang.org/x/net/context"
 )
@@ -72,7 +71,7 @@ LOOP:
 		dispatcher, ok := h.session[msg.Channel]
 		if !ok {
 			if msg.Number < h.highestChannel {
-				log.Printf("corrupted channel order: %d %d", msg.Number, h.highestChannel)
+				GetLogger(h.ctx).Infof("corrupted channel order: %d %d", msg.Number, h.highestChannel)
 				continue LOOP
 			}
 
@@ -84,7 +83,7 @@ LOOP:
 
 		dispatcher, err = dispatcher.Handle(&msg)
 		if err != nil {
-			log.Printf("dispatch.Handler returns error: %v", err)
+			GetLogger(h.ctx).Infof("dispatch.Handler returns error: %v", err)
 			continue LOOP
 		}
 		h.session[msg.Channel] = dispatcher

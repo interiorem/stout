@@ -3,7 +3,6 @@ package docker
 import (
 	"bytes"
 	"encoding/binary"
-	"log"
 
 	"github.com/noxiouz/stout/isolation"
 
@@ -75,7 +74,7 @@ func newContainer(ctx context.Context, executable string, args, env map[string]s
 	}
 
 	for _, warn := range resp.Warnings {
-		log.Printf("%s warning: %s", resp.ID, warn)
+		isolation.GetLogger(ctx).Infof("%s warning: %s", resp.ID, warn)
 	}
 
 	pr := &process{
@@ -100,7 +99,7 @@ func newContainer(ctx context.Context, executable string, args, env map[string]s
 		}
 		hjResp, err := cli.ContainerAttach(pr.ctx, attachOpts)
 		if err != nil {
-			log.Printf("unable to attach to stdout/err of %s: %v", pr.containerID, err)
+			isolation.GetLogger(ctx).Infof("unable to attach to stdout/err of %s: %v", pr.containerID, err)
 			return
 		}
 		defer hjResp.Close()
@@ -111,7 +110,7 @@ func newContainer(ctx context.Context, executable string, args, env map[string]s
 			var header = make([]byte, headerSize)
 			_, err := hjResp.Reader.Read(header)
 			if err != nil {
-				log.Printf("unable to read header for hjResp of %s: %v", pr.containerID, err)
+				isolation.GetLogger(ctx).Infof("unable to read header for hjResp of %s: %v", pr.containerID, err)
 				select {
 				case pr.output <- isolation.ProcessOutput{Data: nil, Err: err}:
 				case <-pr.ctx.Done():
@@ -122,14 +121,14 @@ func newContainer(ctx context.Context, executable string, args, env map[string]s
 
 			var size uint32
 			if err = binary.Read(bytes.NewReader(header[3:]), binary.BigEndian, &size); err != nil {
-				log.Printf("unable to decode szie from header of %s: %v", pr.containerID, err)
+				isolation.GetLogger(ctx).Infof("unable to decode szie from header of %s: %v", pr.containerID, err)
 				return
 			}
 
 			var output = make([]byte, size)
 			_, err = hjResp.Reader.Read(output)
 			if err != nil {
-				log.Printf("unable to read output for hjResp of %s: %v", pr.containerID, err)
+				isolation.GetLogger(ctx).Infof("unable to read output for hjResp of %s: %v", pr.containerID, err)
 				select {
 				case pr.output <- isolation.ProcessOutput{Data: nil, Err: err}:
 				case <-pr.ctx.Done():
@@ -160,13 +159,13 @@ func (p *process) Kill() error {
 		}
 
 		if err := cli.ContainerRemove(p.ctx, removeOpts); err != nil {
-			log.Printf("ContainerRemove of container %s returns error: %v", p.containerID, err)
+			isolation.GetLogger(p.ctx).Infof("ContainerRemove of container %s returns error: %v", p.containerID, err)
 		} else {
-			log.Printf("Conatiner %s has been removed successfully", p.containerID)
+			isolation.GetLogger(p.ctx).Infof("Conatiner %s has been removed successfully", p.containerID)
 		}
 	}()
 
-	log.Printf("Send SIGKILL to stop container %s", p.containerID)
+	isolation.GetLogger(p.ctx).Infof("Send SIGKILL to stop container %s", p.containerID)
 
 	return cli.ContainerKill(p.ctx, p.containerID, "SIGKILL")
 }

@@ -2,7 +2,6 @@ package docker
 
 import (
 	"io/ioutil"
-	"log"
 
 	"github.com/noxiouz/stout/isolation"
 
@@ -55,10 +54,10 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) er
 
 	data, err := ioutil.ReadAll(body)
 	if err != nil {
-		log.Printf("Spool() read body error: %v", err)
+		isolation.GetLogger(ctx).Infof("Spool() read body error: %v", err)
 		return err
 	}
 
-	log.Printf("%s", data)
+	isolation.GetLogger(ctx).Infof("%s", data)
 	return nil
 }

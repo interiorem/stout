@@ -2,7 +2,6 @@ package isolation
 
 import (
 	"fmt"
-	"log"
 
 	"golang.org/x/net/context"
 )
@@ -40,7 +39,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 			name string
 		)
 
-		log.Printf("initialDispatch.Handle.Spool().Args. Profile `%+v`, appname `%s`",
+		GetLogger(d.ctx).Infof("initialDispatch.Handle.Spool().Args. Profile `%+v`, appname `%s`",
 			msg.Args[0], msg.Args[1])
 		if err := unpackArgs(d.ctx, msg.Args, &opts, &name); err != nil {
 			reply(d.ctx, replySpoolError, [2]int{42, 42}, fmt.Sprintf("unbale to unpack args: %v", err))
@@ -97,7 +96,7 @@ func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
 
 		pr, err := box.Spawn(d.ctx, name, executable, args, env)
 		if err != nil {
-			log.Printf("initialDispatch.Handle.Spawn(): unable to spawn %v", err)
+			GetLogger(d.ctx).Infof("initialDispatch.Handle.Spawn(): unable to spawn %v", err)
 			return nil, err
 		}
 

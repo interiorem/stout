@@ -1,7 +1,6 @@
 package process
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
@@ -47,14 +46,14 @@ func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
 func (b *Box) Spawn(ctx context.Context, name, executable string, args, env map[string]string) (isolation.Process, error) {
 	workDir := filepath.Join(b.spoolPath, name)
 	execPath := filepath.Join(workDir, executable)
-	log.Printf("processBox.Spawn(): name `%s`, executable `%s`, workdir `%s`, exec_path `%s`",
+	isolation.GetLogger(ctx).Infof("processBox.Spawn(): name `%s`, executable `%s`, workdir `%s`, exec_path `%s`",
 		name, executable, workDir, execPath)
 
 	return newProcess(ctx, execPath, args, env, workDir)
 }
 
 func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) error {
-	log.Printf("processBox.Spool(): name `%s`, profile `%v`", name, opts)
+	isolation.GetLogger(ctx).Infof("processBox.Spool(): name `%s`, profile `%v`", name, opts)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err

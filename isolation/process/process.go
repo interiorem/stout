@@ -3,7 +3,6 @@ package process
 import (
 	"bufio"
 	"io"
-	"log"
 	"os/exec"
 
 	"golang.org/x/net/context"
@@ -48,7 +47,7 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 			Path: executable,
 		}
 
-		log.Printf("starting executable %s", pr.cmd.Path)
+		isolation.GetLogger(ctx).Infof("starting executable %s", pr.cmd.Path)
 
 		collector := func(r io.Reader) {
 			scanner := bufio.NewScanner(r)
@@ -65,32 +64,32 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 		}
 
 		// stdout
-		log.Printf("attach stdout of %s", pr.cmd.Path)
+		isolation.GetLogger(ctx).Infof("attach stdout of %s", pr.cmd.Path)
 		stdout, err := pr.cmd.StdoutPipe()
 		if err != nil {
-			log.Printf("unable to attach stdout of %s: %v", pr.cmd.Path, err)
+			isolation.GetLogger(ctx).Infof("unable to attach stdout of %s: %v", pr.cmd.Path, err)
 			return
 		}
 		go collector(stdout)
 
 		// stderr
-		log.Printf("attach stderr of %s", pr.cmd.Path)
+		isolation.GetLogger(ctx).Infof("attach stderr of %s", pr.cmd.Path)
 		stderr, err := pr.cmd.StderrPipe()
 		if err != nil {
-			log.Printf("unable to attach stderr of %s: %v", pr.cmd.Path, err)
+			isolation.GetLogger(ctx).Infof("unable to attach stderr of %s: %v", pr.cmd.Path, err)
 			return
 		}
 		go collector(stderr)
 
 		if err := pr.cmd.Start(); err != nil {
-			log.Printf("unable to start executable %s: %v", pr.cmd.Path, err)
+			isolation.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
 			return
 		}
 
-		log.Printf("executable %s has been launched", pr.cmd.Path)
+		isolation.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
 		// NOTE: is it dangerous?
 		isolation.NotifyAbouStart(pr.output)
-		log.Printf("the notification about launching of %s has been sent", pr.cmd.Path)
+		isolation.GetLogger(ctx).Infof("the notification about launching of %s has been sent", pr.cmd.Path)
 		close(pr.started)
 	}()
 
