@@ -1,0 +1,36 @@
+{
+	"ImportPath": "github.com/noxiouz/stout",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v60",
+	"Packages": [
+		"./cmd/stout"
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/apex/log",
+			"Rev": "a43e30f42fc328f930c3d4d3fff0764fb9f7d395"
+		},
+		{
+			"ImportPath": "github.com/apex/log/handlers/text",
+			"Rev": "a43e30f42fc328f930c3d4d3fff0764fb9f7d395"
+		},
+		{
+			"ImportPath": "github.com/cocaine/cocaine-framework-go/cocaine12",
+			"Comment": "0.11-2-198-g0d5503d",
+			"Rev": "0d5503df32a3ff58ba23bdda44e0c95dfce9d947"
+		},
+		{
+			"ImportPath": "github.com/cocaine/cocaine-framework-go/pkg/github.com/ugorji/go/codec",
+			"Comment": "0.11-2-198-g0d5503d",
+			"Rev": "0d5503df32a3ff58ba23bdda44e0c95dfce9d947"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "1d5269ed4e89d423d40362a0914e1c99adb13cc8"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "7f88271ea9913b72aca44fa7fc8af919eacc17ce"
+		}
+	]
+}
