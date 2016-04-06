@@ -15,6 +15,7 @@ import (
 	"github.com/apex/log/handlers/logfmt"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
 )
 
@@ -89,7 +90,7 @@ func main() {
 		var box isolate.Box
 		switch name {
 		case "docker":
-			box, err = process.NewBox(cfg)
+			box, err = docker.NewBox(cfg)
 		case "process":
 			box, err = process.NewBox(cfg)
 		default:
