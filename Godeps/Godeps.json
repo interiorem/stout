@@ -1,0 +1,134 @@
+{
+	"ImportPath": "github.com/noxiouz/stout",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v60",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/Microsoft/go-winio",
+			"Comment": "v0.3.0",
+			"Rev": "9e60d867bdf06f14e699afbba4cb21717cc0ea6e"
+		},
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.7.3",
+			"Rev": "55eb11d21d2a31a3cc93838241d04800f52e823d"
+		},
+		{
+			"ImportPath": "github.com/apex/log",
+			"Rev": "a43e30f42fc328f930c3d4d3fff0764fb9f7d395"
+		},
+		{
+			"ImportPath": "github.com/apex/log/handlers/text",
+			"Rev": "a43e30f42fc328f930c3d4d3fff0764fb9f7d395"
+		},
+		{
+			"ImportPath": "github.com/cocaine/cocaine-framework-go/cocaine12",
+			"Comment": "0.11-2-198-g0d5503d",
+			"Rev": "0d5503df32a3ff58ba23bdda44e0c95dfce9d947"
+		},
+		{
+			"ImportPath": "github.com/cocaine/cocaine-framework-go/pkg/github.com/ugorji/go/codec",
+			"Comment": "0.11-2-198-g0d5503d",
+			"Rev": "0d5503df32a3ff58ba23bdda44e0c95dfce9d947"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/client",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/client/transport",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/client/transport/cancellable",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/blkiodev",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/container",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/filters",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/network",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/registry",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/strslice",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/time",
+			"Comment": "v0.3.1-11-ge37a82d",
+			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+		},
+		{
+			"ImportPath": "github.com/docker/go-connections/nat",
+			"Comment": "v0.2.0-2-gf549a93",
+			"Rev": "f549a9393d05688dff0992ef3efd8bbe6c628aeb"
+		},
+		{
+			"ImportPath": "github.com/docker/go-connections/sockets",
+			"Comment": "v0.2.0-2-gf549a93",
+			"Rev": "f549a9393d05688dff0992ef3efd8bbe6c628aeb"
+		},
+		{
+			"ImportPath": "github.com/docker/go-connections/tlsconfig",
+			"Comment": "v0.2.0-2-gf549a93",
+			"Rev": "f549a9393d05688dff0992ef3efd8bbe6c628aeb"
+		},
+		{
+			"ImportPath": "github.com/docker/go-units",
+			"Comment": "v0.3.0",
+			"Rev": "5d2041e26a699eaca682e2ea41c8f891e1060444"
+		},
+		{
+			"ImportPath": "github.com/opencontainers/runc/libcontainer/user",
+			"Comment": "v0.0.9-115-g3f4f442",
+			"Rev": "3f4f4420fded8d19cf29a1b6a631b7e31f7f9c68"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "1d5269ed4e89d423d40362a0914e1c99adb13cc8"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
+		},
+		{
+			"ImportPath": "golang.org/x/net/proxy",
+			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
+		},
+		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		}
+	]
+}
