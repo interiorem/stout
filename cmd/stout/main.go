@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	_ "expvar"
 	"flag"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"sort"
 	"sync"
@@ -168,6 +170,13 @@ func main() {
 
 	if len(config.Endpoints) == 0 {
 		logger.Fatal("no listening endpoints are specified in endpoints section")
+	}
+
+	if config.DebugServer != "" {
+		logger.WithField("endpoint", config.DebugServer).Info("start debug server")
+		go func(endpoint string) {
+			logger.WithError(http.ListenAndServe(endpoint, nil)).Error("debug server is listening")
+		}(config.DebugServer)
 	}
 
 	var wg sync.WaitGroup
