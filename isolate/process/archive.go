@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 
 	"golang.org/x/net/context"
 )
 
 func unpackArchive(ctx context.Context, data []byte, target string) (err error) {
-	log := isolation.GetLogger(ctx).WithField("target", target)
+	log := isolate.GetLogger(ctx).WithField("target", target)
 	defer log.Trace("unpacking an archive").Stop(&err)
 
 	if err = os.RemoveAll(target); err != nil {

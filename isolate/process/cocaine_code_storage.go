@@ -8,7 +8,7 @@ import (
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 )
 
 type cocaineCodeStorage struct {
@@ -21,7 +21,7 @@ func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error)
 	if atomic.LoadUint32(&st.onceCreated) == 1 {
 		return nil
 	}
-	defer isolation.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
+	defer isolate.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
 
 	st.m.Lock()
 	defer st.m.Unlock()
@@ -44,7 +44,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 	if err = st.lazyStorageCreate(ctx); err != nil {
 		return nil, err
 	}
-	defer isolation.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
+	defer isolate.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
 
 	channel, err := st.service.Call(ctx, "read", "apps", appname)
 	if err != nil {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 
 	"github.com/docker/engine-api/client"
 	"golang.org/x/net/context"
@@ -34,6 +34,6 @@ func (s *dockerBoxSuite) TestSpool(c *C) {
 		endpoint = client.DefaultDockerHost
 	}
 
-	c.Assert(b.Spool(ctx, appname, isolation.Profile{"endpoint": endpoint}), IsNil)
-	c.Assert(b.Spool(ctx, appname, isolation.Profile{"endpoint": "balbla"}), Not(IsNil))
+	c.Assert(b.Spool(ctx, appname, isolate.Profile{"endpoint": endpoint}), IsNil)
+	c.Assert(b.Spool(ctx, appname, isolate.Profile{"endpoint": "balbla"}), Not(IsNil))
 }

@@ -1,4 +1,4 @@
-package isolation
+package isolate
 
 import (
 	"encoding/json"

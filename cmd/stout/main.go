@@ -14,8 +14,8 @@ import (
 	"github.com/apex/log"
 	"github.com/apex/log/handlers/logfmt"
 
-	"github.com/noxiouz/stout/isolation"
-	"github.com/noxiouz/stout/isolation/process"
+	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/process"
 )
 
 var (
@@ -30,7 +30,7 @@ type Config struct {
 		Level  string `json:"level"`
 		Output string `json:"output"`
 	} `json:"logger"`
-	Isolate map[string]isolation.BoxConfig `json:"isolate"`
+	Isolate map[string]isolate.BoxConfig `json:"isolate"`
 }
 
 func init() {
@@ -84,9 +84,9 @@ func main() {
 		logger.Fatal("the isolate section is empty")
 	}
 
-	boxes := isolation.Boxes{}
+	boxes := isolate.Boxes{}
 	for name, cfg := range config.Isolate {
-		var box isolation.Box
+		var box isolate.Box
 		switch name {
 		case "docker":
 			box, err = process.NewBox(cfg)
@@ -101,7 +101,7 @@ func main() {
 		boxes[name] = box
 	}
 
-	ctx := context.WithValue(context.Background(), isolation.BoxesTag, boxes)
+	ctx := context.WithValue(context.Background(), isolate.BoxesTag, boxes)
 	ctx = context.WithValue(ctx, "logger", logger)
 
 	if len(config.Endpoints) == 0 {
@@ -129,7 +129,7 @@ func main() {
 				}
 				lnLogger.WithField("remote_addr", conn.RemoteAddr()).Info("accepted new connection")
 
-				connHandler, err := isolation.NewConnectionHandler(ctx)
+				connHandler, err := isolate.NewConnectionHandler(ctx)
 				if err != nil {
 					lnLogger.WithError(err).Fatal("unable to create connection handler")
 				}

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/noxiouz/stout/isolation"
-
 	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
+
+	"github.com/noxiouz/stout/isolate"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolation"}
+	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolate"}
 )
 
 type spoolResponseProtocol struct {
@@ -30,19 +30,19 @@ type spoolResponseProtocol struct {
 type Box struct{}
 
 // NewBox ...
-func NewBox(cfg isolation.BoxConfig) (isolation.Box, error) {
+func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 	return &Box{}, nil
 }
 
 // Spawn spawns a prcess using container
-func (b *Box) Spawn(ctx context.Context, opts isolation.Profile, name, executable string, args, env map[string]string) (isolation.Process, error) {
+func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
 	return newContainer(ctx, Profile(opts), name, executable, args, env)
 }
 
 // Spool spools an image with a tag latest
-func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) (err error) {
+func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
 	endpoint := Profile(opts).Endpoint()
-	defer isolation.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint}).Trace("spooling an image").Stop(&err)
+	defer isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint}).Trace("spooling an image").Stop(&err)
 
 	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
@@ -62,7 +62,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolation.Profile) (e
 
 	var (
 		resp   spoolResponseProtocol
-		logger = isolation.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint})
+		logger = isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint})
 	)
 
 	scanner := bufio.NewScanner(body)

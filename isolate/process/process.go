@@ -7,11 +7,11 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 )
 
 var (
-	_ isolation.Process = &process{}
+	_ isolate.Process = &process{}
 )
 
 type process struct {
@@ -19,14 +19,14 @@ type process struct {
 	cmd *exec.Cmd
 
 	started chan struct{}
-	output  chan isolation.ProcessOutput
+	output  chan isolate.ProcessOutput
 }
 
-func newProcess(ctx context.Context, executable string, args, env map[string]string, workDir string) (isolation.Process, error) {
+func newProcess(ctx context.Context, executable string, args, env map[string]string, workDir string) (isolate.Process, error) {
 	pr := process{
 		ctx:     ctx,
 		started: make(chan struct{}),
-		output:  make(chan isolation.ProcessOutput, 100),
+		output:  make(chan isolate.ProcessOutput, 100),
 	}
 
 	packedEnv := make([]string, 0, len(env))
@@ -47,12 +47,12 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 			Path: executable,
 		}
 
-		isolation.GetLogger(ctx).Infof("starting executable %s", pr.cmd.Path)
+		isolate.GetLogger(ctx).Infof("starting executable %s", pr.cmd.Path)
 
 		collector := func(r io.Reader) {
 			scanner := bufio.NewScanner(r)
 			for scanner.Scan() {
-				pr.output <- isolation.ProcessOutput{
+				pr.output <- isolate.ProcessOutput{
 					Data: []byte(scanner.Text()),
 					Err:  nil,
 				}
@@ -64,32 +64,32 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 		}
 
 		// stdout
-		isolation.GetLogger(ctx).Infof("attach stdout of %s", pr.cmd.Path)
+		isolate.GetLogger(ctx).Infof("attach stdout of %s", pr.cmd.Path)
 		stdout, err := pr.cmd.StdoutPipe()
 		if err != nil {
-			isolation.GetLogger(ctx).Infof("unable to attach stdout of %s: %v", pr.cmd.Path, err)
+			isolate.GetLogger(ctx).Infof("unable to attach stdout of %s: %v", pr.cmd.Path, err)
 			return
 		}
 		go collector(stdout)
 
 		// stderr
-		isolation.GetLogger(ctx).Infof("attach stderr of %s", pr.cmd.Path)
+		isolate.GetLogger(ctx).Infof("attach stderr of %s", pr.cmd.Path)
 		stderr, err := pr.cmd.StderrPipe()
 		if err != nil {
-			isolation.GetLogger(ctx).Infof("unable to attach stderr of %s: %v", pr.cmd.Path, err)
+			isolate.GetLogger(ctx).Infof("unable to attach stderr of %s: %v", pr.cmd.Path, err)
 			return
 		}
 		go collector(stderr)
 
 		if err := pr.cmd.Start(); err != nil {
-			isolation.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
+			isolate.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
 			return
 		}
 
-		isolation.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
+		isolate.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
 		// NOTE: is it dangerous?
-		isolation.NotifyAbouStart(pr.output)
-		isolation.GetLogger(ctx).Infof("the notification about launching of %s has been sent", pr.cmd.Path)
+		isolate.NotifyAbouStart(pr.output)
+		isolate.GetLogger(ctx).Infof("the notification about launching of %s has been sent", pr.cmd.Path)
 		close(pr.started)
 	}()
 
@@ -105,6 +105,6 @@ func (p *process) Kill() error {
 	}
 }
 
-func (p *process) Output() <-chan isolation.ProcessOutput {
+func (p *process) Output() <-chan isolate.ProcessOutput {
 	return p.output
 }

@@ -4,7 +4,7 @@ import (
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types/container"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 )
 
 const (
@@ -14,7 +14,7 @@ const (
 
 // TODO: use mapstructurer with metatags
 
-type Profile isolation.Profile
+type Profile isolate.Profile
 
 func (p Profile) Endpoint() string {
 	if endpoint, ok := p["endpoint"].(string); ok {

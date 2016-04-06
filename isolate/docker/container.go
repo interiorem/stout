@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/noxiouz/stout/isolation"
+	"github.com/noxiouz/stout/isolate"
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
@@ -17,16 +17,16 @@ import (
 
 type process struct {
 	ctx    context.Context
-	output chan isolation.ProcessOutput
+	output chan isolate.ProcessOutput
 
 	dockerEndpoint string
 
 	containerID string
 }
 
-func newContainer(ctx context.Context, profile Profile, name, executable string, args, env map[string]string) (proc isolation.Process, err error) {
+func newContainer(ctx context.Context, profile Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
 	endpoint := profile.Endpoint()
-	defer isolation.GetLogger(ctx).WithField("endpoint", endpoint).Trace("create container").Stop(&err)
+	defer isolate.GetLogger(ctx).WithField("endpoint", endpoint).Trace("create container").Stop(&err)
 
 	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
@@ -79,12 +79,12 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 	}
 
 	for _, warn := range resp.Warnings {
-		isolation.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
+		isolate.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
 	}
 
 	pr := &process{
 		ctx:            ctx,
-		output:         make(chan isolation.ProcessOutput, 10),
+		output:         make(chan isolate.ProcessOutput, 10),
 		containerID:    resp.ID,
 		dockerEndpoint: endpoint,
 	}
@@ -92,14 +92,14 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 	if err := cli.ContainerStart(ctx, pr.containerID); err != nil {
 		return nil, err
 	}
-	isolation.NotifyAbouStart(pr.output)
+	isolate.NotifyAbouStart(pr.output)
 	go pr.collectOutput(cli)
 
 	return pr, nil
 }
 
 func (p *process) Kill() (err error) {
-	defer isolation.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Sending SIGKILL").Stop(&err)
+	defer isolate.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Sending SIGKILL").Stop(&err)
 	// Timeout?
 	cli, err := client.NewClient(p.dockerEndpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
@@ -108,7 +108,7 @@ func (p *process) Kill() (err error) {
 
 	defer func() {
 		var err error
-		defer isolation.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Removing a conatainer").Stop(&err)
+		defer isolate.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Removing a conatainer").Stop(&err)
 		removeOpts := types.ContainerRemoveOptions{
 			ContainerID: p.containerID,
 		}
@@ -119,7 +119,7 @@ func (p *process) Kill() (err error) {
 	return cli.ContainerKill(p.ctx, p.containerID, "SIGKILL")
 }
 
-func (p *process) Output() <-chan isolation.ProcessOutput {
+func (p *process) Output() <-chan isolate.ProcessOutput {
 	return p.output
 }
 
@@ -133,7 +133,7 @@ func (p *process) collectOutput(cli *client.Client) {
 	}
 	hjResp, err := cli.ContainerAttach(p.ctx, attachOpts)
 	if err != nil {
-		isolation.GetLogger(p.ctx).Infof("unable to attach to stdout/err of %s: %v", p.containerID, err)
+		isolate.GetLogger(p.ctx).Infof("unable to attach to stdout/err of %s: %v", p.containerID, err)
 		return
 	}
 	defer hjResp.Close()
@@ -144,9 +144,9 @@ func (p *process) collectOutput(cli *client.Client) {
 		var header = make([]byte, headerSize)
 		_, err := hjResp.Reader.Read(header)
 		if err != nil {
-			isolation.GetLogger(p.ctx).Infof("unable to read header for hjResp of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).Infof("unable to read header for hjResp of %s: %v", p.containerID, err)
 			select {
-			case p.output <- isolation.ProcessOutput{Data: nil, Err: err}:
+			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
 			case <-p.ctx.Done():
 			}
 			return
@@ -155,23 +155,23 @@ func (p *process) collectOutput(cli *client.Client) {
 
 		var size uint32
 		if err = binary.Read(bytes.NewReader(header[3:]), binary.BigEndian, &size); err != nil {
-			isolation.GetLogger(p.ctx).Infof("unable to decode szie from header of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).Infof("unable to decode szie from header of %s: %v", p.containerID, err)
 			return
 		}
 
 		var output = make([]byte, size)
 		_, err = hjResp.Reader.Read(output)
 		if err != nil {
-			isolation.GetLogger(p.ctx).Infof("unable to read output for hjResp of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).Infof("unable to read output for hjResp of %s: %v", p.containerID, err)
 			select {
-			case p.output <- isolation.ProcessOutput{Data: nil, Err: err}:
+			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
 			case <-p.ctx.Done():
 			}
 			return
 		}
 
 		select {
-		case p.output <- isolation.ProcessOutput{Data: output, Err: nil}:
+		case p.output <- isolate.ProcessOutput{Data: output, Err: nil}:
 		case <-p.ctx.Done():
 		}
 	}

@@ -1,4 +1,4 @@
-package isolation
+package isolate
 
 import (
 	"fmt"
@@ -53,16 +53,16 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 		return nil, err
 	}
 
-	isolationType := opts.Type()
-	if isolationType == "" {
+	isolateType := opts.Type()
+	if isolateType == "" {
 		err := fmt.Errorf("the profile does not have `type` option: %v", opts)
 		reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
 		return nil, err
 	}
 
-	box, ok := getBoxes(d.ctx)[isolationType]
+	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		err := fmt.Errorf("isolation type %s is not available", isolationType)
+		err := fmt.Errorf("isolate type %s is not available", isolateType)
 		reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
 		return nil, err
 	}
@@ -92,14 +92,14 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		return nil, err
 	}
 
-	isolationType := opts.Type()
-	if isolationType == "" {
+	isolateType := opts.Type()
+	if isolateType == "" {
 		return nil, fmt.Errorf("corrupted profile: %v", opts)
 	}
 
-	box, ok := getBoxes(d.ctx)[isolationType]
+	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		return nil, fmt.Errorf("isolation type %s is not available", isolationType)
+		return nil, fmt.Errorf("isolate type %s is not available", isolateType)
 	}
 
 	pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
