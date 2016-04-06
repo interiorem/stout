@@ -6,6 +6,7 @@ import (
 
 	"github.com/noxiouz/stout/isolation"
 
+	"github.com/docker/engine-api/client"
 	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
@@ -22,11 +23,17 @@ type dockerBoxSuite struct{}
 
 func (s *dockerBoxSuite) TestSpool(c *C) {
 	var (
-		ctx     = context.Background()
-		appname = "alpine"
+		ctx      = context.Background()
+		appname  = "alpine"
+		endpoint string
 	)
 	b, err := NewBox(nil)
 	c.Assert(err, IsNil)
 
-	c.Assert(b.Spool(ctx, appname, isolation.Profile{"endpoint": os.Getenv("DOCKER_HOST")}), IsNil)
+	if endpoint = os.Getenv("DOCKER_HOST"); endpoint == "" {
+		endpoint = client.DefaultDockerHost
+	}
+
+	c.Assert(b.Spool(ctx, appname, isolation.Profile{"endpoint": endpoint}), IsNil)
+	c.Assert(b.Spool(ctx, appname, isolation.Profile{"endpoint": "balbla"}), Not(IsNil))
 }
