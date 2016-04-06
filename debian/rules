@@ -2,6 +2,7 @@
 
 export DH_ALWAYS_EXCLUDE=.git
 export DH_VERBOSE=0
+export GO15VENDOREXPERIMENT="1"
 
 NAME=cocaine-porto
 BUILDDT=$(shell date -u +%F\ %H:%M:%S)
@@ -13,14 +14,14 @@ VERSIONFILE=${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/version/version.g
 override_dh_auto_build:
 	mkdir -p ${CPWD}/debian/tmp/go
 	export GOPATH=${CPWD}/debian/tmp/go
-	mkdir -p ${CPWD}/debian/tmp/go/stout
-	GOPATH=${CPWD}/debian/tmp/go GOBIN=${CPWD}/debian/tmp/go go get -t ./... || true
+	mkdir -p ${CPWD}/debian/tmp/go/src/github.com/noxiouz
+	ln -s ${CPWD} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout
 	rm -f $(VERSIONFILE)
 	@echo -e "package version\n" > $(VERSIONFILE)
 	@echo -e "const Version string = \"$(DEBVER)\"\n" >> $(VERSIONFILE)
 	@echo -e "const Build string = \"$(BUILDDT)\"\n" >> $(VERSIONFILE)
 	@echo -e "const GitHash string = \"$(VERSION)\"\n" >> $(VERSIONFILE)
-	GOPATH=${CPWD}/debian/tmp/go GOBIN=${CPWD}/debian/tmp/go go build -o ${NAME} ./cmd/main.go
+	GOPATH=${CPWD}/debian/tmp/go go build -o ${NAME} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/cmd/stout/main.go
 
 
 %:
