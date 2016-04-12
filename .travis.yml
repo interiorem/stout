@@ -6,7 +6,7 @@ services:
   - docker
 
 script:
-  - ./.travis/script.sh isolate
+  - ./.travis/script.sh isolate isolate/docker isolate/process
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
