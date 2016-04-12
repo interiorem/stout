@@ -23,8 +23,6 @@ fmt:
 
 test:
 	@echo "+ $@"
-	@echo $(PKGS)
-
 	@echo "" > coverage.txt
 
 	for pkg in $(PKGS); do go test -coverprofile=profile.out -covermode=atomic $$pkg; \

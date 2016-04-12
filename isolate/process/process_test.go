@@ -19,7 +19,8 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 func init() {
-	testsuite.RegisterSuite(processBoxConstructorWithMockedStorage, testsuite.NeverSkip)
+	opts := make(isolate.Profile)
+	testsuite.RegisterSuite(processBoxConstructorWithMockedStorage, opts, testsuite.NeverSkip)
 }
 
 type mockCodeStorage struct {
