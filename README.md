@@ -1,4 +1,4 @@
-# Stout
+# Stout  [![Build Status](https://travis-ci.org/noxiouz/stout.svg?branch=master)](https://travis-ci.org/noxiouz/stout) [![codecov.io](https://codecov.io/github/noxiouz/stout/coverage.svg?branch=master)](https://codecov.io/github/noxiouz/stout?branch=master)
 
 Stout is external isolation plugin for Cocaine Cloud.
 
