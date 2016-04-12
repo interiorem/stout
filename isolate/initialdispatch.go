@@ -111,7 +111,11 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	go func() {
 		for {
 			select {
-			case output := <-pr.Output():
+			case output, ok := <-pr.Output():
+				if !ok {
+					return
+				}
+
 				if output.Err != nil {
 					reply(d.ctx, replySpawnError, [2]int{42, 42}, output.Err.Error())
 				} else {
