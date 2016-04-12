@@ -8,6 +8,9 @@ go:
 services:
   - docker
 
+install:
+  - go env
+
 script:
   - ./.travis/script.sh isolate isolate/docker isolate/process
 

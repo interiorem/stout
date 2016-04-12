@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"io"
 	"os/exec"
+	"path/filepath"
+	"sync/atomic"
 
 	"golang.org/x/net/context"
 
@@ -34,64 +36,81 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 		packedEnv = append(packedEnv, k+"="+v)
 	}
 
-	packedArgs := make([]string, 0, len(args)*2)
+	packedArgs := make([]string, 1, len(args)*2+1)
+	packedArgs[0] = filepath.Base(executable)
 	for k, v := range args {
 		packedArgs = append(packedArgs, k, v)
 	}
 
-	go func() {
-		pr.cmd = &exec.Cmd{
-			Env:  packedEnv,
-			Args: packedArgs,
-			Dir:  workDir,
-			Path: executable,
-		}
+	pr.cmd = &exec.Cmd{
+		Env:  packedEnv,
+		Args: packedArgs,
+		Dir:  workDir,
+		Path: executable,
+	}
 
-		isolate.GetLogger(ctx).Infof("starting executable %s", pr.cmd.Path)
+	isolate.GetLogger(ctx).Infof("starting executable %+v", pr.cmd)
 
-		collector := func(r io.Reader) {
-			scanner := bufio.NewScanner(r)
-			for scanner.Scan() {
-				pr.output <- isolate.ProcessOutput{
-					Data: []byte(scanner.Text()),
-					Err:  nil,
-				}
+	// sme is used to keep track an order of output channel
+	var sem uint32
+
+	collector := func(r io.Reader) {
+		defer func() {
+			if atomic.AddUint32(&sem, 1) == 2 {
+				close(pr.output)
 			}
+		}()
 
-			if err := scanner.Err(); err != nil {
-				return
+		// NOTE: it's dangerous actually to collect data until \n
+		// An app can harm cocaine by creating really LONG strings
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			body := scanner.Bytes()
+			data := make([]byte, len(body), len(body)+1)
+			copy(data, body)
+			pr.output <- isolate.ProcessOutput{
+				Data: append(data, '\n'),
+				Err:  nil,
 			}
 		}
 
-		// stdout
-		isolate.GetLogger(ctx).Infof("attach stdout of %s", pr.cmd.Path)
-		stdout, err := pr.cmd.StdoutPipe()
-		if err != nil {
-			isolate.GetLogger(ctx).Infof("unable to attach stdout of %s: %v", pr.cmd.Path, err)
+		if err := scanner.Err(); err != nil {
+			pr.output <- isolate.ProcessOutput{
+				Data: nil,
+				Err:  err,
+			}
 			return
 		}
-		go collector(stdout)
+	}
 
-		// stderr
-		isolate.GetLogger(ctx).Infof("attach stderr of %s", pr.cmd.Path)
-		stderr, err := pr.cmd.StderrPipe()
-		if err != nil {
-			isolate.GetLogger(ctx).Infof("unable to attach stderr of %s: %v", pr.cmd.Path, err)
-			return
-		}
-		go collector(stderr)
+	// stdout
+	isolate.GetLogger(ctx).Infof("attach stdout of %s", pr.cmd.Path)
+	stdout, err := pr.cmd.StdoutPipe()
+	if err != nil {
+		isolate.GetLogger(ctx).Infof("unable to attach stdout of %s: %v", pr.cmd.Path, err)
+		return nil, err
+	}
+	go collector(stdout)
 
-		if err := pr.cmd.Start(); err != nil {
-			isolate.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
-			return
-		}
+	// stderr
+	isolate.GetLogger(ctx).Infof("attach stderr of %s", pr.cmd.Path)
+	stderr, err := pr.cmd.StderrPipe()
+	if err != nil {
+		isolate.GetLogger(ctx).Infof("unable to attach stderr of %s: %v", pr.cmd.Path, err)
+		return nil, err
+	}
+	go collector(stderr)
 
-		isolate.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
-		// NOTE: is it dangerous?
-		isolate.NotifyAbouStart(pr.output)
-		isolate.GetLogger(ctx).Infof("the notification about launching of %s has been sent", pr.cmd.Path)
-		close(pr.started)
-	}()
+	if err := pr.cmd.Start(); err != nil {
+		isolate.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
+		return nil, err
+	}
+
+	isolate.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
+	// NOTE: is it dangerous?
+	isolate.NotifyAbouStart(pr.output)
+	isolate.GetLogger(ctx).Infof("the notification about launching of %s has been sent", pr.cmd.Path)
+	close(pr.started)
 
 	return &pr, nil
 }
