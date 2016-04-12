@@ -2,6 +2,7 @@ package docker
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -67,7 +68,8 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
-		if err = json.Unmarshal(scanner.Bytes(), &resp); err != nil {
+		if err = json.NewDecoder(bytes.NewReader(scanner.Bytes())).Decode(&resp); err != nil {
+			logger.WithError(err).Errorf("unable to decode JSON docker reply %s", scanner.Bytes())
 			return err
 		}
 
@@ -78,7 +80,6 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		if len(resp.Status) != 0 {
 			logger.Debugf("%s", resp.Status)
 		}
-
 	}
 
 	if err = scanner.Err(); err != nil {
