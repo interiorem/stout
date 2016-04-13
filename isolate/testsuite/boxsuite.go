@@ -12,10 +12,11 @@ import (
 )
 
 // RegisterSuite registers a new suite for a provided box
-func RegisterSuite(boxConstructor BoxConstructor, skipCheck SkipCheck) {
+func RegisterSuite(boxConstructor BoxConstructor, opts isolate.Profile, skipCheck SkipCheck) {
 	check.Suite(&BoxSuite{
 		Constructor: boxConstructor,
 		SkipCheck:   skipCheck,
+		opts:        opts,
 		ctx:         context.Background(),
 	})
 }
@@ -34,7 +35,8 @@ type BoxSuite struct {
 	Constructor BoxConstructor
 	SkipCheck
 	isolate.Box
-	ctx context.Context
+	opts isolate.Profile
+	ctx  context.Context
 }
 
 // SetUpSuite sets up the gocheck test suite.
@@ -53,8 +55,6 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	var (
 		ctx = context.Background()
 
-		opts isolate.Profile
-
 		name       = "worker"
 		executable = "worker.sh"
 		args       = map[string]string{
@@ -69,10 +69,10 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 		}
 	)
 
-	err := suite.Box.Spool(ctx, name, opts)
+	err := suite.Box.Spool(ctx, name, suite.opts)
 	c.Assert(err, check.IsNil)
 
-	pr, err := suite.Box.Spawn(ctx, opts, name, executable, args, env)
+	pr, err := suite.Box.Spawn(ctx, suite.opts, name, executable, args, env)
 	c.Assert(err, check.IsNil)
 	defer pr.Kill()
 

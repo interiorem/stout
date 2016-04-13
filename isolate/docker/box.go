@@ -42,7 +42,13 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 
 // Spool spools an image with a tag latest
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
-	endpoint := Profile(opts).Endpoint()
+	profile := Profile(opts)
+	if profile.Registry() == "" {
+		isolate.GetLogger(ctx).WithFields(log.Fields{"name": name}).Info("local image will be used")
+		return nil
+	}
+
+	endpoint := profile.Endpoint()
 	defer isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint}).Trace("spooling an image").Stop(&err)
 
 	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)

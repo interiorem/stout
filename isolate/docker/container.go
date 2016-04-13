@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 
 	"github.com/noxiouz/stout/isolate"
 
@@ -56,8 +57,8 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 
 	config := container.Config{
 		AttachStdin:  false,
-		AttachStdout: false,
-		AttachStderr: false,
+		AttachStdout: true,
+		AttachStderr: true,
 
 		Env:        Env,
 		Cmd:        Cmd,
@@ -124,6 +125,8 @@ func (p *process) Output() <-chan isolate.ProcessOutput {
 }
 
 func (p *process) collectOutput(cli *client.Client) {
+	defer close(p.output)
+
 	attachOpts := types.ContainerAttachOptions{
 		ContainerID: p.containerID,
 		Stream:      true,
@@ -141,20 +144,24 @@ func (p *process) collectOutput(cli *client.Client) {
 	const headerSize = 8
 	for {
 		// https://docs.docker.com/engine/reference/api/docker_remote_api_v1.22/#attach-a-container
+		/// NOTE: some logs can be lost because of EOF
 		var header = make([]byte, headerSize)
 		_, err := hjResp.Reader.Read(header)
 		if err != nil {
+			if err == io.EOF {
+				return
+			}
+
 			isolate.GetLogger(p.ctx).Infof("unable to read header for hjResp of %s: %v", p.containerID, err)
 			select {
 			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
 			case <-p.ctx.Done():
 			}
 			return
-
 		}
 
 		var size uint32
-		if err = binary.Read(bytes.NewReader(header[3:]), binary.BigEndian, &size); err != nil {
+		if err = binary.Read(bytes.NewReader(header[4:]), binary.BigEndian, &size); err != nil {
 			isolate.GetLogger(p.ctx).Infof("unable to decode szie from header of %s: %v", p.containerID, err)
 			return
 		}
@@ -162,6 +169,10 @@ func (p *process) collectOutput(cli *client.Client) {
 		var output = make([]byte, size)
 		_, err = hjResp.Reader.Read(output)
 		if err != nil {
+			if err == io.EOF {
+				return
+			}
+
 			isolate.GetLogger(p.ctx).Infof("unable to read output for hjResp of %s: %v", p.containerID, err)
 			select {
 			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
