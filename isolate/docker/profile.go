@@ -47,3 +47,11 @@ func (p Profile) RuntimePath() string {
 
 	return defaultRuntimePath
 }
+
+func (p Profile) Cwd() string {
+	if cwd, ok := p["cwd"].(string); ok {
+		return cwd
+	}
+
+	return "/"
+}

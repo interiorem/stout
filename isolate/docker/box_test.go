@@ -25,7 +25,10 @@ func init() {
 	if endpoint = os.Getenv("DOCKER_HOST"); endpoint == "" {
 		endpoint = client.DefaultDockerHost
 	}
-	opts := isolate.Profile{"endpoint": endpoint}
+	opts := isolate.Profile{
+		"endpoint": endpoint,
+		"cwd":      "/usr/bin",
+	}
 
 	testsuite.RegisterSuite(dockerBoxConstructor, opts, testsuite.NeverSkip)
 }

@@ -63,7 +63,7 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 		Env:        Env,
 		Cmd:        Cmd,
 		Image:      image,
-		WorkingDir: "/",
+		WorkingDir: profile.Cwd(),
 	}
 
 	hostConfig := container.HostConfig{
