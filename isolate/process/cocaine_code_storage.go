@@ -2,7 +2,6 @@ package process
 
 import (
 	"sync"
-	"sync/atomic"
 
 	"golang.org/x/net/context"
 
@@ -12,30 +11,23 @@ import (
 )
 
 type cocaineCodeStorage struct {
-	m           sync.Mutex
-	onceCreated uint32
-	service     *cocaine.Service
+	m       sync.Mutex
+	service *cocaine.Service
 }
 
 func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error) {
-	if atomic.LoadUint32(&st.onceCreated) == 1 {
-		return nil
-	}
 	defer isolate.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
 
 	st.m.Lock()
 	defer st.m.Unlock()
-	if st.onceCreated == 0 {
-		defer atomic.StoreUint32(&st.onceCreated, 1)
 
-		var service *cocaine.Service
-		service, err = cocaine.NewService(ctx, "storage", nil)
-		if err != nil {
-			return err
-		}
-
-		st.service = service
+	var service *cocaine.Service
+	service, err = cocaine.NewService(ctx, "storage", nil)
+	if err != nil {
+		return err
 	}
+
+	st.service = service
 
 	return nil
 }
