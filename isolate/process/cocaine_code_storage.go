@@ -6,6 +6,7 @@ import (
 	"golang.org/x/net/context"
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
+	"github.com/ugorji/go/codec"
 
 	"github.com/noxiouz/stout/isolate"
 )
@@ -51,5 +52,13 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 		return nil, err
 	}
 
-	return data, res.ExtractTuple(&data)
+	var raw []byte
+	if err = res.ExtractTuple(&raw); err != nil {
+		return nil, err
+	}
+
+	if err = codec.NewDecodeBytes(raw, &codec.MsgpackHandle{}).Decode(&data); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
