@@ -20,6 +20,9 @@ func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error)
 
 	st.m.Lock()
 	defer st.m.Unlock()
+	if st.service != nil {
+		return nil
+	}
 
 	var service *cocaine.Service
 	service, err = cocaine.NewService(ctx, "storage", nil)
