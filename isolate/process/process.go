@@ -105,6 +105,7 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 		isolate.GetLogger(ctx).Infof("unable to start executable %s: %v", pr.cmd.Path, err)
 		return nil, err
 	}
+	go pr.cmd.Wait()
 
 	isolate.GetLogger(ctx).Infof("executable %s has been launched", pr.cmd.Path)
 	// NOTE: is it dangerous?
