@@ -57,7 +57,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 		return nil, err
 	}
 
-	if err = codec.NewDecodeBytes(raw, &codec.MsgpackHandle{}).Decode(&data); err != nil {
+	if err = codec.NewDecoderBytes(raw, &codec.MsgpackHandle{}).Decode(&data); err != nil {
 		return nil, err
 	}
 	return data, nil
