@@ -4,7 +4,9 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -12,6 +14,26 @@ import (
 
 	"golang.org/x/net/context"
 )
+
+type archiveConstructor func(io.Reader) (io.ReadCloser, error)
+
+func gzipReader(r io.Reader) (io.ReadCloser, error) {
+	return gzip.NewReader(r)
+}
+
+func zlibReader(r io.Reader) (io.ReadCloser, error) {
+	return zlib.NewReader(r)
+}
+
+func fallbackTarReader(r io.Reader) (io.ReadCloser, error) {
+	return ioutil.NopCloser(r), nil
+}
+
+var constructors = []archiveConstructor{
+	gzipReader,
+	zlibReader,
+	fallbackTarReader,
+}
 
 func unpackArchive(ctx context.Context, data []byte, target string) (err error) {
 	log := isolate.GetLogger(ctx).WithField("target", target)
@@ -26,13 +48,18 @@ func unpackArchive(ctx context.Context, data []byte, target string) (err error) 
 		return err
 	}
 
-	gzR, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return err
+	var archiveReader io.ReadCloser
+	// NOTE: the last element is TarFallback, that always returns nil error
+	for _, constructor := range constructors {
+		archiveReader, err = constructor(bytes.NewReader(data))
+		if err == nil {
+			break
+		}
 	}
-	defer gzR.Close()
 
-	tr := tar.NewReader(gzR)
+	defer archiveReader.Close()
+
+	tr := tar.NewReader(archiveReader)
 	for {
 		hdr, err := tr.Next()
 		if err != nil {
