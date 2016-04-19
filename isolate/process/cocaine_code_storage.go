@@ -14,6 +14,7 @@ import (
 type cocaineCodeStorage struct {
 	m       sync.Mutex
 	service *cocaine.Service
+	locator []string
 }
 
 func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error) {
@@ -26,7 +27,7 @@ func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error)
 	}
 
 	var service *cocaine.Service
-	service, err = cocaine.NewService(ctx, "storage", nil)
+	service, err = cocaine.NewService(ctx, "storage", st.locator)
 	if err != nil {
 		return err
 	}
