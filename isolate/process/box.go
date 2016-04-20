@@ -16,8 +16,10 @@ const (
 
 var (
 	// can be overwritten for tests
-	createCodeStorage = func() codeStorage {
-		return &cocaineCodeStorage{}
+	createCodeStorage = func(locator []string) codeStorage {
+		return &cocaineCodeStorage{
+			locator: locator,
+		}
 	}
 )
 
@@ -36,9 +38,14 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 		spoolPath = defaultSpoolPath
 	}
 
+	var locator []string
+	if endpoint, ok := cfg["locator"].(string); ok {
+		locator = append(locator, endpoint)
+	}
+
 	box := &Box{
 		spoolPath: spoolPath,
-		storage:   createCodeStorage(),
+		storage:   createCodeStorage(locator),
 	}
 	return box, nil
 }
