@@ -1,8 +1,8 @@
 package docker
 
 import (
-	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types/container"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/noxiouz/stout/isolate"
 )
@@ -12,46 +12,34 @@ const (
 	defatultNetworkMode = container.NetworkMode("bridge")
 )
 
-// TODO: use mapstructurer with metatags
+// Profile describes a Cocaine profile for Docker isolation type
+type Profile struct {
+	Registry string `json:"registry"`
+	Endpoint string `json:"endpoint"`
 
-type Profile isolate.Profile
-
-func (p Profile) Endpoint() string {
-	if endpoint, ok := p["endpoint"].(string); ok {
-		return endpoint
-	}
-
-	return client.DefaultDockerHost
+	NetworkMode container.NetworkMode `json:"network_mode"`
+	RuntimePath string                `json:"runtime-path"`
+	Cwd         string                `json:"cwd"`
 }
 
-func (p Profile) Registry() string {
-	if registry, ok := p["registry"].(string); ok {
-		return registry
+func convertProfile(rawprofile isolate.Profile) (*Profile, error) {
+	// Create profile with default values
+	// They can be overwritten by decode
+	var profile = &Profile{
+		NetworkMode: container.NetworkMode("bridge"),
+		RuntimePath: defaultRuntimePath,
 	}
 
-	return ""
-}
-
-func (p Profile) NetworkMode() container.NetworkMode {
-	if endpoint, ok := p["network_mode"].(string); ok {
-		return container.NetworkMode(endpoint)
+	config := mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           profile,
+		TagName:          "json",
 	}
 
-	return defatultNetworkMode
-}
-
-func (p Profile) RuntimePath() string {
-	if runtimepath, ok := p["runtime-path"].(string); ok {
-		return runtimepath
+	decoder, err := mapstructure.NewDecoder(&config)
+	if err != nil {
+		return nil, err
 	}
 
-	return defaultRuntimePath
-}
-
-func (p Profile) Cwd() string {
-	if cwd, ok := p["cwd"].(string); ok {
-		return cwd
-	}
-
-	return "/"
+	return profile, decoder.Decode(rawprofile)
 }
