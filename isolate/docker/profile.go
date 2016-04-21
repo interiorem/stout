@@ -14,8 +14,9 @@ const (
 
 // Profile describes a Cocaine profile for Docker isolation type
 type Profile struct {
-	Registry string `json:"registry"`
-	Endpoint string `json:"endpoint"`
+	Registry   string `json:"registry"`
+	Repository string `json:"repository"`
+	Endpoint   string `json:"endpoint"`
 
 	NetworkMode container.NetworkMode `json:"network_mode"`
 	RuntimePath string                `json:"runtime-path"`

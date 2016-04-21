@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
 	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
@@ -66,12 +67,15 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	}
 
 	pullOpts := types.ImagePullOptions{
-		ImageID: name,
+		ImageID: filepath.Join(profile.Registry, profile.Repository, name),
 		Tag:     "latest",
 	}
 
 	body, err := cli.ImagePull(ctx, pullOpts, nil)
 	if err != nil {
+		isolate.GetLogger(ctx).WithError(err).WithFields(
+			log.Fields{"name": name, "endpoint": profile.Endpoint,
+				"image": pullOpts.ImageID, "tag": pullOpts.Tag}).Error("unable to pull an image")
 		return err
 	}
 	defer body.Close()
