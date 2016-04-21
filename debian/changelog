@@ -1,8 +1,18 @@
+cocaine-isolate-daemon (0.1.4) unstable; urgency=low
+
+  * Return all errors when spool/spawn to Cocaine
+  * Report about closing the output of a worker
+  * Bugfix: clean session map
+  * Do not hang on Handle
+  * Fix level of some log messages
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 22 Apr 2016 02:20:22 +0300
+
 cocaine-isolate-daemon (0.1.3) unstable; urgency=low
 
   * Package renaming
   * Add Ubic script
-  * Process isolation fixes: zombies, support more compress formats 
+  * Process isolation fixes: zombies, support more compress formats
   * Docker isolation fixes: spool, profile convertion
 
  -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 21 Apr 2016 17:42:23 +0300
