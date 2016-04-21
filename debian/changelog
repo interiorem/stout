@@ -1,3 +1,12 @@
+cocaine-isolate-daemon (0.1.3) unstable; urgency=low
+
+  * Package renaming
+  * Add Ubic script
+  * Process isolation fixes: zombies, support more compress formats 
+  * Docker isolation fixes: spool, profile convertion
+
+ -- Anton Tyurin <noxiouz@yandex-team.ru>  Thu, 21 Apr 2016 17:42:23 +0300
+
 cocaine-porto (0.1.2) unstable; urgency=low
 
   * Sync spooling process

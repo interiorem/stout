@@ -21,10 +21,12 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
+	"github.com/noxiouz/stout/version"
 )
 
 var (
-	configpath string
+	configpath  string
+	showVersion bool
 )
 
 // Config describes a configuration file for the daemon
@@ -97,10 +99,17 @@ func (lh *logHandler) HandleLog(entry *log.Entry) error {
 
 func init() {
 	flag.StringVar(&configpath, "config", "/etc/stout/stout-default.conf", "path to a configuration file")
+	flag.BoolVar(&showVersion, "version", false, "show version and exit")
 	flag.Parse()
 }
 
 func main() {
+	if showVersion {
+		fmt.Printf("version: `%s`\n", version.Version)
+		fmt.Printf("hash: `%s`\n", version.GitHash)
+		fmt.Printf("build utc time: `%s`\n", version.Build)
+		return
+	}
 	var config Config
 	if err := func(path string) error {
 		f, err := os.Open(path)
