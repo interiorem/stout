@@ -25,9 +25,9 @@ type process struct {
 	containerID string
 }
 
-func newContainer(ctx context.Context, profile Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
-	endpoint := profile.Endpoint()
-	defer isolate.GetLogger(ctx).WithField("endpoint", endpoint).Trace("create container").Stop(&err)
+func newContainer(ctx context.Context, profile *Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
+	endpoint := profile.Endpoint
+	defer isolate.GetLogger(ctx).WithField("endpoint", endpoint).Trace("spawning container").Stop(&err)
 
 	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
@@ -35,7 +35,7 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 	}
 
 	var image string
-	if registry := profile.Registry(); registry != "" {
+	if registry := profile.Registry; registry != "" {
 		image = registry + "/" + name
 	} else {
 		image = name
@@ -53,7 +53,7 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 	}
 
 	var binds = make([]string, 1)
-	binds[0] = args["--endpoint"] + ":" + profile.RuntimePath()
+	binds[0] = args["--endpoint"] + ":" + profile.RuntimePath
 
 	config := container.Config{
 		AttachStdin:  false,
@@ -63,11 +63,11 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 		Env:        Env,
 		Cmd:        Cmd,
 		Image:      image,
-		WorkingDir: profile.Cwd(),
+		WorkingDir: profile.Cwd,
 	}
 
 	hostConfig := container.HostConfig{
-		NetworkMode: profile.NetworkMode(),
+		NetworkMode: profile.NetworkMode,
 		Binds:       binds,
 	}
 
@@ -76,6 +76,7 @@ func newContainer(ctx context.Context, profile Profile, name, executable string,
 
 	resp, err := cli.ContainerCreate(ctx, &config, &hostConfig, networkingConfig, "")
 	if err != nil {
+		isolate.GetLogger(ctx).WithField("endpoint", endpoint).WithError(err).Error("unable to create a container")
 		return nil, err
 	}
 

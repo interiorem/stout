@@ -37,21 +37,30 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 
 // Spawn spawns a prcess using container
 func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
-	return newContainer(ctx, Profile(opts), name, executable, args, env)
+	profile, err := convertProfile(opts)
+	if err != nil {
+		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		return nil, err
+	}
+	return newContainer(ctx, profile, name, executable, args, env)
 }
 
 // Spool spools an image with a tag latest
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
-	profile := Profile(opts)
-	if profile.Registry() == "" {
+	profile, err := convertProfile(opts)
+	if err != nil {
+		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		return err
+	}
+
+	if profile.Registry == "" {
 		isolate.GetLogger(ctx).WithFields(log.Fields{"name": name}).Info("local image will be used")
 		return nil
 	}
 
-	endpoint := profile.Endpoint()
-	defer isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint}).Trace("spooling an image").Stop(&err)
+	defer isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": profile.Endpoint}).Trace("spooling an image").Stop(&err)
 
-	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
+	cli, err := client.NewClient(profile.Endpoint, dockerVersionAPI, nil, defaultHeaders)
 	if err != nil {
 		return err
 	}
@@ -69,7 +78,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 	var (
 		resp   spoolResponseProtocol
-		logger = isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": endpoint})
+		logger = isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": profile.Endpoint})
 	)
 
 	scanner := bufio.NewScanner(body)
