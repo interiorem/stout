@@ -19,6 +19,8 @@ const (
 	replySpawnWrite = 0
 	replySpawnError = 1
 	replySpawnClose = 2
+
+	errExternalCategory = 42
 )
 
 type initialDispatch struct {
@@ -46,24 +48,25 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 		name string
 	)
 
-	GetLogger(d.ctx).Infof("initialDispatch.Handle.Spool().Args. Profile `%+v`, appname `%s`",
-		msg.Args[0], msg.Args[1])
 	if err := unpackArgs(d.ctx, msg.Args, &opts, &name); err != nil {
-		reply(d.ctx, replySpoolError, [2]int{42, 42}, fmt.Sprintf("unbale to unpack args: %v", err))
+		GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
+		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
 		return nil, err
 	}
 
 	isolateType := opts.Type()
 	if isolateType == "" {
-		err := fmt.Errorf("the profile does not have `type` option: %v", opts)
-		reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
+		err := fmt.Errorf("corrupted profile: %v", opts)
+		GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
+		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
 		return nil, err
 	}
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
+		GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
-		reply(d.ctx, replySpoolError, [2]int{42, 42}, err.Error())
+		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
 	}
 
@@ -71,7 +74,7 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 
 	go func() {
 		if err := box.Spool(ctx, name, opts); err != nil {
-			reply(ctx, replySpoolError, [2]int{42, 42}, err.Error())
+			reply(ctx, replySpoolError, errSpoolingFailed, err.Error())
 			return
 		}
 		// NOTE: make sure that nil is packed as []interface{}
@@ -89,43 +92,55 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	)
 
 	if err := unpackArgs(d.ctx, msg.Args, &opts, &name, &executable, &args, &env); err != nil {
+		GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
+		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
 		return nil, err
 	}
 
 	isolateType := opts.Type()
 	if isolateType == "" {
-		return nil, fmt.Errorf("corrupted profile: %v", opts)
+		err := fmt.Errorf("corrupted profile: %v", opts)
+		GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
+		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
+		return nil, err
 	}
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		return nil, fmt.Errorf("isolate type %s is not available", isolateType)
+		GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
+		err := fmt.Errorf("isolate type %s is not available", isolateType)
+		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
+		return nil, err
 	}
 
 	pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
 	if err != nil {
-		GetLogger(d.ctx).Infof("initialDispatch.Handle.Spawn(): unable to spawn %v", err)
+		GetLogger(d.ctx).WithError(err).Error("unable to spawn")
+		reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
 		return nil, err
 	}
 
-	go func() {
-		for {
-			select {
-			case output, ok := <-pr.Output():
-				if !ok {
-					return
-				}
-
-				if output.Err != nil {
-					reply(d.ctx, replySpawnError, [2]int{42, 42}, output.Err.Error())
-				} else {
-					reply(d.ctx, replySpawnWrite, output.Data)
-				}
-			case <-d.ctx.Done():
-				return
-			}
-		}
-	}()
+	go d.trackOutput(pr)
 
 	return newSpawnDispatch(d.ctx, pr), nil
+}
+
+func (d *initialDispatch) trackOutput(pr Process) {
+	for {
+		select {
+		case output, ok := <-pr.Output():
+			if !ok {
+				reply(d.ctx, replySpawnError, errOutputError, "output has been closed")
+				return
+			}
+
+			if output.Err != nil {
+				reply(d.ctx, replySpawnError, errOutputError, output.Err.Error())
+			} else {
+				reply(d.ctx, replySpawnWrite, output.Data)
+			}
+		case <-d.ctx.Done():
+			return
+		}
+	}
 }

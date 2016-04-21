@@ -54,25 +54,26 @@ func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispa
 	}, nil
 }
 
-func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) error {
+func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
-	var decoder = h.newDecoder(conn)
-LOOP:
-	for {
-		var (
-			msg message
-			err error
-		)
 
-		if err := decoder.Decode(&msg); err != nil {
-			return err
+	decoder := h.newDecoder(conn)
+
+	for {
+		var msg message
+
+		err := decoder.Decode(&msg)
+		if err != nil {
+			GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Stop handling the connection")
+			return
 		}
 
+		// NOTE: it can be the bottleneck
 		dispatcher, ok := h.session[msg.Channel]
 		if !ok {
 			if msg.Number < h.highestChannel {
-				GetLogger(h.ctx).Infof("corrupted channel order: %d %d", msg.Number, h.highestChannel)
-				continue LOOP
+				GetLogger(h.ctx).Errorf("corrupted channel order: %d %d", msg.Number, h.highestChannel)
+				continue
 			}
 
 			// TODO: refactor
@@ -83,8 +84,8 @@ LOOP:
 
 		dispatcher, err = dispatcher.Handle(&msg)
 		if err != nil {
-			GetLogger(h.ctx).Infof("dispatch.Handler returns error: %v", err)
-			continue LOOP
+			GetLogger(h.ctx).WithError(err).Errorf("Handle returns an error")
+			continue
 		}
 		h.session[msg.Channel] = dispatcher
 	}
