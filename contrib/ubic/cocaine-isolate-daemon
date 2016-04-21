@@ -1,0 +1,9 @@
+use Ubic::Service::SimpleDaemon;
+my $service = Ubic::Service::SimpleDaemon->new(
+    name => 'cocaine-isolate-daemon',
+    auto_start => 1,
+    ubic_log => '/var/log/ubic/cocaine-isolate-daemon/ubic.log',
+    stdout => '/var/log/ubic/cocaine-isolate-daemon/stdout.log',
+    stderr => '/var/log/ubic/cocaine-isolate-daemon/stderr.log',
+    bin => '/usr/bin/cocaine-isolate-daemon -config /etc/cocaine-isolate-daemon/cocaine-isolate-daemon.conf',
+);
