@@ -110,6 +110,10 @@
 			"Rev": "5d2041e26a699eaca682e2ea41c8f891e1060444"
 		},
 		{
+			"ImportPath": "github.com/mitchellh/mapstructure",
+			"Rev": "482a9fd5fa83e8c4e7817413b80f3eb8feec03ef"
+		},
+		{
 			"ImportPath": "github.com/opencontainers/runc/libcontainer/user",
 			"Comment": "v0.0.9-115-g3f4f442",
 			"Rev": "3f4f4420fded8d19cf29a1b6a631b7e31f7f9c68"
