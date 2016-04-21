@@ -113,16 +113,22 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		return nil, err
 	}
 
-	pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
-	if err != nil {
-		GetLogger(d.ctx).WithError(err).Error("unable to spawn")
-		reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
-		return nil, err
-	}
+	prCh := make(chan Process, 1)
+	go func() {
+		defer close(prCh)
 
-	go d.trackOutput(pr)
+		pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
+		if err != nil {
+			GetLogger(d.ctx).WithError(err).Error("unable to spawn")
+			reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
+			return
+		}
 
-	return newSpawnDispatch(d.ctx, pr), nil
+		d.trackOutput(pr)
+		prCh <- pr
+	}()
+
+	return newSpawnDispatch(d.ctx, prCh), nil
 }
 
 func (d *initialDispatch) trackOutput(pr Process) {

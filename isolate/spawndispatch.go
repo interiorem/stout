@@ -8,21 +8,30 @@ import (
 
 type spawnDispatch struct {
 	ctx     context.Context
-	process Process
+	process <-chan Process
 }
 
-func newSpawnDispatch(ctx context.Context, pr Process) *spawnDispatch {
+func newSpawnDispatch(ctx context.Context, prCh <-chan Process) *spawnDispatch {
 	return &spawnDispatch{
 		ctx:     ctx,
-		process: pr,
+		process: prCh,
 	}
 }
 
 func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spawnKill:
-		d.process.Kill()
-		return &noneDispatch{}, nil
+		go func() {
+			select {
+			case pr, ok := <-d.process:
+				if ok {
+					pr.Kill()
+				}
+			case <-d.ctx.Done():
+			}
+		}()
+		// NOTE: do not return an err on purpose
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
 	}

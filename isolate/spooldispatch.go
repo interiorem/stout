@@ -23,7 +23,8 @@ func (s *spoolCancelationDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spoolCancel:
 		s.cancel()
-		return &noneDispatch{}, nil
+		// NOTE: do not return an err on purpose
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
 	}

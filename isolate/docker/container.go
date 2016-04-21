@@ -137,7 +137,7 @@ func (p *process) collectOutput(cli *client.Client) {
 	}
 	hjResp, err := cli.ContainerAttach(p.ctx, attachOpts)
 	if err != nil {
-		isolate.GetLogger(p.ctx).Infof("unable to attach to stdout/err of %s: %v", p.containerID, err)
+		isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
 		return
 	}
 	defer hjResp.Close()
@@ -153,7 +153,7 @@ func (p *process) collectOutput(cli *client.Client) {
 				return
 			}
 
-			isolate.GetLogger(p.ctx).Infof("unable to read header for hjResp of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
 			select {
 			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
 			case <-p.ctx.Done():
@@ -163,7 +163,7 @@ func (p *process) collectOutput(cli *client.Client) {
 
 		var size uint32
 		if err = binary.Read(bytes.NewReader(header[4:]), binary.BigEndian, &size); err != nil {
-			isolate.GetLogger(p.ctx).Infof("unable to decode szie from header of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to decode size from header %s", p.containerID)
 			return
 		}
 
@@ -174,7 +174,7 @@ func (p *process) collectOutput(cli *client.Client) {
 				return
 			}
 
-			isolate.GetLogger(p.ctx).Infof("unable to read output for hjResp of %s: %v", p.containerID, err)
+			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
 			select {
 			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
 			case <-p.ctx.Done():

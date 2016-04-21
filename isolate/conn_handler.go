@@ -72,7 +72,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 		dispatcher, ok := h.session[msg.Channel]
 		if !ok {
 			if msg.Number < h.highestChannel {
-				GetLogger(h.ctx).Errorf("corrupted channel order: %d %d", msg.Number, h.highestChannel)
+				GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", msg.Number, h.highestChannel)
 				continue
 			}
 
@@ -84,7 +84,12 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 		dispatcher, err = dispatcher.Handle(&msg)
 		if err != nil {
-			GetLogger(h.ctx).WithError(err).Errorf("Handle returns an error")
+			GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
+			delete(h.session, msg.Channel)
+			continue
+		}
+		if dispatcher == nil {
+			delete(h.session, msg.Channel)
 			continue
 		}
 		h.session[msg.Channel] = dispatcher
