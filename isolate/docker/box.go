@@ -10,13 +10,14 @@ import (
 	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
+	"github.com/mitchellh/mapstructure"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
 )
 
 const (
-	dockerVersionAPI = "v1.19"
+	dockerAPIVersion = "v1.19"
 )
 
 var (
@@ -29,21 +30,53 @@ type spoolResponseProtocol struct {
 }
 
 // Box ...
-type Box struct{}
+type Box struct {
+	client *client.Client
+}
+
+type dockerBoxConfig struct {
+	DockerEndpoint string `json:"endpoint"`
+	APIVersion     string `json:"version"`
+}
 
 // NewBox ...
 func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
-	return &Box{}, nil
+	var config = &dockerBoxConfig{
+		DockerEndpoint: client.DefaultDockerHost,
+		APIVersion:     dockerAPIVersion,
+	}
+
+	decoderConfig := mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           config,
+		TagName:          "json",
+	}
+
+	decoder, err := mapstructure.NewDecoder(&decoderConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = decoder.Decode(cfg); err != nil {
+		return nil, err
+	}
+
+	client, err := client.NewClient(config.DockerEndpoint, config.APIVersion, nil, defaultHeaders)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Box{client: client}, nil
 }
 
 // Spawn spawns a prcess using container
 func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
 	profile, err := convertProfile(opts)
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
-	return newContainer(ctx, profile, name, executable, args, env)
+	return newContainer(ctx, b.client, profile, name, executable, args, env)
 }
 
 // Spool spools an image with a tag latest
@@ -59,30 +92,24 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return nil
 	}
 
-	defer isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": profile.Endpoint}).Trace("spooling an image").Stop(&err)
-
-	cli, err := client.NewClient(profile.Endpoint, dockerVersionAPI, nil, defaultHeaders)
-	if err != nil {
-		return err
-	}
+	defer isolate.GetLogger(ctx).WithField("name", name).Trace("spooling an image").Stop(&err)
 
 	pullOpts := types.ImagePullOptions{
 		ImageID: filepath.Join(profile.Registry, profile.Repository, name),
 		Tag:     "latest",
 	}
 
-	body, err := cli.ImagePull(ctx, pullOpts, nil)
+	body, err := b.client.ImagePull(ctx, pullOpts, nil)
 	if err != nil {
 		isolate.GetLogger(ctx).WithError(err).WithFields(
-			log.Fields{"name": name, "endpoint": profile.Endpoint,
-				"image": pullOpts.ImageID, "tag": pullOpts.Tag}).Error("unable to pull an image")
+			log.Fields{"name": name, "image": pullOpts.ImageID, "tag": pullOpts.Tag}).Error("unable to pull an image")
 		return err
 	}
 	defer body.Close()
 
 	var (
 		resp   spoolResponseProtocol
-		logger = isolate.GetLogger(ctx).WithFields(log.Fields{"name": name, "endpoint": profile.Endpoint})
+		logger = isolate.GetLogger(ctx).WithField("name", name)
 	)
 
 	scanner := bufio.NewScanner(body)

@@ -39,7 +39,7 @@ FROM ubuntu:trusty
 
 COPY worker.sh /usr/bin/worker.sh
 	`
-	cl, err := client.NewClient(endpoint, dockerVersionAPI, nil, nil)
+	cl, err := client.NewClient(endpoint, dockerAPIVersion, nil, nil)
 	c.Assert(err, IsNil)
 
 	buf := new(bytes.Buffer)
@@ -90,7 +90,9 @@ func dockerBoxConstructor(c *C) (isolate.Box, error) {
 	}
 
 	buildTestImage(c, endpoint)
-	b, err := NewBox(nil)
+	b, err := NewBox(isolate.BoxConfig{
+		"endpoint": endpoint,
+	})
 	c.Assert(err, IsNil)
 	return b, err
 }

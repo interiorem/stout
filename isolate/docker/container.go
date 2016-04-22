@@ -18,21 +18,14 @@ import (
 
 type process struct {
 	ctx    context.Context
+	client *client.Client
 	output chan isolate.ProcessOutput
-
-	dockerEndpoint string
 
 	containerID string
 }
 
-func newContainer(ctx context.Context, profile *Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
-	endpoint := profile.Endpoint
-	defer isolate.GetLogger(ctx).WithField("endpoint", endpoint).Trace("spawning container").Stop(&err)
-
-	cli, err := client.NewClient(endpoint, dockerVersionAPI, nil, defaultHeaders)
-	if err != nil {
-		return nil, err
-	}
+func newContainer(ctx context.Context, client *client.Client, profile *Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
+	defer isolate.GetLogger(ctx).Trace("spawning container").Stop(&err)
 
 	var image string
 	if registry := profile.Registry; registry != "" {
@@ -74,9 +67,9 @@ func newContainer(ctx context.Context, profile *Profile, name, executable string
 	// NOTE: It should be nil
 	var networkingConfig *network.NetworkingConfig
 
-	resp, err := cli.ContainerCreate(ctx, &config, &hostConfig, networkingConfig, "")
+	resp, err := client.ContainerCreate(ctx, &config, &hostConfig, networkingConfig, "")
 	if err != nil {
-		isolate.GetLogger(ctx).WithField("endpoint", endpoint).WithError(err).Error("unable to create a container")
+		isolate.GetLogger(ctx).WithError(err).Error("unable to create a container")
 		return nil, err
 	}
 
@@ -85,47 +78,42 @@ func newContainer(ctx context.Context, profile *Profile, name, executable string
 	}
 
 	pr := &process{
-		ctx:            ctx,
-		output:         make(chan isolate.ProcessOutput, 10),
-		containerID:    resp.ID,
-		dockerEndpoint: endpoint,
+		ctx:         ctx,
+		client:      client,
+		output:      make(chan isolate.ProcessOutput, 10),
+		containerID: resp.ID,
 	}
 
-	if err := cli.ContainerStart(ctx, pr.containerID); err != nil {
+	if err := client.ContainerStart(ctx, pr.containerID); err != nil {
 		return nil, err
 	}
 	isolate.NotifyAbouStart(pr.output)
-	go pr.collectOutput(cli)
+	go pr.collectOutput()
 
 	return pr, nil
 }
 
 func (p *process) Kill() (err error) {
-	defer isolate.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Sending SIGKILL").Stop(&err)
-	// Timeout?
-	cli, err := client.NewClient(p.dockerEndpoint, dockerVersionAPI, nil, defaultHeaders)
-	if err != nil {
-		return err
-	}
+	defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Sending SIGKILL").Stop(&err)
 
 	defer func() {
 		var err error
-		defer isolate.GetLogger(p.ctx).WithField("concontainer", p.containerID).Trace("Removing a conatainer").Stop(&err)
+		defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Removing a conatainer").Stop(&err)
 		removeOpts := types.ContainerRemoveOptions{
 			ContainerID: p.containerID,
 		}
 
-		err = cli.ContainerRemove(p.ctx, removeOpts)
+		err = p.client.ContainerRemove(p.ctx, removeOpts)
 	}()
 
-	return cli.ContainerKill(p.ctx, p.containerID, "SIGKILL")
+	return p.client.ContainerKill(p.ctx, p.containerID, "SIGKILL")
 }
 
 func (p *process) Output() <-chan isolate.ProcessOutput {
 	return p.output
 }
 
-func (p *process) collectOutput(cli *client.Client) {
+func (p *process) collectOutput() {
 	defer close(p.output)
 
 	attachOpts := types.ContainerAttachOptions{
@@ -135,7 +123,8 @@ func (p *process) collectOutput(cli *client.Client) {
 		Stdout:      true,
 		Stderr:      true,
 	}
-	hjResp, err := cli.ContainerAttach(p.ctx, attachOpts)
+
+	hjResp, err := p.client.ContainerAttach(p.ctx, attachOpts)
 	if err != nil {
 		isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
 		return
