@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"io"
+	"path/filepath"
 
 	"github.com/noxiouz/stout/isolate"
 
@@ -46,7 +47,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 	}
 
 	var binds = make([]string, 1)
-	binds[0] = args["--endpoint"] + ":" + profile.RuntimePath
+	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
 
 	config := container.Config{
 		AttachStdin:  false,
