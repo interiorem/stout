@@ -6,6 +6,13 @@ import (
 	"golang.org/x/net/context"
 )
 
+const (
+	spawnKill = 0
+
+	replyKillOk    = 0
+	replyKillError = 1
+)
+
 type spawnDispatch struct {
 	ctx     context.Context
 	process <-chan Process
@@ -25,7 +32,12 @@ func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 			select {
 			case pr, ok := <-d.process:
 				if ok {
-					pr.Kill()
+					if err := pr.Kill(); err != nil {
+						reply(d.ctx, replyKillError, errKillError, err.Error())
+						return
+					}
+
+					reply(d.ctx, replyKillOk, nil)
 				}
 			case <-d.ctx.Done():
 			}
