@@ -6,6 +6,13 @@ import (
 	"golang.org/x/net/context"
 )
 
+const (
+	spoolCancel = 0
+
+	replyCancelOk    = 0
+	replyCancelError = 1
+)
+
 type spoolCancelationDispatch struct {
 	ctx context.Context
 
@@ -23,6 +30,7 @@ func (s *spoolCancelationDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spoolCancel:
 		s.cancel()
+		reply(s.ctx, replyCancelOk, nil)
 		// NOTE: do not return an err on purpose
 		return nil, nil
 	default:

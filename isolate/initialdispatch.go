@@ -7,20 +7,16 @@ import (
 )
 
 const (
-	spool       = 0
-	spoolCancel = 0
+	spool = 0
 
 	replySpoolOk    = 0
 	replySpoolError = 1
 
-	spawn     = 1
-	spawnKill = 0
+	spawn = 1
 
 	replySpawnWrite = 0
 	replySpawnError = 1
 	replySpawnClose = 2
-
-	errExternalCategory = 42
 )
 
 type initialDispatch struct {
