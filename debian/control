@@ -11,3 +11,16 @@ Depends: ${misc:Depends}
 Description: Run your processes, Docker and Porto containers on Cocaine Cloud
  It an external isolation plugin for Cocaine Core. Works with Docker, Porto,
  processes.
+
+Package: cocaine-isolate-daemon-ubic
+Architecture: amd64
+Depends: cocaine-isolate-daemon,
+         lsb-base (>= 3.2-14),
+         ubic
+Description: add ubic configuration for run cocaine-isolate-daemon as service
+
+Package: cocaine-isolate-daemon-upstart
+Architecture: amd64
+Depends: cocaine-isolate-daemon
+Description: add upstart configuration for run cocaine-isolate-daemon as service
+
