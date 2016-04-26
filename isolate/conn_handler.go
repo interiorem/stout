@@ -3,7 +3,6 @@ package isolate
 import (
 	"fmt"
 	"io"
-	"runtime"
 
 	"golang.org/x/net/context"
 )
@@ -129,9 +128,9 @@ func (d *downstream) Reply(code int, args ...interface{}) error {
 		Args:    args,
 	}
 
-	pc, file, line, _ := runtime.Caller(2)
-	f := runtime.FuncForPC(pc)
-	fmt.Printf("%s:%d %s %v\n", file, line, f.Name(), msg)
+	// pc, file, line, _ := runtime.Caller(2)
+	// f := runtime.FuncForPC(pc)
+	// fmt.Printf("%s:%d %s %v\n", file, line, f.Name(), msg)
 
 	return d.enc.Encode(msg)
 }
