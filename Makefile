@@ -24,8 +24,7 @@ fmt:
 test:
 	@echo "+ $@"
 	@echo "" > coverage.txt
-
-	for pkg in $(PKGS); do go test -coverprofile=profile.out -covermode=atomic $$pkg; \
+	@set -e; for pkg in $(PKGS); do go test -coverprofile=profile.out -covermode=atomic $$pkg; \
 	if [ -f profile.out ]; then \
 		cat profile.out >> coverage.txt; rm  profile.out; \
 	fi done; \

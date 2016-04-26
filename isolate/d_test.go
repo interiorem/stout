@@ -50,6 +50,10 @@ func (b *testBox) Spawn(ctx context.Context, opts Profile, name, executable stri
 	return spawnTestProcess(ctx), nil
 }
 
+func (b *testBox) Close() error {
+	return nil
+}
+
 type testProcess struct {
 	ctx    context.Context
 	killed chan struct{}
