@@ -21,6 +21,7 @@ type (
 	Box interface {
 		Spool(ctx context.Context, name string, opts Profile) error
 		Spawn(ctx context.Context, opts Profile, name, executable string, args, env map[string]string) (Process, error)
+		Close() error
 	}
 
 	Process interface {

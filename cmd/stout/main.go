@@ -205,7 +205,6 @@ func main() {
 				conn, err := ln.Accept()
 				if err != nil {
 					lnLogger.WithError(err).Error("Accept() error")
-					return
 				}
 				lnLogger.WithField("remote_addr", conn.RemoteAddr()).Info("accepted new connection")
 
