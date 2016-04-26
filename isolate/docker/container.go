@@ -18,7 +18,9 @@ import (
 )
 
 type process struct {
-	ctx    context.Context
+	ctx          context.Context
+	cancellation context.CancelFunc
+
 	client *client.Client
 	output chan isolate.ProcessOutput
 
@@ -78,24 +80,29 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		isolate.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	pr := &process{
-		ctx:         ctx,
-		client:      client,
-		output:      make(chan isolate.ProcessOutput, 10),
-		containerID: resp.ID,
+		ctx:          ctx,
+		cancellation: cancel,
+		client:       client,
+		output:       make(chan isolate.ProcessOutput, 10),
+		containerID:  resp.ID,
 	}
 
+	go pr.collectOutput()
 	if err := client.ContainerStart(ctx, pr.containerID); err != nil {
+		cancel()
 		return nil, err
 	}
 	isolate.NotifyAbouStart(pr.output)
-	go pr.collectOutput()
 
 	return pr, nil
 }
 
 func (p *process) Kill() (err error) {
 	defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Sending SIGKILL").Stop(&err)
+	// release HTTP connections
+	defer p.cancellation()
 
 	defer func() {
 		var err error
