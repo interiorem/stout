@@ -1,0 +1,12 @@
+/var/log/ubic/cocaine-isolate-daemon/*.log
+{
+        weekly
+        maxsize 100M
+        compress
+        dateext
+        dateformat -%Y%m%d-%H%M%S
+        missingok
+        copytruncate
+        rotate 10
+}
+
