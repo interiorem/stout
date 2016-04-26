@@ -1,3 +1,18 @@
+cocaine-isolate-daemon (0.1.5) unstable; urgency=low
+
+  * Bugfix(process): collect childs properly
+  * Bugfix(process): respect `spool` option from profile
+  * Bugfix(process): run executables with absolute path properly
+  * Bugfix(docker): do not lose output
+  * Bugfix(docker): control http connections via context
+  * Bugfix(dispatcher): do not write to closed sessions
+  * Bugfix(cmd): do not exit on Accept error
+  * Bugfix(logs): fix typos
+  * Feature(process): export some stats about workers
+  * Feature(cmd): support POSIX/GNU flags (-c special for @antmat)
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 26 Apr 2016 12:48:45 +0300
+
 cocaine-isolate-daemon (0.1.4) unstable; urgency=low
 
   * Return all errors when spool/spawn to Cocaine

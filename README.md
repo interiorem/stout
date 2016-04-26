@@ -24,11 +24,11 @@ See configuration example:
 ### Build
 
 ```
-go build -o cocaine-porto cmd/stout/main.go
+go build -o cocaine-isolate-daemon cmd/stout/main.go
 ```
 
 ### Run it
 
 ```bash
-cocaine-porto -config path/to/config.conf
+cocaine-isolate-daemon -config path/to/config.conf
 ```
