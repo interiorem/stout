@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	_ "expvar"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -22,6 +21,8 @@ import (
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
 	"github.com/noxiouz/stout/version"
+
+	flag "github.com/ogier/pflag"
 )
 
 var (
@@ -98,8 +99,8 @@ func (lh *logHandler) HandleLog(entry *log.Entry) error {
 }
 
 func init() {
-	flag.StringVar(&configpath, "config", "/etc/stout/stout-default.conf", "path to a configuration file")
-	flag.BoolVar(&showVersion, "version", false, "show version and exit")
+	flag.StringVarP(&configpath, "config", "c", "/etc/stout/stout-default.conf", "path to a configuration file")
+	flag.BoolVarP(&showVersion, "version", "v", false, "show version and exit")
 	flag.Parse()
 }
 
