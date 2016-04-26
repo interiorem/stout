@@ -119,12 +119,11 @@ func (b *Box) wait() {
 	)
 
 	for {
-		switch pid, err = syscall.Wait4(-1, &ws, syscall.WNOHANG, nil); err {
-		case syscall.EINTR:
-			// pass to retry again
-		case syscall.ECHILD:
-			return
-		case nil:
+		// NOTE: there is possible logic race here
+		// Wait -> new fork/exec replaces old one in the map -> locked.Wait
+		pid, err = syscall.Wait4(-1, &ws, syscall.WNOHANG, nil)
+		switch {
+		case pid > 0:
 			// NOTE: I fully understand that handling signals from library is a bad idea,
 			// but there's nothing better in this case
 			b.mu.Lock()
@@ -141,8 +140,14 @@ func (b *Box) wait() {
 				pr.Wait()
 				boxStat.Add("waited", 1)
 			}
+		case err == syscall.EINTR:
+			// NOTE: although man says that EINTR is not possible in this case, let's be on the side
+			// EINTR
+			// WNOHANG was not set and an unblocked signal or a SIGCHLD was caught; see signal(7).
 		default:
-			fmt.Printf("Wait4 error: %v\n", err)
+			if err != nil {
+				fmt.Printf("Wait4 error: %v", err)
+			}
 			return
 		}
 	}
