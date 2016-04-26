@@ -1,7 +1,9 @@
 package isolate
 
 import (
+	"fmt"
 	"io"
+	"runtime"
 
 	"golang.org/x/net/context"
 )
@@ -20,6 +22,10 @@ type message struct {
 	Channel int
 	Number  int
 	Args    []interface{}
+}
+
+func (m *message) String() string {
+	return fmt.Sprintf("%d %d %v", m.Channel, m.Number, m.Args)
 }
 
 // Dispatcher handles incoming messages and keeps the state of the channel
@@ -54,17 +60,21 @@ func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispa
 	}, nil
 }
 
+// HandleConn decodes commands from Cocaine runtime and calls dispatchers
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
 
 	decoder := h.newDecoder(conn)
-
 	for {
 		var msg message
 
 		err := decoder.Decode(&msg)
 		if err != nil {
-			GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Stop handling the connection")
+			if err == io.EOF {
+				GetLogger(h.ctx).Warnf("remote side has closed the connection")
+			} else {
+				GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Close the connection")
+			}
 			return
 		}
 
@@ -112,11 +122,16 @@ func (d *downstream) Reply(code int, args ...interface{}) error {
 	if args == nil {
 		args = []interface{}{}
 	}
+
 	var msg = message{
 		Channel: d.channel,
 		Number:  code,
 		Args:    args,
 	}
+
+	pc, file, line, _ := runtime.Caller(2)
+	f := runtime.FuncForPC(pc)
+	fmt.Printf("%s:%d %s %v\n", file, line, f.Name(), msg)
 
 	return d.enc.Encode(msg)
 }

@@ -215,5 +215,5 @@ func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 
 	noneDisp, err := spawnDisp.Handle(&killMsg)
 	c.Assert(err, IsNil)
-	c.Assert(noneDisp, FitsTypeOf, &noneDispatch{})
+	c.Assert(noneDisp, IsNil)
 }

@@ -2,6 +2,7 @@ package isolate
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"golang.org/x/net/context"
 )
@@ -110,6 +111,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	}
 
 	prCh := make(chan Process, 1)
+	flagKilled := uint32(0)
 	go func() {
 		defer close(prCh)
 
@@ -120,26 +122,32 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 			return
 		}
 
-		d.trackOutput(pr)
+		d.trackOutput(pr, &flagKilled)
 		prCh <- pr
 	}()
 
-	return newSpawnDispatch(d.ctx, prCh), nil
+	return newSpawnDispatch(d.ctx, prCh, &flagKilled), nil
 }
 
-func (d *initialDispatch) trackOutput(pr Process) {
+func (d *initialDispatch) trackOutput(pr Process, flagKilled *uint32) {
 	for {
 		select {
 		case output, ok := <-pr.Output():
 			if !ok {
-				reply(d.ctx, replySpawnError, errOutputError, "output has been closed")
+				if atomic.CompareAndSwapUint32(flagKilled, 0, 1) {
+					reply(d.ctx, replySpawnError, errOutputError, "output has been closed")
+				}
 				return
 			}
 
 			if output.Err != nil {
-				reply(d.ctx, replySpawnError, errOutputError, output.Err.Error())
+				if atomic.CompareAndSwapUint32(flagKilled, 0, 1) {
+					reply(d.ctx, replySpawnError, errOutputError, output.Err.Error())
+				}
 			} else {
-				reply(d.ctx, replySpawnWrite, output.Data)
+				if atomic.LoadUint32(flagKilled) == 0 {
+					reply(d.ctx, replySpawnWrite, output.Data)
+				}
 			}
 		case <-d.ctx.Done():
 			return

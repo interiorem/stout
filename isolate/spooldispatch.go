@@ -29,8 +29,9 @@ func newSpoolCancelationDispatch(ctx context.Context, cancel context.CancelFunc)
 func (s *spoolCancelationDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spoolCancel:
+		// TODO: cancel only if I'm spooling
 		s.cancel()
-		reply(s.ctx, replyCancelOk, nil)
+		// reply(s.ctx, replyCancelOk, nil)
 		// NOTE: do not return an err on purpose
 		return nil, nil
 	default:
