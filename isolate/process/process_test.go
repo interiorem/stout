@@ -70,14 +70,15 @@ func makeGzipedArch(c *C) []byte {
 }
 
 func processBoxConstructorWithMockedStorage(c *C) (isolate.Box, error) {
-	box := &Box{
-		spoolPath: c.MkDir(),
-		storage: &mockCodeStorage{
+	old := createCodeStorage
+	createCodeStorage = func(locator []string) codeStorage {
+		return &mockCodeStorage{
 			files: map[string][]byte{
 				"worker": makeGzipedArch(c),
 			},
-		},
+		}
 	}
+	defer func() { createCodeStorage = old }()
 
-	return box, nil
+	return NewBox(isolate.BoxConfig{"spool": c.MkDir()})
 }

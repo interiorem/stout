@@ -49,6 +49,13 @@ func (suite *BoxSuite) SetUpSuite(c *check.C) {
 	suite.Box = b
 }
 
+// TearDownSuite closes the Box
+func (suite *BoxSuite) TearDownSuite(c *check.C) {
+	if suite.Box != nil {
+		suite.Box.Close()
+	}
+}
+
 // TestSpawn spool code, spawns special worker.sh to verify if env and args are set correctly and
 // output is collected properly
 func (suite *BoxSuite) TestSpawn(c *check.C) {

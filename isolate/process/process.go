@@ -23,7 +23,7 @@ type process struct {
 	output chan isolate.ProcessOutput
 }
 
-func newProcess(ctx context.Context, executable string, args, env map[string]string, workDir string) (isolate.Process, error) {
+func newProcess(ctx context.Context, executable string, args, env map[string]string, workDir string) (*process, error) {
 	pr := process{
 		ctx:    ctx,
 		output: make(chan isolate.ProcessOutput, 100),
@@ -95,9 +95,10 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 
 	if err := pr.cmd.Start(); err != nil {
 		isolate.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
+		stdout.Close()
+		stderr.Close()
 		return nil, err
 	}
-	go pr.cmd.Wait()
 
 	// NOTE: is it dangerous?
 	isolate.NotifyAbouStart(pr.output)
