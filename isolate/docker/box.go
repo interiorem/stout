@@ -69,6 +69,10 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 	return &Box{client: client}, nil
 }
 
+func (v *Box) Close() error {
+	return nil
+}
+
 // Spawn spawns a prcess using container
 func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
 	profile, err := convertProfile(opts)
