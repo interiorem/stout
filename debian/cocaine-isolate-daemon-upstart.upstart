@@ -7,5 +7,5 @@ kill timeout 30
 respawn
 
 script
-    exec cocaine-isolate-daemon --config /etc/cocaine-isolate-daemon/cocaine-isolate-daemon.conf
+    exec cocaine-isolate-daemon --config=/etc/cocaine-isolate-daemon/cocaine-isolate-daemon.conf
 end script
