@@ -15,8 +15,15 @@ See configuration example:
     "endpoints": ["0.0.0.0:29042"],
     "debugserver": "127.0.0.1:9000",
     "isolate": {
-        "docker": {},
-        "process": {}
+        "docker": {
+            "endpoint": "unix:///var/run/docker.sock",
+            "version": "v1.19",
+            "concurrency": 10
+        },
+        "process": {
+            "spool": "/var/spool/cocaine",
+            "locator": "localhost:10053"
+        }
     }
 }
 ```
