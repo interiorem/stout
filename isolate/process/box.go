@@ -9,13 +9,19 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/metrics"
 
 	"github.com/apex/log"
 )
+
+func init() {
+	boxStat.Set("spawning", spawnTimer)
+}
 
 const (
 	defaultSpoolPath = "/var/spool/cocaine"
@@ -31,7 +37,8 @@ var (
 )
 
 var (
-	boxStat = expvar.NewMap("process.box")
+	boxStat    = expvar.NewMap("process")
+	spawnTimer = metrics.NewTimerVar()
 )
 
 type codeStorage interface {
@@ -74,16 +81,6 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 		defer box.wg.Done()
 		box.sigchldHandler()
 	}()
-
-	boxStat.Set("processes", expvar.Func(func() interface{} {
-		box.mu.Lock()
-		defer box.mu.Unlock()
-		pids := make([]int, 0, len(box.children))
-		for k := range box.children {
-			pids = append(pids, k)
-		}
-		return pids
-	}))
 
 	return box, nil
 }
@@ -174,6 +171,9 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	defer isolate.GetLogger(ctx).WithFields(
 		log.Fields{"name": name, "executable": executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
+
+	start := time.Now()
+	defer spawnTimer.UpdateSince(start)
 
 	// NOTE: once process was put to the map
 	// its waiter responsibility to Wait for it.

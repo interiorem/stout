@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
@@ -14,36 +16,59 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/metrics"
 )
 
 const (
-	dockerAPIVersion = "v1.19"
+	dockerAPIVersion        = "v1.19"
+	defaultSpawnConcurrency = 10
 )
 
 var (
 	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolate"}
+	boxStat        = expvar.NewMap("docker")
+	spawnTimer     = metrics.NewTimerVar()
 )
+
+func init() {
+	boxStat.Set("spawning", spawnTimer)
+}
 
 type spoolResponseProtocol struct {
 	Error  string `json:"error"`
 	Status string `json:"status"`
 }
 
+// TODO: make it cancellable
+type spawnSemaphore chan struct{}
+
+func (s *spawnSemaphore) Acquire() {
+	(*s) <- struct{}{}
+}
+
+func (s *spawnSemaphore) Release() {
+	<-(*s)
+}
+
 // Box ...
 type Box struct {
 	client *client.Client
+
+	spawnSM spawnSemaphore
 }
 
 type dockerBoxConfig struct {
-	DockerEndpoint string `json:"endpoint"`
-	APIVersion     string `json:"version"`
+	DockerEndpoint   string `json:"endpoint"`
+	APIVersion       string `json:"version"`
+	SpawnConcurrency uint   `json:"concurrency"`
 }
 
 // NewBox ...
 func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 	var config = &dockerBoxConfig{
-		DockerEndpoint: client.DefaultDockerHost,
-		APIVersion:     dockerAPIVersion,
+		DockerEndpoint:   client.DefaultDockerHost,
+		APIVersion:       dockerAPIVersion,
+		SpawnConcurrency: defaultSpawnConcurrency,
 	}
 
 	decoderConfig := mapstructure.DecoderConfig{
@@ -66,10 +91,13 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 		return nil, err
 	}
 
-	return &Box{client: client}, nil
+	return &Box{
+		client:  client,
+		spawnSM: make(spawnSemaphore, config.SpawnConcurrency),
+	}, nil
 }
 
-func (v *Box) Close() error {
+func (b *Box) Close() error {
 	return nil
 }
 
@@ -80,7 +108,21 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
-	return newContainer(ctx, b.client, profile, name, executable, args, env)
+
+	start := time.Now()
+	defer spawnTimer.UpdateSince(start)
+
+	b.spawnSM.Acquire()
+	defer b.spawnSM.Release()
+
+	boxStat.Add("spawned", 1)
+	pr, err := newContainer(ctx, b.client, profile, name, executable, args, env)
+	if err != nil {
+		boxStat.Add("crashed", 1)
+		return nil, err
+	}
+
+	return pr, nil
 }
 
 // Spool spools an image with a tag latest
