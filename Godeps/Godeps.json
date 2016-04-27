@@ -124,6 +124,10 @@
 			"Rev": "3f4f4420fded8d19cf29a1b6a631b7e31f7f9c68"
 		},
 		{
+			"ImportPath": "github.com/rcrowley/go-metrics",
+			"Rev": "eeba7bd0dd01ace6e690fa833b3f22aaec29af43"
+		},
+		{
 			"ImportPath": "github.com/ugorji/go/codec",
 			"Rev": "1d5269ed4e89d423d40362a0914e1c99adb13cc8"
 		},
