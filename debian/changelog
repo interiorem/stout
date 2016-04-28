@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.4) unstable; urgency=low
+
+  * Misc(process): do not print ECHILD error
+  * Package(ubic): fix creation of directory for logs
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 28 Apr 2016 17:35:13 +0300
+
 cocaine-isolate-daemon (0.1.5.3) unstable; urgency=low
 
   * Feature(metrics): show timer metrics for process and docker
