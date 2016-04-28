@@ -141,9 +141,14 @@ func (b *Box) wait() {
 			// NOTE: although man says that EINTR is not possible in this case, let's be on the side
 			// EINTR
 			// WNOHANG was not set and an unblocked signal or a SIGCHLD was caught; see signal(7).
+		case err == syscall.ECHILD:
+			// exec.Cmd was failed to start, but SIGCHLD arrived.
+			// Actually, `non-born` child has been already waited by exec.Cmd
+			// So do nothing and return
+			return
 		default:
 			if err != nil {
-				fmt.Printf("Wait4 error: %v", err)
+				fmt.Fprintf(os.Stderr, "Wait4 unexpected error: %v\n", err)
 			}
 			return
 		}
