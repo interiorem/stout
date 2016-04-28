@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar"
+	"time"
 
 	"github.com/rcrowley/go-metrics"
 )
@@ -45,21 +46,23 @@ type stats struct {
 func (t TimerVar) String() string {
 	ss := t.Snapshot()
 	percentiles := ss.Percentiles(requestedPercentiles)
+	norm := int64(time.Millisecond)
+	normf := float64(norm)
 	var st = stats{
-		Min:    ss.Min(),
-		Max:    ss.Max(),
-		Mean:   ss.Mean(),
+		Min:    ss.Min() / norm,
+		Max:    ss.Max() / norm,
+		Mean:   ss.Mean() / normf,
 		Rate1:  ss.Rate1(),
 		Rate5:  ss.Rate5(),
 		Rate15: ss.Rate15(),
-		Sum:    ss.Sum(),
-		Q50:    percentiles[0],
-		Q75:    percentiles[1],
-		Q90:    percentiles[2],
-		Q95:    percentiles[3],
-		Q98:    percentiles[4],
-		Q99:    percentiles[5],
-		Q9995:  percentiles[6],
+		Sum:    ss.Sum() / norm,
+		Q50:    percentiles[0] / normf,
+		Q75:    percentiles[1] / normf,
+		Q90:    percentiles[2] / normf,
+		Q95:    percentiles[3] / normf,
+		Q98:    percentiles[4] / normf,
+		Q99:    percentiles[5] / normf,
+		Q9995:  percentiles[6] / normf,
 	}
 
 	buff := new(bytes.Buffer)
