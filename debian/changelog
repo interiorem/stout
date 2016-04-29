@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.5) unstable; urgency=low
+
+  * Fix(docker): startup notification might be lost
+  * Fix(docker): decrease memory consumption
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Sat, 30 Apr 2016 00:01:45 +0300
+
 cocaine-isolate-daemon (0.1.5.4) unstable; urgency=low
 
   * Misc(process): do not print ECHILD error
