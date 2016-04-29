@@ -148,6 +148,7 @@ func (d *initialDispatch) trackOutput(pr Process, flagKilled *uint32) {
 				if atomic.LoadUint32(flagKilled) == 0 {
 					reply(d.ctx, replySpawnWrite, output.Data)
 				}
+				backToPool(output.Data)
 			}
 		case <-d.ctx.Done():
 			return

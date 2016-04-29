@@ -2,9 +2,31 @@ package isolate
 
 import (
 	"io"
+	"sync"
 
 	"golang.org/x/net/context"
 )
+
+const outputChunkSize = 1024 * 1024
+
+var (
+	outputPool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, outputChunkSize)
+		},
+	}
+)
+
+// GetPreallocatedOutputChunk returns []byte which should be used
+// by boxes to collect output. Isolate is responsible for returning
+// any chunk to the pool
+func GetPreallocatedOutputChunk() []byte {
+	return outputPool.Get().([]byte)
+}
+
+func backToPool(b []byte) {
+	outputPool.Put(b)
+}
 
 type (
 	decoderInit    func(io.Reader) Decoder

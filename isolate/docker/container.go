@@ -188,7 +188,7 @@ func (p *process) collectOutput(started chan struct{}) {
 
 		var nn = 0
 		for i := uint32(0); i < size; {
-			var output = make([]byte, chunkSize)
+			var output = isolate.GetPreallocatedOutputChunk()
 			nn, err = hjResp.Reader.Read(output)
 			if nn > 0 {
 				sendOutput(output[:nn], nil)
