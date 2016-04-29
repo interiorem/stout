@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"io"
 	"path/filepath"
+	"sync"
 
 	"github.com/noxiouz/stout/isolate"
 
@@ -15,6 +16,13 @@ import (
 	"github.com/docker/engine-api/types/strslice"
 
 	"golang.org/x/net/context"
+)
+
+const (
+	headerSize = 8
+
+	// chunk size for logs
+	chunkSize = 1024 * 1024
 )
 
 type process struct {
@@ -89,12 +97,14 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		containerID:  resp.ID,
 	}
 
-	go pr.collectOutput()
+	var startBarier = make(chan struct{})
+	go pr.collectOutput(startBarier)
 	if err := client.ContainerStart(ctx, pr.containerID); err != nil {
 		cancel()
 		return nil, err
 	}
 	isolate.NotifyAbouStart(pr.output)
+	close(startBarier)
 
 	return pr, nil
 }
@@ -121,7 +131,7 @@ func (p *process) Output() <-chan isolate.ProcessOutput {
 	return p.output
 }
 
-func (p *process) collectOutput() {
+func (p *process) collectOutput(started chan struct{}) {
 	defer close(p.output)
 
 	attachOpts := types.ContainerAttachOptions{
@@ -139,22 +149,34 @@ func (p *process) collectOutput() {
 	}
 	defer hjResp.Close()
 
-	const headerSize = 8
+	// we need this to prevent dumping Output
+	// before sending notification about start
+	var once sync.Once
+	sendOutput := func(data []byte, err error) {
+		once.Do(func() {
+			select {
+			case <-started:
+			case <-p.ctx.Done():
+			}
+		})
+
+		select {
+		case p.output <- isolate.ProcessOutput{Data: data, Err: err}:
+		case <-p.ctx.Done():
+		}
+	}
+
+	var header = make([]byte, headerSize)
 	for {
 		// https://docs.docker.com/engine/reference/api/docker_remote_api_v1.22/#attach-a-container
 		/// NOTE: some logs can be lost because of EOF
-		var header = make([]byte, headerSize)
 		_, err := hjResp.Reader.Read(header)
 		if err != nil {
 			if err == io.EOF {
 				return
 			}
-
 			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
-			select {
-			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
-			case <-p.ctx.Done():
-			}
+			sendOutput(nil, err)
 			return
 		}
 
@@ -164,24 +186,24 @@ func (p *process) collectOutput() {
 			return
 		}
 
-		var output = make([]byte, size)
-		_, err = hjResp.Reader.Read(output)
-		if err != nil {
-			if err == io.EOF {
+		var nn = 0
+		for i := uint32(0); i < size; {
+			var output = make([]byte, chunkSize)
+			nn, err = hjResp.Reader.Read(output)
+			if nn > 0 {
+				sendOutput(output[:nn], nil)
+			}
+
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+
+				isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
+				sendOutput(nil, err)
 				return
 			}
-
-			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
-			select {
-			case p.output <- isolate.ProcessOutput{Data: nil, Err: err}:
-			case <-p.ctx.Done():
-			}
-			return
-		}
-
-		select {
-		case p.output <- isolate.ProcessOutput{Data: output, Err: nil}:
-		case <-p.ctx.Done():
+			i += uint32(nn)
 		}
 	}
 }
