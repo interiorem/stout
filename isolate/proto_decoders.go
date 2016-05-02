@@ -3,6 +3,7 @@ package isolate
 import (
 	"encoding/json"
 	"io"
+	"sync"
 
 	"github.com/ugorji/go/codec"
 )
@@ -43,8 +44,18 @@ func newMsgpackEncoder(w io.Writer) Encoder {
 	return codec.NewEncoder(w, hAsocket)
 }
 
+var (
+	msgpackBytePool = sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 1024)
+		},
+	}
+)
+
 func (m msgpackArgsDecoder) Unpack(in interface{}, out ...interface{}) error {
-	var buf []byte
+	var buf = msgpackBytePool.Get().([]byte)
+	defer msgpackBytePool.Put(buf)
+
 	if err := codec.NewEncoderBytes(&buf, payloadHandler).Encode(in); err != nil {
 		return err
 	}
