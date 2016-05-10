@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/noxiouz/stout",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v60",
+	"GodepVersion": "v65",
 	"Packages": [
 		"./..."
 	],
@@ -36,58 +36,58 @@
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client/transport",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client/transport/cancellable",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/blkiodev",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/container",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/filters",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/network",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/registry",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/strslice",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/types/time",
-			"Comment": "v0.3.1-11-ge37a82d",
-			"Rev": "e37a82dfcea64559ca6a581776253c01d83357d9"
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		},
 		{
 			"ImportPath": "github.com/docker/go-connections/nat",
@@ -133,15 +133,35 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
+			"Rev": "2a35e686583654a1b89ca79c4ac78cb3d6529ca3"
 		},
 		{
 			"ImportPath": "golang.org/x/net/proxy",
-			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
+			"Rev": "2a35e686583654a1b89ca79c4ac78cb3d6529ca3"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "github.com/docker/distribution/reference",
+			"Comment": "v2.3.1-11-g2cbda36",
+			"Rev": "2cbda363e91bd1a290161a70c82395a641be71cf"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/reference",
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
+		},
+		{
+			"ImportPath": "github.com/docker/distribution/digest",
+			"Comment": "v2.3.1-11-g2cbda36",
+			"Rev": "2cbda363e91bd1a290161a70c82395a641be71cf"
+		},
+		{
+			"ImportPath": "github.com/docker/engine-api/types/versions",
+			"Comment": "v0.3.1-81-gb126039",
+			"Rev": "b12603948fda14243dbcd723618f47c2cd38f0e2"
 		}
 	]
 }
