@@ -66,10 +66,10 @@ COPY worker.sh /usr/bin/worker.sh
 	c.Assert(tw.Close(), IsNil)
 
 	opts := types.ImageBuildOptions{
-		Tags:    []string{"worker"},
-		Context: buf,
+		Tags: []string{"worker"},
 	}
-	resp, err := cl.ImageBuild(context.Background(), opts)
+
+	resp, err := cl.ImageBuild(context.Background(), buf, opts)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
