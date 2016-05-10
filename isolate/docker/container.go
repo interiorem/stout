@@ -117,11 +117,9 @@ func (p *process) Kill() (err error) {
 	defer func() {
 		var err error
 		defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Removing a conatainer").Stop(&err)
-		removeOpts := types.ContainerRemoveOptions{
-			ContainerID: p.containerID,
-		}
+		removeOpts := types.ContainerRemoveOptions{}
 
-		err = p.client.ContainerRemove(p.ctx, removeOpts)
+		err = p.client.ContainerRemove(p.ctx, p.containerID, removeOpts)
 	}()
 
 	return p.client.ContainerKill(p.ctx, p.containerID, "SIGKILL")
@@ -135,14 +133,13 @@ func (p *process) collectOutput(started chan struct{}) {
 	defer close(p.output)
 
 	attachOpts := types.ContainerAttachOptions{
-		ContainerID: p.containerID,
-		Stream:      true,
-		Stdin:       false,
-		Stdout:      true,
-		Stderr:      true,
+		Stream: true,
+		Stdin:  false,
+		Stdout: true,
+		Stderr: true,
 	}
 
-	hjResp, err := p.client.ContainerAttach(p.ctx, attachOpts)
+	hjResp, err := p.client.ContainerAttach(p.ctx, p.containerID, attachOpts)
 	if err != nil {
 		isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
 		return

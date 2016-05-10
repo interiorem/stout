@@ -55,12 +55,15 @@ type Box struct {
 	client *client.Client
 
 	spawnSM spawnSemaphore
+
+	config *dockerBoxConfig
 }
 
 type dockerBoxConfig struct {
-	DockerEndpoint   string `json:"endpoint"`
-	APIVersion       string `json:"version"`
-	SpawnConcurrency uint   `json:"concurrency"`
+	DockerEndpoint   string            `json:"endpoint"`
+	APIVersion       string            `json:"version"`
+	SpawnConcurrency uint              `json:"concurrency"`
+	RegistryAuth     map[string]string `json:"registryauth"`
 }
 
 // NewBox ...
@@ -94,9 +97,11 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 	return &Box{
 		client:  client,
 		spawnSM: make(spawnSemaphore, config.SpawnConcurrency),
+		config:  config,
 	}, nil
 }
 
+// Close releases all resources connected to the Box
 func (b *Box) Close() error {
 	return nil
 }
@@ -141,14 +146,19 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	defer isolate.GetLogger(ctx).WithField("name", name).Trace("spooling an image").Stop(&err)
 
 	pullOpts := types.ImagePullOptions{
-		ImageID: filepath.Join(profile.Registry, profile.Repository, name),
-		Tag:     "latest",
+		All: false,
 	}
 
-	body, err := b.client.ImagePull(ctx, pullOpts, nil)
+	if registryAuth, ok := b.config.RegistryAuth[profile.Registry]; ok {
+		pullOpts.RegistryAuth = registryAuth
+	}
+
+	ref := fmt.Sprintf("%s:%s", filepath.Join(profile.Registry, profile.Repository, name), "latest")
+
+	body, err := b.client.ImagePull(ctx, ref, pullOpts)
 	if err != nil {
 		isolate.GetLogger(ctx).WithError(err).WithFields(
-			log.Fields{"name": name, "image": pullOpts.ImageID, "tag": pullOpts.Tag}).Error("unable to pull an image")
+			log.Fields{"name": name, "ref": ref}).Error("unable to pull an image")
 		return err
 	}
 	defer body.Close()
