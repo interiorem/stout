@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.6) unstable; urgency=low
+
+  * Feature(docker): support Registry Auth
+  * Misc(docker): update docker libraries
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 10 May 2016 15:36:39 +0300
+
 cocaine-isolate-daemon (0.1.5.5) unstable; urgency=low
 
   * Fix(docker): startup notification might be lost
