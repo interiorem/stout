@@ -142,6 +142,10 @@
 			"Rev": "482a9fd5fa83e8c4e7817413b80f3eb8feec03ef"
 		},
 		{
+			"ImportPath": "github.com/noxiouz/expvarmetrics",
+			"Rev": "0a98b86fa4a7be39008e41a29c3bd7122e3fe9fc"
+		},
+		{
 			"ImportPath": "github.com/ogier/pflag",
 			"Comment": "v0.0.1-7-g45c278a",
 			"Rev": "45c278ab3607870051a2ea9040bb85fcb8557481"
