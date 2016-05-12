@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/apex/log"
+	apexctx "github.com/m0sth8/context"
+	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
@@ -159,14 +159,15 @@ func main() {
 		logger.Fatal("the isolate section is empty")
 	}
 
+	ctx := apexctx.WithLogger(apexctx.Background(), log.NewEntry(logger))
 	boxes := isolate.Boxes{}
 	for name, cfg := range config.Isolate {
 		var box isolate.Box
 		switch name {
 		case "docker":
-			box, err = docker.NewBox(cfg)
+			box, err = docker.NewBox(ctx, cfg)
 		case "process":
-			box, err = process.NewBox(cfg)
+			box, err = process.NewBox(ctx, cfg)
 		default:
 			logger.WithError(err).WithField("box", name).Fatal("unknown box type")
 		}
@@ -176,8 +177,7 @@ func main() {
 		boxes[name] = box
 	}
 
-	ctx := context.WithValue(context.Background(), isolate.BoxesTag, boxes)
-	ctx = context.WithValue(ctx, "logger", logger)
+	ctx = context.WithValue(ctx, isolate.BoxesTag, boxes)
 
 	if len(config.Endpoints) == 0 {
 		logger.Fatal("no listening endpoints are specified in endpoints section")

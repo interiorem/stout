@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 )
 
@@ -70,9 +71,9 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 		err := decoder.Decode(&msg)
 		if err != nil {
 			if err == io.EOF {
-				GetLogger(h.ctx).Warnf("remote side has closed the connection")
+				apexctx.GetLogger(h.ctx).Warnf("remote side has closed the connection")
 			} else {
-				GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Close the connection")
+				apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Close the connection")
 			}
 			return
 		}
@@ -81,7 +82,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 		dispatcher, ok := h.session[msg.Channel]
 		if !ok {
 			if msg.Number < h.highestChannel {
-				GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", msg.Number, h.highestChannel)
+				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", msg.Number, h.highestChannel)
 				continue
 			}
 
@@ -93,7 +94,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 		dispatcher, err = dispatcher.Handle(&msg)
 		if err != nil {
-			GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
 			delete(h.session, msg.Channel)
 			continue
 		}

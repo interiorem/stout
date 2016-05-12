@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	apexctx "github.com/m0sth8/context"
 	"github.com/noxiouz/stout/isolate"
 )
 
@@ -82,19 +83,19 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 	// stdout
 	stdout, err := pr.cmd.StdoutPipe()
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).Errorf("unable to attach stdout of %s", pr.cmd.Path)
+		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to attach stdout of %s", pr.cmd.Path)
 		return nil, err
 	}
 
 	// stderr
 	stderr, err := pr.cmd.StderrPipe()
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).Errorf("unable to attach stderr of %s", pr.cmd.Path)
+		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to attach stderr of %s", pr.cmd.Path)
 		return nil, err
 	}
 
 	if err := pr.cmd.Start(); err != nil {
-		isolate.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
+		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
 		stdout.Close()
 		stderr.Close()
 		return nil, err
@@ -104,7 +105,7 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 	isolate.NotifyAbouStart(pr.output)
 	go collector(stdout)
 	go collector(stderr)
-	isolate.GetLogger(ctx).WithField("pid", pr.cmd.Process.Pid).Info("executable has been launched")
+	apexctx.GetLogger(ctx).WithField("pid", pr.cmd.Process.Pid).Info("executable has been launched")
 
 	return &pr, nil
 }

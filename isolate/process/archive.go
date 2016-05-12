@@ -10,8 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/noxiouz/stout/isolate"
-
+	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 )
 
@@ -36,7 +35,7 @@ var constructors = []archiveConstructor{
 }
 
 func unpackArchive(ctx context.Context, data []byte, target string) (err error) {
-	log := isolate.GetLogger(ctx).WithField("target", target)
+	log := apexctx.GetLogger(ctx).WithField("target", target)
 	defer log.Trace("unpacking an archive").Stop(&err)
 
 	if err = os.RemoveAll(target); err != nil {
