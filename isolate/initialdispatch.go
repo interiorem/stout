@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 
 	"golang.org/x/net/context"
+
+	apexctx "github.com/m0sth8/context"
 )
 
 const (
@@ -46,7 +48,7 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 	)
 
 	if err := unpackArgs(d.ctx, msg.Args, &opts, &name); err != nil {
-		GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
+		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
 		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
 		return nil, err
 	}
@@ -54,14 +56,14 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 	isolateType := opts.Type()
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
-		GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
+		apexctx.GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
 		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
 		return nil, err
 	}
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
+		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
 		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
@@ -89,7 +91,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	)
 
 	if err := unpackArgs(d.ctx, msg.Args, &opts, &name, &executable, &args, &env); err != nil {
-		GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
+		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
 		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
 		return nil, err
 	}
@@ -97,14 +99,14 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	isolateType := opts.Type()
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
-		GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
+		apexctx.GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
 		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
 		return nil, err
 	}
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
+		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
 		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
@@ -117,7 +119,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 
 		pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
 		if err != nil {
-			GetLogger(d.ctx).WithError(err).Error("unable to spawn")
+			apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
 			reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
 			return
 		}

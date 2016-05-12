@@ -7,13 +7,17 @@ import (
 	"expvar"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
+
+	apexctx "github.com/m0sth8/context"
+	"golang.org/x/net/context"
 
 	"github.com/apex/log"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
+	"github.com/docker/engine-api/types/filters"
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/metrics"
@@ -22,12 +26,17 @@ import (
 const (
 	dockerAPIVersion        = "v1.19"
 	defaultSpawnConcurrency = 10
+
+	isolateDockerLabel = "cocaine-isolate"
 )
 
 var (
 	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolate"}
-	boxStat        = expvar.NewMap("docker")
-	spawnTimer     = metrics.NewTimerVar()
+)
+
+var (
+	boxStat    = expvar.NewMap("docker")
+	spawnTimer = metrics.NewTimerVar()
 )
 
 func init() {
@@ -52,11 +61,17 @@ func (s *spawnSemaphore) Release() {
 
 // Box ...
 type Box struct {
+	ctx          context.Context
+	cancellation context.CancelFunc
+
 	client *client.Client
 
 	spawnSM spawnSemaphore
 
 	config *dockerBoxConfig
+
+	muContainers sync.Mutex
+	containers   map[string]*process
 }
 
 type dockerBoxConfig struct {
@@ -67,7 +82,7 @@ type dockerBoxConfig struct {
 }
 
 // NewBox ...
-func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	var config = &dockerBoxConfig{
 		DockerEndpoint:   client.DefaultDockerHost,
 		APIVersion:       dockerAPIVersion,
@@ -94,15 +109,105 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 		return nil, err
 	}
 
-	return &Box{
-		client:  client,
-		spawnSM: make(spawnSemaphore, config.SpawnConcurrency),
-		config:  config,
-	}, nil
+	ctx, cancellation := context.WithCancel(ctx)
+	box := &Box{
+		ctx:          ctx,
+		cancellation: cancellation,
+
+		client:     client,
+		spawnSM:    make(spawnSemaphore, config.SpawnConcurrency),
+		config:     config,
+		containers: make(map[string]*process),
+	}
+
+	go box.watchEvents()
+
+	return box, nil
+}
+
+func (b *Box) watchEvents() {
+	const dieEvent = "die"
+
+	since := time.Now()
+	sleep := time.Second
+	maxSleep := time.Second * 32
+
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("event", dieEvent)
+	filterArgs.Add("label", isolateDockerLabel)
+	fltrs, _ := filters.ToParam(filterArgs)
+
+	var eventResponse struct {
+		Status string `json:"status"`
+		ID     string `json:"id"`
+		Time   int64  `json:"time"`
+	}
+
+	logger := apexctx.GetLogger(b.ctx)
+
+	for {
+		eventsOptions := types.EventsOptions{
+			Since:   since.Format(time.RFC3339Nano),
+			Filters: filterArgs,
+		}
+
+		logger.Infof("listening Docker events %s", fltrs)
+		resp, err := b.client.Events(b.ctx, eventsOptions)
+		switch err {
+		case nil:
+			sleep = time.Second
+			decoder := json.NewDecoder(resp)
+			for {
+				if err = decoder.Decode(&eventResponse); err != nil {
+					logger.WithError(err).Error("unable to decode Docker events")
+					resp.Close()
+					break
+				}
+
+				// Save timestamp of the latest received event
+				since = time.Unix(eventResponse.Time, 0)
+
+				switch eventResponse.Status {
+				case dieEvent:
+					logger.WithField("id", eventResponse.ID).Info("container has died")
+
+					var p *process
+					b.muContainers.Lock()
+					p, ok := b.containers[eventResponse.ID]
+					delete(b.containers, eventResponse.ID)
+					b.muContainers.Unlock()
+					if ok {
+						p.remove()
+					} else {
+						// NOTE: it could be orphaned worker from our previous launch
+						logger.WithField("id", eventResponse.ID).Warn("unknown container will be removed")
+						containerRemove(b.client, b.ctx, eventResponse.ID)
+					}
+
+				default:
+					logger.WithField("status", eventResponse.Status).Warn("unknown status")
+				}
+			}
+
+		case context.Canceled, context.DeadlineExceeded:
+			logger.Info("event listenening has been cancelled")
+			return
+
+		default:
+			// backoff
+			sleep *= 2
+			if sleep > maxSleep {
+				sleep = maxSleep
+			}
+			logger.WithError(err).Errorf("unable to listen events. Sleep %s", sleep)
+			time.Sleep(sleep)
+		}
+	}
 }
 
 // Close releases all resources connected to the Box
 func (b *Box) Close() error {
+	b.cancellation()
 	return nil
 }
 
@@ -110,7 +215,7 @@ func (b *Box) Close() error {
 func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
 	profile, err := convertProfile(opts)
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
+		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
 
@@ -127,6 +232,15 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 		return nil, err
 	}
 
+	b.muContainers.Lock()
+	b.containers[pr.containerID] = pr
+	b.muContainers.Unlock()
+
+	if err = pr.startContainer(); err != nil {
+		boxStat.Add("crashed", 1)
+		return nil, err
+	}
+
 	return pr, nil
 }
 
@@ -134,16 +248,16 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
 	profile, err := convertProfile(opts)
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
 		return err
 	}
 
 	if profile.Registry == "" {
-		isolate.GetLogger(ctx).WithFields(log.Fields{"name": name}).Info("local image will be used")
+		apexctx.GetLogger(ctx).WithFields(log.Fields{"name": name}).Info("local image will be used")
 		return nil
 	}
 
-	defer isolate.GetLogger(ctx).WithField("name", name).Trace("spooling an image").Stop(&err)
+	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spooling an image").Stop(&err)
 
 	pullOpts := types.ImagePullOptions{
 		All: false,
@@ -157,7 +271,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 	body, err := b.client.ImagePull(ctx, ref, pullOpts)
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).WithFields(
+		apexctx.GetLogger(ctx).WithError(err).WithFields(
 			log.Fields{"name": name, "ref": ref}).Error("unable to pull an image")
 		return err
 	}
@@ -165,7 +279,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 	var (
 		resp   spoolResponseProtocol
-		logger = isolate.GetLogger(ctx).WithField("name", name)
+		logger = apexctx.GetLogger(ctx).WithField("name", name)
 	)
 
 	scanner := bufio.NewScanner(body)

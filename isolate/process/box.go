@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
@@ -46,17 +47,18 @@ type codeStorage interface {
 }
 
 type Box struct {
+	ctx          context.Context
+	cancellation context.CancelFunc
+
 	spoolPath string
 	storage   codeStorage
 
 	mu       sync.Mutex
 	children map[int]*exec.Cmd
 	wg       sync.WaitGroup
-
-	onClose chan struct{}
 }
 
-func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	spoolPath, ok := cfg["spool"].(string)
 	if !ok {
 		spoolPath = defaultSpoolPath
@@ -67,13 +69,15 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 		locator = append(locator, endpoint)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	box := &Box{
+		ctx:          ctx,
+		cancellation: cancel,
+
 		spoolPath: spoolPath,
 		storage:   createCodeStorage(locator),
 
 		children: make(map[int]*exec.Cmd),
-
-		onClose: make(chan struct{}),
 	}
 
 	box.wg.Add(1)
@@ -86,7 +90,7 @@ func NewBox(cfg isolate.BoxConfig) (isolate.Box, error) {
 }
 
 func (b *Box) Close() error {
-	close(b.onClose)
+	b.cancellation()
 	b.wg.Wait()
 	return nil
 }
@@ -102,7 +106,7 @@ func (b *Box) sigchldHandler() {
 			// NOTE: due to possible signal merging
 			// Box.wait tries to call Wait unless ECHILD occures
 			b.wait()
-		case <-b.onClose:
+		case <-b.ctx.Done():
 			return
 		}
 	}
@@ -148,7 +152,7 @@ func (b *Box) wait() {
 			return
 		default:
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Wait4 unexpected error: %v\n", err)
+				apexctx.GetLogger(b.ctx).WithError(err).Error("Wait4 error")
 			}
 			return
 		}
@@ -173,7 +177,7 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 		pr  *process
 	)
 
-	defer isolate.GetLogger(ctx).WithFields(
+	defer apexctx.GetLogger(ctx).WithFields(
 		log.Fields{"name": name, "executable": executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
@@ -201,7 +205,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	if val, ok := opts["spool"]; ok {
 		spoolPath = fmt.Sprintf("%s", val)
 	}
-	defer isolate.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
+	defer apexctx.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err

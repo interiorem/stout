@@ -8,7 +8,7 @@ import (
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
 	"github.com/ugorji/go/codec"
 
-	"github.com/noxiouz/stout/isolate"
+	apexctx "github.com/m0sth8/context"
 )
 
 type cocaineCodeStorage struct {
@@ -18,7 +18,7 @@ type cocaineCodeStorage struct {
 }
 
 func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error) {
-	defer isolate.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
+	defer apexctx.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
 
 	st.m.Lock()
 	defer st.m.Unlock()
@@ -41,7 +41,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 	if err = st.lazyStorageCreate(ctx); err != nil {
 		return nil, err
 	}
-	defer isolate.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
+	defer apexctx.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
 
 	channel, err := st.service.Call(ctx, "read", "apps", appname)
 	if err != nil {

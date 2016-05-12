@@ -6,6 +6,7 @@ import (
 	"io"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/noxiouz/stout/isolate"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/docker/engine-api/types/network"
 	"github.com/docker/engine-api/types/strslice"
 
+	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 )
 
@@ -25,6 +27,14 @@ const (
 	chunkSize = 1024 * 1024
 )
 
+func containerRemove(client client.APIClient, ctx context.Context, id string) {
+	var err error
+	defer apexctx.GetLogger(ctx).WithField("id", id).Trace("removing").Stop(&err)
+
+	removeOpts := types.ContainerRemoveOptions{}
+	err = client.ContainerRemove(ctx, id, removeOpts)
+}
+
 type process struct {
 	ctx          context.Context
 	cancellation context.CancelFunc
@@ -33,10 +43,12 @@ type process struct {
 	output chan isolate.ProcessOutput
 
 	containerID string
+
+	removed uint32
 }
 
-func newContainer(ctx context.Context, client *client.Client, profile *Profile, name, executable string, args, env map[string]string) (proc isolate.Process, err error) {
-	defer isolate.GetLogger(ctx).Trace("spawning container").Stop(&err)
+func newContainer(ctx context.Context, client *client.Client, profile *Profile, name, executable string, args, env map[string]string) (pr *process, err error) {
+	defer apexctx.GetLogger(ctx).Trace("spawning container").Stop(&err)
 
 	var image string
 	if registry := profile.Registry; registry != "" {
@@ -68,6 +80,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Cmd:        Cmd,
 		Image:      image,
 		WorkingDir: profile.Cwd,
+		Labels:     map[string]string{isolateDockerLabel: name},
 	}
 
 	hostConfig := container.HostConfig{
@@ -80,16 +93,16 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 
 	resp, err := client.ContainerCreate(ctx, &config, &hostConfig, networkingConfig, "")
 	if err != nil {
-		isolate.GetLogger(ctx).WithError(err).Error("unable to create a container")
+		apexctx.GetLogger(ctx).WithError(err).Error("unable to create a container")
 		return nil, err
 	}
 
 	for _, warn := range resp.Warnings {
-		isolate.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
+		apexctx.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-	pr := &process{
+	pr = &process{
 		ctx:          ctx,
 		cancellation: cancel,
 		client:       client,
@@ -97,32 +110,36 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		containerID:  resp.ID,
 	}
 
-	var startBarier = make(chan struct{})
-	go pr.collectOutput(startBarier)
-	if err := client.ContainerStart(ctx, pr.containerID); err != nil {
-		cancel()
-		return nil, err
-	}
-	isolate.NotifyAbouStart(pr.output)
-	close(startBarier)
-
 	return pr, nil
 }
 
+func (p *process) startContainer() error {
+	var startBarier = make(chan struct{})
+	go p.collectOutput(startBarier)
+	if err := p.client.ContainerStart(p.ctx, p.containerID); err != nil {
+		p.cancellation()
+		return err
+	}
+	isolate.NotifyAbouStart(p.output)
+	close(startBarier)
+	return nil
+}
+
 func (p *process) Kill() (err error) {
-	defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Sending SIGKILL").Stop(&err)
+	defer apexctx.GetLogger(p.ctx).WithField("id", p.containerID).Trace("Sending SIGKILL").Stop(&err)
 	// release HTTP connections
 	defer p.cancellation()
-
-	defer func() {
-		var err error
-		defer isolate.GetLogger(p.ctx).WithField("container", p.containerID).Trace("Removing a conatainer").Stop(&err)
-		removeOpts := types.ContainerRemoveOptions{}
-
-		err = p.client.ContainerRemove(p.ctx, p.containerID, removeOpts)
-	}()
+	defer p.remove()
 
 	return p.client.ContainerKill(p.ctx, p.containerID, "SIGKILL")
+}
+
+func (p *process) remove() {
+	if !atomic.CompareAndSwapUint32(&p.removed, 0, 1) {
+		apexctx.GetLogger(p.ctx).WithField("id", p.containerID).Info("already removed")
+		return
+	}
+	containerRemove(p.client, p.ctx, p.containerID)
 }
 
 func (p *process) Output() <-chan isolate.ProcessOutput {
@@ -141,7 +158,7 @@ func (p *process) collectOutput(started chan struct{}) {
 
 	hjResp, err := p.client.ContainerAttach(p.ctx, p.containerID, attachOpts)
 	if err != nil {
-		isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
+		apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
 		return
 	}
 	defer hjResp.Close()
@@ -172,14 +189,14 @@ func (p *process) collectOutput(started chan struct{}) {
 			if err == io.EOF {
 				return
 			}
-			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
+			apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
 			sendOutput(nil, err)
 			return
 		}
 
 		var size uint32
 		if err = binary.Read(bytes.NewReader(header[4:]), binary.BigEndian, &size); err != nil {
-			isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to decode size from header %s", p.containerID)
+			apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to decode size from header %s", p.containerID)
 			return
 		}
 
@@ -200,7 +217,7 @@ func (p *process) collectOutput(started chan struct{}) {
 					return
 				}
 
-				isolate.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
+				apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
 				sendOutput(nil, err)
 				return
 			}
