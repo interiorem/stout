@@ -19,8 +19,9 @@ import (
 	"github.com/docker/engine-api/types/filters"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/noxiouz/expvarmetrics"
+
 	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/metrics"
 )
 
 const (
@@ -36,7 +37,7 @@ var (
 
 var (
 	boxStat    = expvar.NewMap("docker")
-	spawnTimer = metrics.NewTimerVar()
+	spawnTimer = expvarmetrics.NewTimerVar()
 )
 
 func init() {

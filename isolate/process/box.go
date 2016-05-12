@@ -14,8 +14,8 @@ import (
 	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 
+	"github.com/noxiouz/expvarmetrics"
 	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/metrics"
 
 	"github.com/apex/log"
 )
@@ -39,7 +39,7 @@ var (
 
 var (
 	boxStat    = expvar.NewMap("process")
-	spawnTimer = metrics.NewTimerVar()
+	spawnTimer = expvarmetrics.NewTimerVar()
 )
 
 type codeStorage interface {
