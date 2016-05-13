@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.7) unstable; urgency=low
+
+  * Feature(docker): watch containers via Events
+  * Misc(isolate): Boxes have logger
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 13 May 2016 11:06:52 +0300
+
 cocaine-isolate-daemon (0.1.5.6) unstable; urgency=low
 
   * Feature(docker): support Registry Auth
