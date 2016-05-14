@@ -1,18 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	_ "expvar"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
-	"sort"
 	"sync"
-	"time"
 
 	"github.com/apex/log"
 	apexctx "github.com/m0sth8/context"
@@ -21,6 +18,7 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
+	"github.com/noxiouz/stout/pkg/logutils"
 	"github.com/noxiouz/stout/version"
 
 	flag "github.com/ogier/pflag"
@@ -36,67 +34,10 @@ type Config struct {
 	Endpoints   []string `json:"endpoints"`
 	DebugServer string   `json:"debugserver"`
 	Logger      struct {
-		Level  string `json:"level"`
-		Output string `json:"output"`
+		Level  logutils.Level `json:"level"`
+		Output string         `json:"output"`
 	} `json:"logger"`
 	Isolate map[string]isolate.BoxConfig `json:"isolate"`
-}
-
-type logHandler struct {
-	mu sync.Mutex
-	io.Writer
-}
-
-func getLevel(lvl log.Level) string {
-	switch lvl {
-	case log.DebugLevel:
-		return "DEBUG"
-	case log.InfoLevel:
-		return "INFO"
-	case log.WarnLevel:
-		return "WARN"
-	case log.ErrorLevel, log.FatalLevel:
-		return "ERROR"
-	default:
-		return lvl.String()
-	}
-}
-
-func (lh *logHandler) HandleLog(entry *log.Entry) error {
-	keys := make([]string, 0, len(entry.Fields))
-	for k := range entry.Fields {
-		keys = append(keys, k)
-	}
-
-	sort.Strings(keys)
-
-	buf := new(bytes.Buffer)
-	buf.WriteString(entry.Timestamp.Format(time.RFC3339))
-	buf.WriteByte('\t')
-	buf.WriteString(getLevel(entry.Level))
-	buf.WriteByte('\t')
-	buf.WriteString(entry.Message)
-	if i := len(entry.Fields); i > 0 {
-		buf.WriteByte('\t')
-		buf.WriteByte('[')
-
-		for _, k := range keys {
-			buf.WriteString(fmt.Sprintf("%s: %v", k, entry.Fields[k]))
-			i--
-			if i > 0 {
-				buf.WriteByte(',')
-				buf.WriteByte(' ')
-			}
-		}
-		buf.WriteByte(']')
-	}
-	buf.WriteByte('\n')
-
-	lh.mu.Lock()
-	defer lh.mu.Unlock()
-
-	_, err := buf.WriteTo(lh.Writer)
-	return err
 }
 
 func init() {
@@ -105,58 +46,44 @@ func init() {
 	flag.Parse()
 }
 
+func printVersion() {
+	fmt.Printf("version: `%s`\n", version.Version)
+	fmt.Printf("hash: `%s`\n", version.GitHash)
+	fmt.Printf("build utc time: `%s`\n", version.Build)
+}
+
 func main() {
 	if showVersion {
-		fmt.Printf("version: `%s`\n", version.Version)
-		fmt.Printf("hash: `%s`\n", version.GitHash)
-		fmt.Printf("build utc time: `%s`\n", version.Build)
+		printVersion()
 		return
 	}
-	var config Config
-	if err := func(path string) error {
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
 
-		return json.NewDecoder(f).Decode(&config)
-	}(configpath); err != nil {
+	var config Config
+	data, err := ioutil.ReadFile(configpath)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to read config: %v\n", err)
 		os.Exit(1)
 	}
 
-	lvl, err := log.ParseLevel(config.Logger.Level)
+	if err = json.Unmarshal(data, &config); err != nil {
+		fmt.Fprintf(os.Stderr, "unable to decode config to JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	output, err := logutils.NewLogFileOutput(config.Logger.Output)
 	if err != nil {
-		lvl = log.DebugLevel
+		fmt.Fprintf(os.Stderr, "unable to open logfile output: %v\n", err)
+		os.Exit(1)
 	}
-
-	var output io.WriteCloser
-	switch path := config.Logger.Output; path {
-	case os.Stderr.Name():
-		output = os.Stderr
-	case os.Stdout.Name():
-		output = os.Stdout
-	default:
-		output, err = os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0755)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to create log file %s: %v\n", path, err)
-			os.Exit(1)
-		}
-		defer output.Close()
-	}
-
-	handler := &logHandler{
-		Writer: output,
-	}
+	defer output.Close()
 
 	logger := &log.Logger{
-		Level:   lvl,
-		Handler: handler,
+		Level:   log.Level(config.Logger.Level),
+		Handler: logutils.NewLogHandler(output),
 	}
 
 	if len(config.Isolate) == 0 {
-		logger.Fatal("the isolate section is empty")
+		logger.Fatal("isolate section is empty")
 	}
 
 	ctx := apexctx.WithLogger(apexctx.Background(), log.NewEntry(logger))
@@ -185,9 +112,9 @@ func main() {
 
 	if config.DebugServer != "" {
 		logger.WithField("endpoint", config.DebugServer).Info("start debug server")
-		go func(endpoint string) {
-			logger.WithError(http.ListenAndServe(endpoint, nil)).Error("debug server is listening")
-		}(config.DebugServer)
+		go func() {
+			logger.WithError(http.ListenAndServe(config.DebugServer, nil)).Error("debug server is listening")
+		}()
 	}
 
 	var wg sync.WaitGroup
