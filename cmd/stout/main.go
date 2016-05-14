@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	_ "expvar"
 	"fmt"
 	"io/ioutil"
@@ -18,6 +17,7 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
+	"github.com/noxiouz/stout/pkg/config"
 	"github.com/noxiouz/stout/pkg/logutils"
 	"github.com/noxiouz/stout/version"
 
@@ -28,17 +28,6 @@ var (
 	configpath  string
 	showVersion bool
 )
-
-// Config describes a configuration file for the daemon
-type Config struct {
-	Endpoints   []string `json:"endpoints"`
-	DebugServer string   `json:"debugserver"`
-	Logger      struct {
-		Level  logutils.Level `json:"level"`
-		Output string         `json:"output"`
-	} `json:"logger"`
-	Isolate map[string]isolate.BoxConfig `json:"isolate"`
-}
 
 func init() {
 	flag.StringVarP(&configpath, "config", "c", "/etc/stout/stout-default.conf", "path to a configuration file")
@@ -58,15 +47,15 @@ func main() {
 		return
 	}
 
-	var config Config
 	data, err := ioutil.ReadFile(configpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to read config: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err = json.Unmarshal(data, &config); err != nil {
-		fmt.Fprintf(os.Stderr, "unable to decode config to JSON: %v\n", err)
+	config, err := config.Parse(data)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config is invalid: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -80,10 +69,6 @@ func main() {
 	logger := &log.Logger{
 		Level:   log.Level(config.Logger.Level),
 		Handler: logutils.NewLogHandler(output),
-	}
-
-	if len(config.Isolate) == 0 {
-		logger.Fatal("isolate section is empty")
 	}
 
 	ctx := apexctx.WithLogger(apexctx.Background(), log.NewEntry(logger))
@@ -105,10 +90,6 @@ func main() {
 	}
 
 	ctx = context.WithValue(ctx, isolate.BoxesTag, boxes)
-
-	if len(config.Endpoints) == 0 {
-		logger.Fatal("no listening endpoints are specified in endpoints section")
-	}
 
 	if config.DebugServer != "" {
 		logger.WithField("endpoint", config.DebugServer).Info("start debug server")
