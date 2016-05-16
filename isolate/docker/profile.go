@@ -12,6 +12,10 @@ const (
 	defatultNetworkMode = container.NetworkMode("bridge")
 )
 
+type Resources struct {
+	Memory int64 `json:"memory"`
+}
+
 // Profile describes a Cocaine profile for Docker isolation type
 type Profile struct {
 	Registry   string `json:"registry"`
@@ -21,6 +25,8 @@ type Profile struct {
 	NetworkMode container.NetworkMode `json:"network_mode"`
 	RuntimePath string                `json:"runtime-path"`
 	Cwd         string                `json:"cwd"`
+
+	Resources `json:"resources"`
 }
 
 func convertProfile(rawprofile isolate.Profile) (*Profile, error) {
