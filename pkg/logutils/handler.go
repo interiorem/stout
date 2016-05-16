@@ -11,6 +11,16 @@ import (
 	"github.com/apex/log"
 )
 
+var bytesPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 256)
+	},
+}
+
+func getBytesFromPool() []byte {
+	return bytesPool.Get().([]byte)[:0]
+}
+
 func getLevel(lvl log.Level) string {
 	switch lvl {
 	case log.DebugLevel:
@@ -44,8 +54,7 @@ func (lh *logHandler) HandleLog(entry *log.Entry) error {
 
 	sort.Strings(keys)
 
-	buf := new(bytes.Buffer)
-	buf.WriteString(entry.Timestamp.Format(time.RFC3339))
+	buf := bytes.NewBuffer(entry.Timestamp.AppendFormat(getBytesFromPool(), time.RFC3339))
 	buf.WriteByte('\t')
 	buf.WriteString(getLevel(entry.Level))
 	buf.WriteByte('\t')
@@ -67,8 +76,8 @@ func (lh *logHandler) HandleLog(entry *log.Entry) error {
 	buf.WriteByte('\n')
 
 	lh.mu.Lock()
-	defer lh.mu.Unlock()
-
 	_, err := buf.WriteTo(lh.Writer)
+	lh.mu.Unlock()
+	bytesPool.Put(buf.Bytes())
 	return err
 }
