@@ -83,9 +83,17 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Labels:     map[string]string{isolateDockerLabel: name},
 	}
 
+	var resources container.Resources
+	apexctx.GetLogger(ctx).Info("applying Resource limits")
+	if memLimit := profile.Resources.Memory; memLimit != 0 {
+		apexctx.GetLogger(ctx).Infof("set Memory limit: %d", memLimit)
+		resources.Memory = memLimit
+	}
+
 	hostConfig := container.HostConfig{
 		NetworkMode: profile.NetworkMode,
 		Binds:       binds,
+		Resources:   resources,
 	}
 
 	// NOTE: It should be nil
