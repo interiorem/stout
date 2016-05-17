@@ -37,5 +37,5 @@ go build -o cocaine-isolate-daemon cmd/stout/main.go
 ### Run it
 
 ```bash
-cocaine-isolate-daemon -config path/to/config.conf
+cocaine-isolate-daemon -config=path/to/config.conf
 ```
