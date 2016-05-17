@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.9) unstable; urgency=low
+
+  * Bugfix(docker): pass Tmpfs option
+  * Bugfix(docker): use Unix timestamp for Events
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 17 May 2016 21:11:35 +0300
+
 cocaine-isolate-daemon (0.1.5.8) unstable; urgency=low
 
   * Bugfix(docker): clean up orphaned containers
