@@ -40,7 +40,7 @@ FROM ubuntu:trusty
 
 COPY worker.sh /usr/bin/worker.sh
 	`
-	cl, err := client.NewClient(endpoint, dockerAPIVersion, nil, nil)
+	cl, err := client.NewClient(endpoint, "", nil, nil)
 	c.Assert(err, IsNil)
 
 	buf := new(bytes.Buffer)

@@ -27,6 +27,7 @@ type Profile struct {
 	Cwd         string                `json:"cwd"`
 
 	Resources `json:"resources"`
+	Tmpfs     map[string]string `json:"tmpfs"`
 }
 
 func convertProfile(rawprofile isolate.Profile) (*Profile, error) {

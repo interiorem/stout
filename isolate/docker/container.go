@@ -3,6 +3,7 @@ package docker
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
@@ -88,6 +89,14 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 	if memLimit := profile.Resources.Memory; memLimit != 0 {
 		apexctx.GetLogger(ctx).Infof("set Memory limit: %d", memLimit)
 		resources.Memory = memLimit
+	}
+
+	if len(profile.Tmpfs) != 0 {
+		buff := new(bytes.Buffer)
+		for k, v := range profile.Tmpfs {
+			fmt.Fprintf(buff, "%s: %s", k, v)
+		}
+		apexctx.GetLogger(ctx).Infof("mounting `tmpfs` to container: %s", buff.String())
 	}
 
 	hostConfig := container.HostConfig{
