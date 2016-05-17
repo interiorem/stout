@@ -25,7 +25,6 @@ import (
 )
 
 const (
-	dockerAPIVersion        = "v1.19"
 	defaultSpawnConcurrency = 10
 
 	isolateDockerLabel = "cocaine-isolate"
@@ -86,7 +85,6 @@ type dockerBoxConfig struct {
 func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	var config = &dockerBoxConfig{
 		DockerEndpoint:   client.DefaultDockerHost,
-		APIVersion:       dockerAPIVersion,
 		SpawnConcurrency: defaultSpawnConcurrency,
 	}
 
