@@ -1,3 +1,13 @@
+cocaine-isolate-daemon (0.1.5.8) unstable; urgency=low
+
+  * Bugfix(docker): clean up orphaned containers
+  * Feature(docker): add an ability to set Memory limit
+  * Feature(docker): add an ability to set tmpfs (requires 1.10)
+  * Feature(common): add metrics
+  * Optimization(logs): speed up Logger
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 17 May 2016 13:54:52 +0300
+
 cocaine-isolate-daemon (0.1.5.7) unstable; urgency=low
 
   * Feature(docker): watch containers via Events
