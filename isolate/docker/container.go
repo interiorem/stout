@@ -91,18 +91,20 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		resources.Memory = memLimit
 	}
 
-	if len(profile.Tmpfs) != 0 {
-		buff := new(bytes.Buffer)
-		for k, v := range profile.Tmpfs {
-			fmt.Fprintf(buff, "%s: %s", k, v)
-		}
-		apexctx.GetLogger(ctx).Infof("mounting `tmpfs` to container: %s", buff.String())
-	}
-
 	hostConfig := container.HostConfig{
 		NetworkMode: profile.NetworkMode,
 		Binds:       binds,
 		Resources:   resources,
+	}
+
+	if len(profile.Tmpfs) != 0 {
+		buff := new(bytes.Buffer)
+		for k, v := range profile.Tmpfs {
+			fmt.Fprintf(buff, "%s: %s;", k, v)
+		}
+		apexctx.GetLogger(ctx).Infof("mounting `tmpfs` to container: %s", buff.String())
+
+		hostConfig.Tmpfs = profile.Tmpfs
 	}
 
 	// NOTE: It should be nil
