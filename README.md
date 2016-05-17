@@ -31,7 +31,15 @@ See configuration example:
 ### Build
 
 ```
+go get github.com/noxiouz/stout/cmd/stout
+cd $GOPATH/src/github.com/noxiouz/stout
 go build -o cocaine-isolate-daemon cmd/stout/main.go
+```
+
+if `$GOPATH/bin` is added to `$PATH`, you can use:
+
+```
+go install github.com/noxiouz/stout/cmd/stout
 ```
 
 ### Run it
