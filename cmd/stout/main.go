@@ -1,14 +1,17 @@
 package main
 
 import (
-	_ "expvar"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/apex/log"
 	apexctx "github.com/m0sth8/context"
@@ -18,16 +21,55 @@ import (
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
 	"github.com/noxiouz/stout/pkg/config"
+	"github.com/noxiouz/stout/pkg/fds"
 	"github.com/noxiouz/stout/pkg/logutils"
 	"github.com/noxiouz/stout/version"
 
 	flag "github.com/ogier/pflag"
 )
 
+const (
+	desiredRlimit = 65535
+)
+
 var (
 	configpath  string
 	showVersion bool
 )
+
+var (
+	daemonStats = expvar.NewMap("daemon")
+
+	openFDs, goroutines, conns expvar.Int
+)
+
+func init() {
+	daemonStats.Set("open_fds", &openFDs)
+	daemonStats.Set("goroutines", &goroutines)
+	daemonStats.Set("connections", &conns)
+}
+
+func collect(ctx context.Context) {
+	goroutines.Set(int64(runtime.NumGoroutine()))
+	count, err := fds.GetOpenFds()
+	if err != nil {
+		apexctx.GetLogger(ctx).WithError(err).Error("get open fd count")
+		return
+	}
+	openFDs.Set(int64(count))
+}
+
+func checkLimits(ctx context.Context) {
+	var l syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &l); err != nil {
+		apexctx.GetLogger(ctx).WithError(err).Error("get RLIMIT_NOFILE")
+		return
+	}
+
+	if l.Cur < desiredRlimit {
+		apexctx.GetLogger(ctx).Warnf("RLIMIT_NOFILE %d is less that desired %d", l.Cur, desiredRlimit)
+	}
+}
 
 func init() {
 	flag.StringVarP(&configpath, "config", "c", "/etc/stout/stout-default.conf", "path to a configuration file")
@@ -72,14 +114,27 @@ func main() {
 	}
 
 	ctx := apexctx.WithLogger(apexctx.Background(), log.NewEntry(logger))
+	ctx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
+
+	go func() {
+		collect(ctx)
+		for range time.Tick(30 * time.Second) {
+			collect(ctx)
+		}
+	}()
+
+	checkLimits(ctx)
+
 	boxes := isolate.Boxes{}
 	for name, cfg := range config.Isolate {
 		var box isolate.Box
+		boxCtx := apexctx.WithLogger(ctx, logger.WithField("box", name))
 		switch name {
 		case "docker":
-			box, err = docker.NewBox(ctx, cfg)
+			box, err = docker.NewBox(boxCtx, cfg)
 		case "process":
-			box, err = process.NewBox(ctx, cfg)
+			box, err = process.NewBox(boxCtx, cfg)
 		default:
 			logger.WithError(err).WithField("box", name).Fatal("unknown box type")
 		}
@@ -92,7 +147,7 @@ func main() {
 	ctx = context.WithValue(ctx, isolate.BoxesTag, boxes)
 
 	if config.DebugServer != "" {
-		logger.WithField("endpoint", config.DebugServer).Info("start debug server")
+		logger.WithField("endpoint", config.DebugServer).Info("start debug HTTP-server")
 		go func() {
 			logger.WithError(http.ListenAndServe(config.DebugServer, nil)).Error("debug server is listening")
 		}()
@@ -100,7 +155,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	for _, endpoint := range config.Endpoints {
-		logger.WithField("endpoint", endpoint).Info("listening")
+		logger.WithField("endpoint", endpoint).Info("start TCP server")
 		ln, err := net.Listen("tcp", endpoint)
 		if err != nil {
 			logger.WithError(err).WithField("endpoint", endpoint).Fatal("unable to listen to")
@@ -124,7 +179,11 @@ func main() {
 					lnLogger.WithError(err).Fatal("unable to create connection handler")
 				}
 
-				go connHandler.HandleConn(conn)
+				go func() {
+					conns.Add(1)
+					defer conns.Add(-1)
+					connHandler.HandleConn(conn)
+				}()
 			}
 		}(ln)
 	}
