@@ -7,6 +7,7 @@ import (
 	"expvar"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -146,11 +147,11 @@ func (b *Box) watchEvents() {
 
 	for {
 		eventsOptions := types.EventsOptions{
-			Since:   since.Format(time.RFC3339Nano),
+			Since:   strconv.FormatInt(since.Unix(), 10),
 			Filters: filterArgs,
 		}
 
-		logger.Infof("listening Docker events %s", fltrs)
+		logger.Infof("listening Docker events since %s with filters %s", eventsOptions.Since, fltrs)
 		resp, err := b.client.Events(b.ctx, eventsOptions)
 		switch err {
 		case nil:
