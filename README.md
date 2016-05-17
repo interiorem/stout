@@ -31,7 +31,7 @@ See configuration example:
 ### Build
 
 ```
-go get github.com/noxiouz/stout/cmd/stout
+go get -u github.com/noxiouz/stout/cmd/stout
 cd $GOPATH/src/github.com/noxiouz/stout
 go build -o cocaine-isolate-daemon cmd/stout/main.go
 ```
