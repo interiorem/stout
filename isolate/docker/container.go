@@ -135,7 +135,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 func (p *process) startContainer() error {
 	var startBarier = make(chan struct{})
 	go p.collectOutput(startBarier)
-	if err := p.client.ContainerStart(p.ctx, p.containerID); err != nil {
+	if err := p.client.ContainerStart(p.ctx, p.containerID, ""); err != nil {
 		p.cancellation()
 		return err
 	}
