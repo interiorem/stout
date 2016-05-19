@@ -42,10 +42,11 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 	}
 
 	pr.cmd = &exec.Cmd{
-		Env:  packedEnv,
-		Args: packedArgs,
-		Dir:  workDir,
-		Path: executable,
+		Env:         packedEnv,
+		Args:        packedArgs,
+		Dir:         workDir,
+		Path:        executable,
+		SysProcAttr: getSysProctAttr(),
 	}
 
 	// sme is used to keep track an order of output channel
