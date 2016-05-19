@@ -3,6 +3,8 @@ package isolate
 import (
 	"fmt"
 	"io"
+	"math/rand"
+	"time"
 
 	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
@@ -41,6 +43,8 @@ type ConnectionHandler struct {
 
 	newDecoder    decoderInit
 	newDispatcher dispatcherInit
+
+	connID string
 }
 
 // NewConnectionHandler creates new ConnectionHandler
@@ -50,6 +54,9 @@ func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
 }
 
 func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispatcherInit) (*ConnectionHandler, error) {
+	connID := getID(ctx)
+	ctx = apexctx.WithLogger(ctx, apexctx.GetLogger(ctx).WithField("conn.id", connID))
+
 	return &ConnectionHandler{
 		ctx:            ctx,
 		session:        make(map[int]Dispatcher),
@@ -57,12 +64,26 @@ func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispa
 
 		newDecoder:    newDec,
 		newDispatcher: newDisp,
+
+		connID: connID,
 	}, nil
+}
+
+func getID(ctx context.Context) string {
+	var uniqueid string
+	uniqueid, ok := ctx.Value("conn.id").(string)
+	if !ok {
+		return fmt.Sprintf("%d.%d", time.Now().Unix(), rand.Int63())
+	}
+
+	return uniqueid
 }
 
 // HandleConn decodes commands from Cocaine runtime and calls dispatchers
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
+
+	logger := apexctx.GetLogger(h.ctx)
 
 	decoder := h.newDecoder(conn)
 	for {
@@ -88,7 +109,8 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 			// TODO: refactor
 			var dw = newDownstream(newMsgpackEncoder(conn), msg.Channel)
-			ctx := withDownstream(h.ctx, dw)
+			ctx := apexctx.WithLogger(h.ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, msg.Channel)))
+			ctx = withDownstream(ctx, dw)
 			dispatcher = h.newDispatcher(ctx)
 		}
 
