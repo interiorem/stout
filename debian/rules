@@ -9,7 +9,6 @@ BUILDDT=$(shell date -u +%F@%H:%M:%S)
 VERSION=$(shell git show-ref --head --hash head)
 DEBVER=$(shell dpkg-parsechangelog | sed -n -e 's/^Version: //p')
 CPWD=$(shell pwd)
-VERSIONFILE=${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/version/version.go
 LDFLAGS=-ldflags "-X github.com/noxiouz/stout/version.Version=${DEBVER} -X github.com/noxiouz/stout/version.Build=${BUILDDT} -X github.com/noxiouz/stout/version.GitHash=${VERSION}"
 
 %:
@@ -20,14 +19,13 @@ override_dh_auto_build:
 	export GOPATH=${CPWD}/debian/tmp/go
 	mkdir -p ${CPWD}/debian/tmp/go/src/github.com/noxiouz
 	ln -s ${CPWD} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout
-	
-	GOPATH=${CPWD}/debian/tmp/go go build ${LDFLAGS} -o ${NAME} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/cmd/stout/main.go
+
+	GOPATH=${CPWD}/debian/tmp/go go build ${LDFLAGS} -o ${NAME} ${CPWD}/cmd/stout/main.go
 
 override_dh_auto_test:
-	@echo "no tests could be run during build" 
+	@echo "no tests could be run during build"
 
 
 cleanbuilddir::
 	rm -Rf debian/tmp/
 	rm -Rf debian/cocaine-porto/
-

@@ -81,6 +81,7 @@ func init() {
 func printVersion() {
 	fmt.Printf("version: `%s`\n", version.Version)
 	fmt.Printf("hash: `%s`\n", version.GitHash)
+	fmt.Printf("git tag: `%s`\n", version.GitTag)
 	fmt.Printf("build utc time: `%s`\n", version.Build)
 }
 
