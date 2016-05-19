@@ -3,16 +3,29 @@ language: go
 sudo: required
 
 go:
-  - 1.6
+ - 1.6.2
 
 services:
-  - docker
+ - docker
 
 install:
-  - go env
+ - go env
 
 script:
-  - make
+ - make
+ - make build_travis_release
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash)
+ - bash <(curl -s https://codecov.io/bash)
+
+deploy:
+  provider: releases
+  api_key:
+    secure: hJUB/fwHbOSlozMGTFkSnL5q1jFcMqTIBkOUz2+s2Sys2uT8XFJrIjPUCW3DDoV/GB/0JxUMk2LLQUqa0+9+0pHP7Nvjsey2iKTnAq2d7cnQ0r070QAgY7foQmq/BIL3xyX0rL4bCkrqOXZYqw+qm4rH7CSCmrkp0NiSPHUVCvgDx4NbxXd2MsTcEh8BmBU1KV4pz+sTsegr04regvsS4E+2X9arqjfXJBo6Q9vRJ5olVYNz8BC5NXP2QXrTbJei9cBBnvohMGcg5pGTkxvNU36nE8umG33fMTZ7ktaJ2T8riQwIIny+PYnH76CDvYEtMsR5nMEz003XWQjVE/lwAJi6o8U3ChYUb8M17k061/zy1xoaAoEpt83MgE8PmM9IDhmnaY1rHVUuPKMxZx7vm9sTbTaBPQK0RD1DISDw7aVP94N3CL7eWrAckLhpJrqSqlqPI94Z+au4v+YxpfMEojyJ8pldW3rAAnw7aqpYwM8nFKoBtpUghu05QvR5dHjng+wCUIIQD2N21el+2nE784t7lu0PcdCuotqn2vj44iVmwptuJNeFJzhxLe+6RsmaPWCooY//z9jxiX227VWMUs45zTC6lFqv431rmmg2BCZg2AhTDjKJwhCWGfpxoRZwQ/ZxTNmh0AU2/2SgfQsVKryxjW3a0DYsec08FdUq2Bo=
+  file:
+   - cocaine-isolate-daemon
+   - cocaine-isolate-daemon_osx
+  skip_cleanup: true
+  on:
+    tags: true
+    go: 1.6.2
