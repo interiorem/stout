@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.5.10) unstable; urgency=low
+
+  * Feature(logs): add session and conn ids to logs
+  * Bugfix/Update(docker): engine-api has a fix of Events 
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 19 May 2016 12:00:43 +0300
+
 cocaine-isolate-daemon (0.1.5.9) unstable; urgency=low
 
   * Bugfix(docker): pass Tmpfs option
