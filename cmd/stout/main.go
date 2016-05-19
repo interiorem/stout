@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"expvar"
 	"fmt"
 	"io/ioutil"
@@ -172,9 +173,12 @@ func main() {
 					lnLogger.WithError(err).Error("Accept")
 					continue
 				}
-				lnLogger.WithField("remote_addr", conn.RemoteAddr()).Info("accepted new connection")
 
-				connHandler, err := isolate.NewConnectionHandler(ctx)
+				// TODO: more optimal way
+				connID := fmt.Sprintf("%.4x", md5.Sum([]byte(fmt.Sprintf("%s.%d", conn.RemoteAddr().String(), time.Now().Unix()))))
+				lnLogger.WithFields(log.Fields{"remote.addr": conn.RemoteAddr(), "conn.id": connID}).Info("accepted new connection")
+
+				connHandler, err := isolate.NewConnectionHandler(context.WithValue(ctx, "conn.id", connID))
 				if err != nil {
 					lnLogger.WithError(err).Fatal("unable to create connection handler")
 				}
