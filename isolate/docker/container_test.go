@@ -29,10 +29,14 @@ func TestContainer(t *testing.T) {
 	version, err := client.ServerVersion(ctx)
 	assert.NoError(err)
 
-	resp, err := client.ImagePull(ctx, "ubuntu:trusty", types.ImagePullOptions{})
+	imgs, err := client.ImageList(ctx, types.ImageListOptions{MatchName: "ubuntu:trusty"})
 	assert.NoError(err)
-	io.Copy(ioutil.Discard, resp)
-	resp.Close()
+	if len(imgs) == 0 {
+		resp, err := client.ImagePull(ctx, "ubuntu:trusty", types.ImagePullOptions{})
+		assert.NoError(err)
+		io.Copy(ioutil.Discard, resp)
+		resp.Close()
+	}
 
 	var profile = Profile{
 		RuntimePath: "/var/run",
