@@ -1,3 +1,11 @@
+cocaine-isolate-daemon (0.1.5.12) unstable; urgency=low
+
+  * Fix(process): limit spawning rate
+  * Fix(process): SIGCHLD handler acquires the lock ones
+  * Fix(spawn): spawning is cancallable now
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 20 May 2016 22:12:28 +0300
+
 cocaine-isolate-daemon (0.1.5.11) unstable; urgency=low
 
   * Feature(process): SIGKILL via Pdeathsig to workers
