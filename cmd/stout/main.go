@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -40,10 +41,9 @@ var (
 )
 
 var (
-	// daemonStats = expvar.NewMap("daemon")
-
 	openFDs    = metrics.NewGauge()
 	goroutines = metrics.NewGauge()
+	threads    = metrics.NewGauge()
 	conns      = metrics.NewCounter()
 )
 
@@ -51,6 +51,7 @@ func init() {
 	registry := metrics.NewPrefixedChildRegistry(metrics.DefaultRegistry, "daemon_")
 	registry.Register("open_fds", openFDs)
 	registry.Register("goroutines", goroutines)
+	registry.Register("threads", threads)
 	registry.Register("connections", conns)
 
 	http.Handle("/metrics", exportmetrics.HTTPExport(metrics.DefaultRegistry))
@@ -63,7 +64,9 @@ func collect(ctx context.Context) {
 		apexctx.GetLogger(ctx).WithError(err).Error("get open fd count")
 		return
 	}
+
 	openFDs.Update(int64(count))
+	threads.Update(int64(pprof.Lookup("threadcreate").Count()))
 }
 
 func checkLimits(ctx context.Context) {

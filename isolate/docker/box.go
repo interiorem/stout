@@ -33,15 +33,6 @@ var (
 	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolate"}
 )
 
-// var (
-// boxStat    = expvar.NewMap("docker")
-// spawnTimer = expvarmetrics.NewTimerVar()
-// )
-
-// func init() {
-// 	boxStat.Set("spawning", spawnTimer)
-// }
-
 type spoolResponseProtocol struct {
 	Error  string `json:"error"`
 	Status string `json:"status"`
