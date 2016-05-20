@@ -114,10 +114,13 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 
 	prCh := make(chan Process, 1)
 	flagKilled := uint32(0)
+	// ctx will be passed to Spawn function
+	// cancelSpawn will used by SpawnDispatch to cancel spawning
+	ctx, cancelSpawn := context.WithCancel(d.ctx)
 	go func() {
 		defer close(prCh)
 
-		pr, err := box.Spawn(d.ctx, opts, name, executable, args, env)
+		pr, err := box.Spawn(ctx, opts, name, executable, args, env)
 		if err != nil {
 			apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
 			reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
@@ -125,10 +128,25 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		}
 
 		d.trackOutput(pr, &flagKilled)
-		prCh <- pr
+		select {
+		case prCh <- pr:
+			// send pr to SpawnDispatch
+		case <-ctx.Done():
+			// SpawnDispatch has cancelled the spawning
+			// Kill the process, set flagKilled to prevent trackOutput
+			// sinding duplicated messages, reply WithKillOk
+			if atomic.CompareAndSwapUint32(&flagKilled, 0, 1) {
+				if err := pr.Kill(); err != nil {
+					reply(d.ctx, replyKillError, errKillError, err.Error())
+					return
+				}
+
+				reply(d.ctx, replyKillOk, nil)
+			}
+		}
 	}()
 
-	return newSpawnDispatch(d.ctx, prCh, &flagKilled), nil
+	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled), nil
 }
 
 func (d *initialDispatch) trackOutput(pr Process, flagKilled *uint32) {

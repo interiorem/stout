@@ -1,7 +1,9 @@
 package semaphore
 
+import "golang.org/x/net/context"
+
 type Semaphore interface {
-	Acquire()
+	Acquire(ctx context.Context) error
 	Release()
 }
 
@@ -22,8 +24,13 @@ func New(size uint) Semaphore {
 
 var _ Semaphore = &spawnSemaphore{}
 
-func (s *spawnSemaphore) Acquire() {
-	s.sm <- struct{}{}
+func (s *spawnSemaphore) Acquire(ctx context.Context) error {
+	select {
+	case s.sm <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (s *spawnSemaphore) Release() {

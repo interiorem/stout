@@ -212,7 +212,9 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	start := time.Now()
 	defer spawnTimer.UpdateSince(start)
 
-	b.spawnSM.Acquire()
+	if err = b.spawnSM.Acquire(ctx); err != nil {
+		return nil, err
+	}
 	defer b.spawnSM.Release()
 
 	boxStat.Add("spawned", 1)
