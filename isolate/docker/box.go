@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -20,8 +19,6 @@ import (
 	"github.com/docker/engine-api/types/filters"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/noxiouz/expvarmetrics"
-
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/semaphore"
 )
@@ -36,14 +33,14 @@ var (
 	defaultHeaders = map[string]string{"User-Agent": "cocaine-universal-isolate"}
 )
 
-var (
-	boxStat    = expvar.NewMap("docker")
-	spawnTimer = expvarmetrics.NewTimerVar()
-)
+// var (
+// boxStat    = expvar.NewMap("docker")
+// spawnTimer = expvarmetrics.NewTimerVar()
+// )
 
-func init() {
-	boxStat.Set("spawning", spawnTimer)
-}
+// func init() {
+// 	boxStat.Set("spawning", spawnTimer)
+// }
 
 type spoolResponseProtocol struct {
 	Error  string `json:"error"`
@@ -208,19 +205,20 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
-
 	start := time.Now()
-	defer spawnTimer.UpdateSince(start)
 
-	if err = b.spawnSM.Acquire(ctx); err != nil {
+	spawningQueueSize.Inc(1)
+	err = b.spawnSM.Acquire(ctx)
+	spawningQueueSize.Dec(1)
+	if err != nil {
 		return nil, err
 	}
 	defer b.spawnSM.Release()
 
-	boxStat.Add("spawned", 1)
+	containersCreatedCounter.Inc(1)
 	pr, err := newContainer(ctx, b.client, profile, name, executable, args, env)
 	if err != nil {
-		boxStat.Add("crashed", 1)
+		containersErroredCounter.Inc(1)
 		return nil, err
 	}
 
@@ -229,10 +227,11 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	b.muContainers.Unlock()
 
 	if err = pr.startContainer(); err != nil {
-		boxStat.Add("crashed", 1)
+		containersErroredCounter.Inc(1)
 		return nil, err
 	}
 
+	totalSpawnTimer.UpdateSince(start)
 	return pr, nil
 }
 
