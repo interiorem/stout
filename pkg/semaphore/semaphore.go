@@ -12,6 +12,9 @@ type spawnSemaphore struct {
 
 // New returns Semaphore with a given size
 func New(size uint) Semaphore {
+	if size == 0 {
+		panic("Semaphore: size must be positive")
+	}
 	return &spawnSemaphore{
 		sm: make(chan struct{}, size),
 	}
