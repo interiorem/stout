@@ -2,7 +2,6 @@ package process
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,7 +14,6 @@ import (
 	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/expvarmetrics"
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
@@ -37,17 +35,16 @@ var (
 	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )
 
-var (
-	// spawnQueueSizeStat shows how many Spawns waits for the Lock
-	spawnQueueSizeStat expvar.Int
-	boxStat            = expvar.NewMap("process")
-	spawnTimer         = expvarmetrics.NewTimerVar()
-)
-
-func init() {
-	boxStat.Set("spawning_queue_size", &spawnQueueSizeStat)
-	boxStat.Set("spawning", spawnTimer)
-}
+// var (
+// 	// spawnQueueSizeStat expvar.Int
+// 	// boxStat            = expvar.NewMap("process")
+// 	// spawnTimer         = expvarmetrics.NewTimerVar()
+// )
+//
+// // func init() {
+// // 	boxStat.Set("spawning_queue_size", &spawnQueueSizeStat)
+// // 	boxStat.Set("spawning", spawnTimer)
+// // }
 
 type codeStorage interface {
 	Spool(ctx context.Context, appname string) ([]byte, error)
@@ -151,7 +148,7 @@ func (b *Box) wait() {
 				// as it always returns "Wait error", because Wait4 has been already called.
 				// But we have to call Wait to close all associated fds and to release other resources
 				pr.Wait()
-				boxStat.Add("waited", 1)
+				procsWaitedCounter.Inc(1)
 			}
 		case err == syscall.EINTR:
 			// NOTE: although man says that EINTR is not possible in this case, let's be on the side
@@ -195,12 +192,10 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 
 	// Update statistics
 	start := time.Now()
-	defer spawnTimer.UpdateSince(start)
-
-	spawnQueueSizeStat.Add(1)
-
-	if err = b.spawnSm.Acquire(ctx); err != nil {
-		spawnQueueSizeStat.Add(-1)
+	spawningQueueSize.Inc(1)
+	err = b.spawnSm.Acquire(ctx)
+	spawningQueueSize.Dec(1)
+	if err != nil {
 		return nil, err
 	}
 	defer b.spawnSm.Release()
@@ -208,19 +203,21 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	// its waiter responsibility to Wait for it.
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	spawnQueueSizeStat.Add(-1)
 	if isolate.IsCancelled(ctx) {
 		return nil, ErrSpawningCancelled
 	}
 
+	newProcStart := time.Now()
 	pr, err = newProcess(ctx, execPath, args, env, workDir)
+	procsNewTimer.UpdateSince(newProcStart)
 	if err != nil {
-		boxStat.Add("crashed", 1)
+		procsErroredCounter.Inc(1)
 		return nil, err
 	}
-	boxStat.Add("spawned", 1)
+	procsCreatedCounter.Inc(1)
 	b.children[pr.cmd.Process.Pid] = pr.cmd
 
+	totalSpawnTimer.UpdateSince(start)
 	return pr, err
 }
 
