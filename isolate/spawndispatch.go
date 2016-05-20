@@ -15,22 +15,29 @@ const (
 )
 
 type spawnDispatch struct {
-	ctx     context.Context
-	killed  *uint32
-	process <-chan Process
+	ctx         context.Context
+	cancelSpawn context.CancelFunc
+	killed      *uint32
+	process     <-chan Process
 }
 
-func newSpawnDispatch(ctx context.Context, prCh <-chan Process, flagKilled *uint32) *spawnDispatch {
+func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh <-chan Process, flagKilled *uint32) *spawnDispatch {
 	return &spawnDispatch{
-		ctx:     ctx,
-		killed:  flagKilled,
-		process: prCh,
+		ctx:         ctx,
+		cancelSpawn: cancelSpawn,
+		killed:      flagKilled,
+		process:     prCh,
 	}
 }
 
 func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spawnKill:
+		// There are 3 cases:
+		// * If the process has been spawned - kill it
+		// * if the process has not been spawned yet - cancel it
+		//		It's not our repsonsibility to clean up resources and kill anything
+		// * if ctx has been cancelled - exit
 		go func() {
 			select {
 			case pr, ok := <-d.process:
@@ -45,6 +52,9 @@ func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 					}
 				}
 			case <-d.ctx.Done():
+			default:
+				// cancel spawning process
+				d.cancelSpawn()
 			}
 		}()
 		// NOTE: do not return an err on purpose

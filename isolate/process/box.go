@@ -1,6 +1,7 @@
 package process
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"os"
@@ -32,6 +33,8 @@ var (
 			locator: locator,
 		}
 	}
+
+	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )
 
 var (
@@ -196,13 +199,19 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 
 	spawnQueueSizeStat.Add(1)
 
-	b.spawnSm.Acquire()
+	if err = b.spawnSm.Acquire(ctx); err != nil {
+		spawnQueueSizeStat.Add(-1)
+		return nil, err
+	}
 	defer b.spawnSm.Release()
 	// NOTE: once process was put to the map
 	// its waiter responsibility to Wait for it.
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	spawnQueueSizeStat.Add(-1)
+	if isolate.IsCancelled(ctx) {
+		return nil, ErrSpawningCancelled
+	}
 
 	pr, err = newProcess(ctx, execPath, args, env, workDir)
 	if err != nil {
