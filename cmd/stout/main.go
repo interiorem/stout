@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/md5"
-	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -16,12 +15,14 @@ import (
 
 	"github.com/apex/log"
 	apexctx "github.com/m0sth8/context"
+	"github.com/rcrowley/go-metrics"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/noxiouz/stout/isolate/process"
 	"github.com/noxiouz/stout/pkg/config"
+	"github.com/noxiouz/stout/pkg/exportmetrics"
 	"github.com/noxiouz/stout/pkg/fds"
 	"github.com/noxiouz/stout/pkg/logutils"
 	"github.com/noxiouz/stout/version"
@@ -39,25 +40,30 @@ var (
 )
 
 var (
-	daemonStats = expvar.NewMap("daemon")
+	// daemonStats = expvar.NewMap("daemon")
 
-	openFDs, goroutines, conns expvar.Int
+	openFDs    = metrics.NewGauge()
+	goroutines = metrics.NewGauge()
+	conns      = metrics.NewCounter()
 )
 
 func init() {
-	daemonStats.Set("open_fds", &openFDs)
-	daemonStats.Set("goroutines", &goroutines)
-	daemonStats.Set("connections", &conns)
+	registry := metrics.NewPrefixedChildRegistry(metrics.DefaultRegistry, "daemon_")
+	registry.Register("open_fds", openFDs)
+	registry.Register("goroutines", goroutines)
+	registry.Register("connections", conns)
+
+	http.Handle("/metrics", exportmetrics.HTTPExport(metrics.DefaultRegistry))
 }
 
 func collect(ctx context.Context) {
-	goroutines.Set(int64(runtime.NumGoroutine()))
+	goroutines.Update(int64(runtime.NumGoroutine()))
 	count, err := fds.GetOpenFds()
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).Error("get open fd count")
 		return
 	}
-	openFDs.Set(int64(count))
+	openFDs.Update(int64(count))
 }
 
 func checkLimits(ctx context.Context) {
@@ -185,8 +191,8 @@ func main() {
 				}
 
 				go func() {
-					conns.Add(1)
-					defer conns.Add(-1)
+					conns.Inc(1)
+					defer conns.Dec(-1)
 					connHandler.HandleConn(conn)
 				}()
 			}
