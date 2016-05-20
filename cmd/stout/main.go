@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -128,6 +129,42 @@ func main() {
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
 
+	switch name := config.Metrics.Type; name {
+	case "graphite":
+		var cfg exportmetrics.GraphiteConfig
+		if err = json.Unmarshal(config.Metrics.Args, &cfg); err != nil {
+			logger.WithError(err).WithField("name", name).Fatal("unable to decode graphite exporter config")
+		}
+
+		sender, err := exportmetrics.NewGraphiteExporter(&cfg)
+		if err != nil {
+			logger.WithError(err).WithField("name", name).Fatal("unable to create GraphiteExporter")
+		}
+
+		minimalPeriod := 5 * time.Second
+		period := time.Duration(config.Metrics.Period)
+		if period < minimalPeriod {
+			logger.Warnf("metrics: specified period is too low. Set %s", minimalPeriod)
+			period = minimalPeriod
+		}
+
+		go func(ctx context.Context, p time.Duration) {
+			for {
+				select {
+				case <-time.After(p):
+					if err := sender.Send(ctx, metrics.DefaultRegistry); err != nil {
+						logger.WithError(err).WithField("name", name).Error("unable to send metrics")
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(ctx, period)
+	case "":
+		logger.Warn("metrics: exporter is not specified")
+	default:
+		logger.WithError(err).WithField("exporter", name).Fatal("unknown exporter")
+	}
 	go func() {
 		collect(ctx)
 		for range time.Tick(30 * time.Second) {

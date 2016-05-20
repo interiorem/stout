@@ -35,17 +35,6 @@ var (
 	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )
 
-// var (
-// 	// spawnQueueSizeStat expvar.Int
-// 	// boxStat            = expvar.NewMap("process")
-// 	// spawnTimer         = expvarmetrics.NewTimerVar()
-// )
-//
-// // func init() {
-// // 	boxStat.Set("spawning_queue_size", &spawnQueueSizeStat)
-// // 	boxStat.Set("spawning", spawnTimer)
-// // }
-
 type codeStorage interface {
 	Spool(ctx context.Context, appname string) ([]byte, error)
 }
