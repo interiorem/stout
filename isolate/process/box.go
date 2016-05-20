@@ -16,13 +16,10 @@ import (
 
 	"github.com/noxiouz/expvarmetrics"
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/semaphore"
 
 	"github.com/apex/log"
 )
-
-func init() {
-	boxStat.Set("spawning", spawnTimer)
-}
 
 const (
 	defaultSpoolPath = "/var/spool/cocaine"
@@ -38,9 +35,16 @@ var (
 )
 
 var (
-	boxStat    = expvar.NewMap("process")
-	spawnTimer = expvarmetrics.NewTimerVar()
+	// spawnQueueSizeStat shows how many Spawns waits for the Lock
+	spawnQueueSizeStat expvar.Int
+	boxStat            = expvar.NewMap("process")
+	spawnTimer         = expvarmetrics.NewTimerVar()
 )
+
+func init() {
+	boxStat.Set("spawning_queue_size", &spawnQueueSizeStat)
+	boxStat.Set("spawning", spawnTimer)
+}
 
 type codeStorage interface {
 	Spool(ctx context.Context, appname string) ([]byte, error)
@@ -56,6 +60,8 @@ type Box struct {
 	mu       sync.Mutex
 	children map[int]*exec.Cmd
 	wg       sync.WaitGroup
+
+	spawnSm semaphore.Semaphore
 }
 
 func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
@@ -78,6 +84,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		storage:   createCodeStorage(locator),
 
 		children: make(map[int]*exec.Cmd),
+		// NOTE: configurable
+		spawnSm: semaphore.New(10),
 	}
 
 	box.wg.Add(1)
@@ -105,7 +113,9 @@ func (b *Box) sigchldHandler() {
 		case <-sigchld:
 			// NOTE: due to possible signal merging
 			// Box.wait tries to call Wait unless ECHILD occures
+			b.mu.Lock()
 			b.wait()
+			b.mu.Unlock()
 		case <-b.ctx.Done():
 			return
 		}
@@ -127,13 +137,12 @@ func (b *Box) wait() {
 		case pid > 0:
 			// NOTE: I fully understand that handling signals from library is a bad idea,
 			// but there's nothing better in this case
-			b.mu.Lock()
 			// If `pid` is not in the map, it means that it's not our worker
+			// NOTE: the lock is locked in the outer scope
 			pr, ok := b.children[pid]
 			if ok {
 				delete(b.children, pid)
 			}
-			b.mu.Unlock()
 			if ok {
 				// There is no point to check error here,
 				// as it always returns "Wait error", because Wait4 has been already called.
@@ -181,19 +190,26 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 		log.Fields{"name": name, "executable": executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
+	// Update statistics
 	start := time.Now()
 	defer spawnTimer.UpdateSince(start)
 
+	spawnQueueSizeStat.Add(1)
+
+	b.spawnSm.Acquire()
+	defer b.spawnSm.Release()
 	// NOTE: once process was put to the map
 	// its waiter responsibility to Wait for it.
-	boxStat.Add("spawned", 1)
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	spawnQueueSizeStat.Add(-1)
+
 	pr, err = newProcess(ctx, execPath, args, env, workDir)
 	if err != nil {
 		boxStat.Add("crashed", 1)
 		return nil, err
 	}
+	boxStat.Add("spawned", 1)
 	b.children[pr.cmd.Process.Pid] = pr.cmd
 
 	return pr, err
