@@ -105,7 +105,9 @@ func (b *Box) sigchldHandler() {
 		case <-sigchld:
 			// NOTE: due to possible signal merging
 			// Box.wait tries to call Wait unless ECHILD occures
+			b.mu.Lock()
 			b.wait()
+			b.mu.Unlock()
 		case <-b.ctx.Done():
 			return
 		}
@@ -127,13 +129,12 @@ func (b *Box) wait() {
 		case pid > 0:
 			// NOTE: I fully understand that handling signals from library is a bad idea,
 			// but there's nothing better in this case
-			b.mu.Lock()
 			// If `pid` is not in the map, it means that it's not our worker
+			// NOTE: the lock is locked in the outer scope
 			pr, ok := b.children[pid]
 			if ok {
 				delete(b.children, pid)
 			}
-			b.mu.Unlock()
 			if ok {
 				// There is no point to check error here,
 				// as it always returns "Wait error", because Wait4 has been already called.
