@@ -23,6 +23,7 @@ import (
 	"github.com/noxiouz/expvarmetrics"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/semaphore"
 )
 
 const (
@@ -49,17 +50,6 @@ type spoolResponseProtocol struct {
 	Status string `json:"status"`
 }
 
-// TODO: make it cancellable
-type spawnSemaphore chan struct{}
-
-func (s *spawnSemaphore) Acquire() {
-	(*s) <- struct{}{}
-}
-
-func (s *spawnSemaphore) Release() {
-	<-(*s)
-}
-
 // Box ...
 type Box struct {
 	ctx          context.Context
@@ -67,7 +57,7 @@ type Box struct {
 
 	client *client.Client
 
-	spawnSM spawnSemaphore
+	spawnSM semaphore.Semaphore
 
 	config *dockerBoxConfig
 
@@ -115,7 +105,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		cancellation: cancellation,
 
 		client:     client,
-		spawnSM:    make(spawnSemaphore, config.SpawnConcurrency),
+		spawnSM:    semaphore.New(config.SpawnConcurrency),
 		config:     config,
 		containers: make(map[string]*process),
 	}
