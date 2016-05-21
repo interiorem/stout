@@ -25,10 +25,6 @@
 			"Rev": "c20bfcdb771b706fdd57a954ee9da2d0ff97b02d"
 		},
 		{
-			"ImportPath": "github.com/apex/log/handlers/text",
-			"Rev": "c20bfcdb771b706fdd57a954ee9da2d0ff97b02d"
-		},
-		{
 			"ImportPath": "github.com/cocaine/cocaine-framework-go/cocaine12",
 			"Comment": "0.11-2-198-g0d5503d",
 			"Rev": "0d5503df32a3ff58ba23bdda44e0c95dfce9d947"
@@ -44,13 +40,13 @@
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/digest",
-			"Comment": "v2.4.1-rc.2-1-g013ec4f",
-			"Rev": "013ec4fcd1eaa7c45fa156ea7b7cbbd1e90655b5"
+			"Comment": "v2.4.1-100-gba2fa04",
+			"Rev": "ba2fa04f01ee01ca1be5cce73ca3f96ad5b94941"
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/reference",
-			"Comment": "v2.4.1-rc.2-1-g013ec4f",
-			"Rev": "013ec4fcd1eaa7c45fa156ea7b7cbbd1e90655b5"
+			"Comment": "v2.4.1-100-gba2fa04",
+			"Rev": "ba2fa04f01ee01ca1be5cce73ca3f96ad5b94941"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client",
@@ -144,10 +140,6 @@
 		{
 			"ImportPath": "github.com/mitchellh/mapstructure",
 			"Rev": "482a9fd5fa83e8c4e7817413b80f3eb8feec03ef"
-		},
-		{
-			"ImportPath": "github.com/noxiouz/expvarmetrics",
-			"Rev": "0a98b86fa4a7be39008e41a29c3bd7122e3fe9fc"
 		},
 		{
 			"ImportPath": "github.com/ogier/pflag",

@@ -3,10 +3,24 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/logutils"
 )
+
+type JSONEncodedDuration time.Duration
+
+func (d *JSONEncodedDuration) UnmarshalJSON(b []byte) error {
+	parsed, err := time.ParseDuration(strings.Trim(string(b), "\""))
+	if err != nil {
+		return err
+	}
+
+	*d = JSONEncodedDuration(parsed)
+	return nil
+}
 
 // Config describes a configuration file for the daemon
 type Config struct {
@@ -16,6 +30,11 @@ type Config struct {
 		Level  logutils.Level `json:"level"`
 		Output string         `json:"output"`
 	} `json:"logger"`
+	Metrics struct {
+		Type   string              `json:"type"`
+		Period JSONEncodedDuration `json:"period"`
+		Args   json.RawMessage     `json:"args"`
+	} `json:"metrics"`
 	Isolate map[string]isolate.BoxConfig `json:"isolate"`
 }
 
