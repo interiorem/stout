@@ -15,7 +15,7 @@ import (
 )
 
 func TestGraphite(t *testing.T) {
-	l, err := net.Listen("tcp", "")
+	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("net.Listen: %v", err)
 	}
