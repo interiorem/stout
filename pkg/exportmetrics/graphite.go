@@ -98,6 +98,8 @@ func (g *GraphiteExporter) Send(ctx context.Context, r metrics.Registry) error {
 			fmt.Fprintf(w, "%s.%s.rate5m %.2f %d\n", g.prefix, name, t.Rate5(), now)
 			fmt.Fprintf(w, "%s.%s.rate15m %.2f %d\n", g.prefix, name, t.Rate15(), now)
 			fmt.Fprintf(w, "%s.%s.ratemean %.2f %d\n", g.prefix, name, t.RateMean(), now)
+		case metrics.Healthcheck:
+			// pass
 		default:
 			apexctx.GetLogger(ctx).Warnf("Graphite: skip metric `%s` of unknown type %T", name, value)
 		}

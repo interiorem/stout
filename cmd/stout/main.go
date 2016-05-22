@@ -55,7 +55,34 @@ func init() {
 	registry.Register("threads", threads)
 	registry.Register("connections", conns)
 
+	registry.Register("hc_openfd", metrics.NewHealthcheck(fdHealthCheck))
+	registry.Register("hc_threads", metrics.NewHealthcheck(threadHealthCheck))
+
 	http.Handle("/metrics", exportmetrics.HTTPExport(metrics.DefaultRegistry))
+}
+
+func fdHealthCheck(h metrics.Healthcheck) {
+	var l syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &l); err != nil {
+		h.Unhealthy(err)
+		return
+	}
+
+	if val := openFDs.Value(); uint64(val) >= l.Cur-100 {
+		h.Unhealthy(fmt.Errorf("too many open files %d (max %d)", val, l.Cur))
+		return
+	}
+
+	h.Healthy()
+}
+
+func threadHealthCheck(h metrics.Healthcheck) {
+	if val := threads.Value(); val >= 5000 {
+		h.Unhealthy(fmt.Errorf("too many OS threads %d (max 10000)", val))
+		return
+	}
+
+	h.Healthy()
 }
 
 func collect(ctx context.Context) {
@@ -68,6 +95,8 @@ func collect(ctx context.Context) {
 
 	openFDs.Update(int64(count))
 	threads.Update(int64(pprof.Lookup("threadcreate").Count()))
+
+	metrics.DefaultRegistry.RunHealthchecks()
 }
 
 func checkLimits(ctx context.Context) {
