@@ -2,7 +2,9 @@ package exportmetrics
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"html/template"
 	"net"
 	"os"
 	"strconv"
@@ -14,6 +16,8 @@ import (
 	apexctx "github.com/m0sth8/context"
 	"github.com/rcrowley/go-metrics"
 )
+
+const defaultPrefix = "{{hostname}}"
 
 type GraphiteExporter struct {
 	prefix      string
@@ -29,13 +33,29 @@ type GraphiteConfig struct {
 	DurationUnit string `json:"duration"`
 }
 
+var funcMap = template.FuncMap{
+	"hostname": func() (string, error) {
+		hm, err := os.Hostname()
+		if err != nil {
+			return "", err
+		}
+		return strings.Replace(hm, ".", "_", -1), nil
+	},
+}
+
 func NewGraphiteExporter(cfg *GraphiteConfig) (*GraphiteExporter, error) {
 	if cfg.Prefix == "" {
-		prefix, err := os.Hostname()
-		if err != nil {
-			return nil, err
-		}
-		cfg.Prefix = strings.Replace(prefix, ".", "_", -1)
+		cfg.Prefix = defaultPrefix
+	}
+
+	tmpl, err := template.New("graphitePrefix").Funcs(funcMap).Parse(cfg.Prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	var buff = new(bytes.Buffer)
+	if err = tmpl.Execute(buff, ""); err != nil {
+		return nil, err
 	}
 
 	if cfg.DurationUnit == "" {
@@ -50,7 +70,7 @@ func NewGraphiteExporter(cfg *GraphiteConfig) (*GraphiteExporter, error) {
 	}
 
 	return &GraphiteExporter{
-		prefix:      cfg.Prefix,
+		prefix:      buff.String(),
 		addr:        cfg.Addr,
 		duStr:       cfg.DurationUnit[1:],
 		du:          du,
