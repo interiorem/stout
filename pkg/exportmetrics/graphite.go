@@ -82,6 +82,13 @@ func (g *GraphiteExporter) Send(ctx context.Context, r metrics.Registry) error {
 			fmt.Fprintf(w, "%s.%s %d %d\n", g.prefix, name, metric.Count(), now)
 		case metrics.Gauge:
 			fmt.Fprintf(w, "%s.%s %d %d\n", g.prefix, name, metric.Value(), now)
+		case metrics.Meter:
+			m := metric.Snapshot()
+			fmt.Fprintf(w, "%s.%s.count %d %d\n", g.prefix, name, m.Count(), now)
+			fmt.Fprintf(w, "%s.%s.rate1m %.2f %d\n", g.prefix, name, m.Rate1(), now)
+			fmt.Fprintf(w, "%s.%s.rat5m %.2f %d\n", g.prefix, name, m.Rate5(), now)
+			fmt.Fprintf(w, "%s.%s.rate15m %.2f %d\n", g.prefix, name, m.Rate15(), now)
+			fmt.Fprintf(w, "%s.%s.ratemean %.2f %d\n", g.prefix, name, m.RateMean(), now)
 		case metrics.Timer:
 			t := metric.Snapshot()
 			ps := t.Percentiles(g.percentiles)
