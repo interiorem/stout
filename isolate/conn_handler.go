@@ -82,6 +82,8 @@ func getID(ctx context.Context) string {
 // HandleConn decodes commands from Cocaine runtime and calls dispatchers
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
+	ctx, cancel := context.WithCancel(h.ctx)
+	defer cancel()
 
 	logger := apexctx.GetLogger(h.ctx)
 
@@ -109,7 +111,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 			// TODO: refactor
 			var dw = newDownstream(newMsgpackEncoder(conn), msg.Channel)
-			ctx := apexctx.WithLogger(h.ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, msg.Channel)))
+			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, msg.Channel)))
 			ctx = withDownstream(ctx, dw)
 			dispatcher = h.newDispatcher(ctx)
 		}

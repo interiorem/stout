@@ -120,6 +120,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	go func() {
 		defer close(prCh)
 
+		spawnMeter.Mark(1)
 		pr, err := box.Spawn(ctx, opts, name, executable, args, env)
 		if err != nil {
 			apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")

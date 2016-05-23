@@ -37,7 +37,7 @@ func TestGraphite(t *testing.T) {
 	}()
 
 	cfg := GraphiteConfig{
-		Prefix:       "PREFIX",
+		Prefix:       "PREFIX.{{hostname}}",
 		Addr:         l.Addr().String(),
 		DurationUnit: "1s",
 	}
