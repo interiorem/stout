@@ -43,6 +43,7 @@ func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 			case pr, ok := <-d.process:
 				if ok {
 					if atomic.CompareAndSwapUint32(d.killed, 0, 1) {
+						killMeter.Mark(1)
 						if err := pr.Kill(); err != nil {
 							reply(d.ctx, replyKillError, errKillError, err.Error())
 							return
@@ -54,6 +55,7 @@ func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 			case <-d.ctx.Done():
 			default:
 				// cancel spawning process
+				spawnCancelMeter.Mark(1)
 				d.cancelSpawn()
 			}
 		}()
