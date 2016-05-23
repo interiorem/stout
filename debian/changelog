@@ -1,3 +1,12 @@
+cocaine-isolate-daemon (0.1.5.13) unstable; urgency=low
+
+  * Feature(metrics): move from expvar
+  * Feature(metrics): optional exporter to Graphite
+  * Feature(metrics): add healthchecks
+  * Feature(metrics): export metrics via HTTP
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Mon, 23 May 2016 14:44:02 +0300
+
 cocaine-isolate-daemon (0.1.5.12) unstable; urgency=low
 
   * Fix(process): limit spawning rate
