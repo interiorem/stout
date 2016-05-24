@@ -1,7 +1,6 @@
 package process
 
 import (
-	"bufio"
 	"io"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +26,7 @@ type process struct {
 func newProcess(ctx context.Context, executable string, args, env map[string]string, workDir string) (*process, error) {
 	pr := process{
 		ctx:    ctx,
-		output: make(chan isolate.ProcessOutput, 100),
+		output: make(chan isolate.ProcessOutput, 10),
 	}
 
 	packedEnv := make([]string, 0, len(env))
@@ -59,25 +58,34 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 			}
 		}()
 
-		// NOTE: it's dangerous actually to collect data until \n
-		// An app can harm cocaine by creating really LONG strings
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			body := scanner.Bytes()
-			data := make([]byte, len(body), len(body)+1)
-			copy(data, body)
-			pr.output <- isolate.ProcessOutput{
-				Data: append(data, '\n'),
-				Err:  nil,
-			}
-		}
+		var first = true
 
-		if err := scanner.Err(); err != nil {
-			pr.output <- isolate.ProcessOutput{
-				Data: nil,
-				Err:  err,
+		for {
+			var p []byte
+			if first {
+				// NOTE: do not allocate memory if worker will die in silence
+				p = make([]byte, 1)
+			} else {
+				p = isolate.GetPreallocatedOutputChunk()
 			}
-			return
+			nn, err := r.Read(p)
+			if nn > 0 {
+				pr.output <- isolate.ProcessOutput{
+					Data: p[:nn],
+					Err:  nil,
+				}
+			}
+
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				pr.output <- isolate.ProcessOutput{
+					Data: nil,
+					Err:  err,
+				}
+				return
+			}
 		}
 	}
 
