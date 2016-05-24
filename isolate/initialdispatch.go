@@ -112,7 +112,7 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		return nil, err
 	}
 
-	prCh := make(chan Process, 1)
+	prCh := make(chan Process)
 	flagKilled := uint32(0)
 	// ctx will be passed to Spawn function
 	// cancelSpawn will used by SpawnDispatch to cancel spawning
@@ -128,14 +128,17 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 			return
 		}
 
-		d.trackOutput(pr, &flagKilled)
+		// transfer the process logs to cocaine
+		go d.trackOutput(pr, &flagKilled)
+
 		select {
 		case prCh <- pr:
-			// send pr to SpawnDispatch
+			// send process to SpawnDispatch
+			// SpawnDispatch is resposible for killing pr now
 		case <-ctx.Done():
 			// SpawnDispatch has cancelled the spawning
 			// Kill the process, set flagKilled to prevent trackOutput
-			// sinding duplicated messages, reply WithKillOk
+			// sending duplicated messages, reply WithKillOk
 			if atomic.CompareAndSwapUint32(&flagKilled, 0, 1) {
 				if err := pr.Kill(); err != nil {
 					reply(d.ctx, replyKillError, errKillError, err.Error())

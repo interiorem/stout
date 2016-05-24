@@ -33,35 +33,42 @@ func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh 
 func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
 	switch msg.Number {
 	case spawnKill:
-		// There are 3 cases:
-		// * If the process has been spawned - kill it
-		// * if the process has not been spawned yet - cancel it
-		//		It's not our repsonsibility to clean up resources and kill anything
-		// * if ctx has been cancelled - exit
-		go func() {
-			select {
-			case pr, ok := <-d.process:
-				if ok {
-					if atomic.CompareAndSwapUint32(d.killed, 0, 1) {
-						killMeter.Mark(1)
-						if err := pr.Kill(); err != nil {
-							reply(d.ctx, replyKillError, errKillError, err.Error())
-							return
-						}
-
-						reply(d.ctx, replyKillOk, nil)
-					}
-				}
-			case <-d.ctx.Done():
-			default:
-				// cancel spawning process
-				spawnCancelMeter.Mark(1)
-				d.cancelSpawn()
-			}
-		}()
+		go d.asyncKill()
 		// NOTE: do not return an err on purpose
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
+	}
+}
+
+func (d *spawnDispatch) asyncKill() {
+	// There are 3 cases:
+	// * If the process has been spawned - kill it
+	// * if the process has not been spawned yet - cancel it
+	//		It's not our repsonsibility to clean up resources and kill anything
+	// * if ctx has been cancelled - exit
+	select {
+	case pr, ok := <-d.process:
+		if !ok {
+			// we will not receive the process
+			// initialDispatch has closed the channel
+			return
+		}
+
+		if atomic.CompareAndSwapUint32(d.killed, 0, 1) {
+			killMeter.Mark(1)
+			if err := pr.Kill(); err != nil {
+				reply(d.ctx, replyKillError, errKillError, err.Error())
+				return
+			}
+
+			reply(d.ctx, replyKillOk, nil)
+		}
+	case <-d.ctx.Done():
+		// NOTE: should we kill anything here?
+	default:
+		// cancel spawning process
+		spawnCancelMeter.Mark(1)
+		d.cancelSpawn()
 	}
 }
