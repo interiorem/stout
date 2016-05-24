@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const outputChunkSize = 1024 * 1024
+const outputChunkSize = 1024
 
 var (
 	outputPool = sync.Pool{
