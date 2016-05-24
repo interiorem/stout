@@ -1,3 +1,13 @@
+cocaine-isolate-daemon (0.1.5.14) unstable; urgency=low
+
+  * Perf(process): reduce memory footprint for Spawn
+  * Perf(isolate): decrease output chunk size
+  * Metrics(isolate): meters for Spawning, Killing, Canceling
+  * Exporter(graphite): allow hostname placeholder in the prefix
+  * Exporter(graphite): dump Meter
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 24 May 2016 12:48:31 +0300
+
 cocaine-isolate-daemon (0.1.5.13) unstable; urgency=low
 
   * Feature(metrics): move from expvar
