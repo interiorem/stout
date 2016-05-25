@@ -197,7 +197,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	err = b.spawnSm.Acquire(ctx)
 	spawningQueueSize.Dec(1)
 	if err != nil {
-		return nil, err
+		return nil, ErrSpawningCancelled
 	}
 	defer b.spawnSm.Release()
 	// NOTE: once process was put to the map
