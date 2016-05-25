@@ -261,7 +261,7 @@ func main() {
 
 				go func() {
 					conns.Inc(1)
-					defer conns.Dec(-1)
+					defer conns.Dec(1)
 					connHandler.HandleConn(conn)
 				}()
 			}
