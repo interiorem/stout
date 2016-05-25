@@ -3,6 +3,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -158,16 +159,27 @@ func (b *Box) wait() {
 }
 
 // Spawn spawns a new process
-func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
+func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
 	spoolPath := b.spoolPath
-	if val, ok := opts["spool"]; ok {
+	if val, ok := config.Opts["spool"]; ok {
 		spoolPath = fmt.Sprintf("%s", val)
 	}
-	workDir := filepath.Join(spoolPath, name)
+	workDir := filepath.Join(spoolPath, config.Name)
 
-	var execPath = executable
-	if !filepath.IsAbs(executable) {
-		execPath = filepath.Join(workDir, executable)
+	var execPath = config.Executable
+	if !filepath.IsAbs(config.Executable) {
+		execPath = filepath.Join(workDir, config.Executable)
+	}
+
+	packedEnv := make([]string, 0, len(config.Env))
+	for k, v := range config.Env {
+		packedEnv = append(packedEnv, k+"="+v)
+	}
+
+	packedArgs := make([]string, 1, len(config.Args)*2+1)
+	packedArgs[0] = filepath.Base(config.Executable)
+	for k, v := range config.Args {
+		packedArgs = append(packedArgs, k, v)
 	}
 
 	var (
@@ -176,7 +188,7 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	)
 
 	defer apexctx.GetLogger(ctx).WithFields(
-		log.Fields{"name": name, "executable": executable,
+		log.Fields{"name": config.Name, "executable": config.Executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
 	// Update statistics
@@ -190,23 +202,30 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	defer b.spawnSm.Release()
 	// NOTE: once process was put to the map
 	// its waiter responsibility to Wait for it.
+
+	// NOTE: No defer here
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if isolate.IsCancelled(ctx) {
+		b.mu.Unlock()
 		return nil, ErrSpawningCancelled
 	}
 
 	newProcStart := time.Now()
-	pr, err = newProcess(ctx, execPath, args, env, workDir)
-	procsNewTimer.UpdateSince(newProcStart)
+	pr, err = newProcess(ctx, execPath, packedArgs, packedEnv, workDir, output)
+	newProcStarted := time.Now()
+	// Update has lock, so move it out from Hot spot
+	defer procsNewTimer.Update(newProcStarted.Sub(newProcStart))
 	if err != nil {
+		b.mu.Unlock()
 		procsErroredCounter.Inc(1)
 		return nil, err
 	}
-	procsCreatedCounter.Inc(1)
 	b.children[pr.cmd.Process.Pid] = pr.cmd
+	b.mu.Unlock()
 
 	totalSpawnTimer.UpdateSince(start)
+	isolate.NotifyAbouStart(output)
+	procsCreatedCounter.Inc(1)
 	return pr, err
 }
 

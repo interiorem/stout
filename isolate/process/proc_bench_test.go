@@ -34,9 +34,17 @@ func BenchmarkSpawnSeq(b *testing.B) {
 	}
 	defer box.Close()
 
+	config := isolate.SpawnConfig{
+		Opts:       isolate.Profile{},
+		Name:       appName,
+		Executable: executable,
+		Args:       map[string]string{},
+		Env:        nil,
+	}
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p, err := box.Spawn(ctx, isolate.Profile{}, appName, executable, map[string]string{}, nil)
+		p, err := box.Spawn(ctx, config, ioutil.Discard)
 		if err != nil {
 			b.Fatal("Spawn error: ", err)
 		}
@@ -66,10 +74,18 @@ func BenchmarkSpawnParallel(b *testing.B) {
 	}
 	defer box.Close()
 
+	config := isolate.SpawnConfig{
+		Opts:       isolate.Profile{},
+		Name:       appName,
+		Executable: executable,
+		Args:       map[string]string{},
+		Env:        nil,
+	}
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			p, err := box.Spawn(ctx, isolate.Profile{}, appName, executable, map[string]string{}, nil)
+			p, err := box.Spawn(ctx, config, ioutil.Discard)
 			if err != nil {
 				b.Fatal("Spawn error: ", err)
 			}

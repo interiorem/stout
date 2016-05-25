@@ -3,6 +3,7 @@ package isolate
 import (
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -46,8 +47,8 @@ func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
 	}
 }
 
-func (b *testBox) Spawn(ctx context.Context, opts Profile, name, executable string, args, env map[string]string) (Process, error) {
-	return spawnTestProcess(ctx), nil
+func (b *testBox) Spawn(ctx context.Context, config SpawnConfig, wr io.Writer) (Process, error) {
+	return spawnTestProcess(ctx, wr), nil
 }
 
 func (b *testBox) Close() error {
@@ -57,39 +58,35 @@ func (b *testBox) Close() error {
 type testProcess struct {
 	ctx    context.Context
 	killed chan struct{}
-	output chan ProcessOutput
 }
 
-func spawnTestProcess(ctx context.Context) *testProcess {
+func spawnTestProcess(ctx context.Context, wr io.Writer) *testProcess {
 	pr := testProcess{
 		ctx:    ctx,
 		killed: make(chan struct{}),
-		output: make(chan ProcessOutput),
 	}
 
 	go func() {
 		var i int
 		for {
-			var out = ProcessOutput{Data: []byte("")}
 			if i > 0 {
-				out.Data = []byte(fmt.Sprintf("output_%d\n", i))
+				fmt.Fprintf(wr, "output_%d\n", i)
+			} else {
+				fmt.Fprintf(wr, "")
 			}
 			i++
 			select {
-			case pr.output <- out:
+			case <-ctx.Done():
+				return
 			case <-pr.killed:
 				return
-			case <-pr.ctx.Done():
-				return
+			default:
+				// pass
 			}
 		}
 	}()
 
 	return &pr
-}
-
-func (pr *testProcess) Output() <-chan ProcessOutput {
-	return pr.output
 }
 
 func (pr *testProcess) Kill() error {
