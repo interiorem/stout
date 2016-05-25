@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.5.15) unstable; urgency=low
+
+  * Fix(dispatch): notify SpawnDispatch about start
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Wed, 25 May 2016 12:07:34 +0300
+
 cocaine-isolate-daemon (0.1.5.14) unstable; urgency=low
 
   * Perf(process): reduce memory footprint for Spawn
