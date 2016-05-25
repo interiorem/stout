@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -190,10 +191,10 @@ func (b *Box) Close() error {
 }
 
 // Spawn spawns a prcess using container
-func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable string, args, env map[string]string) (isolate.Process, error) {
-	profile, err := convertProfile(opts)
+func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
+	profile, err := convertProfile(config.Opts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
+		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
 	start := time.Now()
@@ -207,7 +208,7 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	defer b.spawnSM.Release()
 
 	containersCreatedCounter.Inc(1)
-	pr, err := newContainer(ctx, b.client, profile, name, executable, args, env)
+	pr, err := newContainer(ctx, b.client, profile, config.Name, config.Executable, config.Args, config.Env)
 	if err != nil {
 		containersErroredCounter.Inc(1)
 		return nil, err
@@ -217,7 +218,7 @@ func (b *Box) Spawn(ctx context.Context, opts isolate.Profile, name, executable 
 	b.containers[pr.containerID] = pr
 	b.muContainers.Unlock()
 
-	if err = pr.startContainer(); err != nil {
+	if err = pr.startContainer(output); err != nil {
 		containersErroredCounter.Inc(1)
 		return nil, err
 	}

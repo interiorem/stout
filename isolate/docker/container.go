@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 
 	"github.com/noxiouz/stout/isolate"
@@ -41,7 +40,6 @@ type process struct {
 	cancellation context.CancelFunc
 
 	client *client.Client
-	output chan isolate.ProcessOutput
 
 	containerID string
 
@@ -125,21 +123,20 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		ctx:          ctx,
 		cancellation: cancel,
 		client:       client,
-		output:       make(chan isolate.ProcessOutput, 10),
 		containerID:  resp.ID,
 	}
 
 	return pr, nil
 }
 
-func (p *process) startContainer() error {
+func (p *process) startContainer(wr io.Writer) error {
 	var startBarier = make(chan struct{})
-	go p.collectOutput(startBarier)
+	go p.collectOutput(startBarier, wr)
 	if err := p.client.ContainerStart(p.ctx, p.containerID, ""); err != nil {
 		p.cancellation()
 		return err
 	}
-	isolate.NotifyAbouStart(p.output)
+	isolate.NotifyAbouStart(wr)
 	close(startBarier)
 	return nil
 }
@@ -161,13 +158,7 @@ func (p *process) remove() {
 	containerRemove(p.client, p.ctx, p.containerID)
 }
 
-func (p *process) Output() <-chan isolate.ProcessOutput {
-	return p.output
-}
-
-func (p *process) collectOutput(started chan struct{}) {
-	defer close(p.output)
-
+func (p *process) collectOutput(started chan struct{}, writer io.Writer) {
 	attachOpts := types.ContainerAttachOptions{
 		Stream: true,
 		Stdin:  false,
@@ -182,23 +173,6 @@ func (p *process) collectOutput(started chan struct{}) {
 	}
 	defer hjResp.Close()
 
-	// we need this to prevent dumping Output
-	// before sending notification about start
-	var once sync.Once
-	sendOutput := func(data []byte, err error) {
-		once.Do(func() {
-			select {
-			case <-started:
-			case <-p.ctx.Done():
-			}
-		})
-
-		select {
-		case p.output <- isolate.ProcessOutput{Data: data, Err: err}:
-		case <-p.ctx.Done():
-		}
-	}
-
 	var header = make([]byte, headerSize)
 	for {
 		// https://docs.docker.com/engine/reference/api/docker_remote_api_v1.22/#attach-a-container
@@ -209,7 +183,6 @@ func (p *process) collectOutput(started chan struct{}) {
 				return
 			}
 			apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
-			sendOutput(nil, err)
 			return
 		}
 
@@ -219,28 +192,8 @@ func (p *process) collectOutput(started chan struct{}) {
 			return
 		}
 
-		var nn = 0
-		for i := uint32(0); i < size; {
-			var output = isolate.GetPreallocatedOutputChunk()
-			rest := len(output)
-			if int(size-i) < rest {
-				rest = int(size - i)
-			}
-			nn, err = hjResp.Reader.Read(output[:rest])
-			if nn > 0 {
-				sendOutput(output[:nn], nil)
-			}
-
-			if err != nil {
-				if err == io.EOF {
-					return
-				}
-
-				apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to read output for hjResp %s", p.containerID)
-				sendOutput(nil, err)
-				return
-			}
-			i += uint32(nn)
+		if _, err = io.CopyN(writer, hjResp.Reader, int64(size)); err != nil {
+			return
 		}
 	}
 }

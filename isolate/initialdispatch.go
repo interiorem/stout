@@ -121,15 +121,25 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 		defer close(prCh)
 
 		spawnMeter.Mark(1)
-		pr, err := box.Spawn(ctx, opts, name, executable, args, env)
+
+		config := SpawnConfig{
+			Opts:       opts,
+			Name:       name,
+			Executable: executable,
+			Args:       args,
+			Env:        env,
+		}
+
+		outputCollector := &OutputCollector{
+			ctx:        d.ctx,
+			flagKilled: &flagKilled,
+		}
+		pr, err := box.Spawn(ctx, config, outputCollector)
 		if err != nil {
 			apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
 			reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
 			return
 		}
-
-		// transfer the process logs to cocaine
-		go d.trackOutput(pr, &flagKilled)
 
 		select {
 		case prCh <- pr:
@@ -153,29 +163,26 @@ func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
 	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled), nil
 }
 
-func (d *initialDispatch) trackOutput(pr Process, flagKilled *uint32) {
-	for {
-		select {
-		case output, ok := <-pr.Output():
-			if !ok {
-				if atomic.CompareAndSwapUint32(flagKilled, 0, 1) {
-					reply(d.ctx, replySpawnError, errOutputError, "output has been closed")
-				}
-				return
-			}
+type OutputCollector struct {
+	ctx context.Context
 
-			if output.Err != nil {
-				if atomic.CompareAndSwapUint32(flagKilled, 0, 1) {
-					reply(d.ctx, replySpawnError, errOutputError, output.Err.Error())
-				}
-			} else {
-				if atomic.LoadUint32(flagKilled) == 0 {
-					reply(d.ctx, replySpawnWrite, output.Data)
-				}
-				backToPool(output.Data)
-			}
-		case <-d.ctx.Done():
-			return
+	flagKilled *uint32
+	notified   uint32
+}
+
+func (o *OutputCollector) Write(p []byte) (int, error) {
+	if atomic.LoadUint32(o.flagKilled) != 0 {
+		return 0, nil
+	}
+
+	// if the first output comes earlier than Notify() is called
+	if atomic.CompareAndSwapUint32(&o.notified, 0, 1) {
+		reply(o.ctx, replySpawnWrite, []byte(""))
+		if len(p) == 0 {
+			return 0, nil
 		}
 	}
+
+	reply(o.ctx, replySpawnWrite, p)
+	return len(p), nil
 }

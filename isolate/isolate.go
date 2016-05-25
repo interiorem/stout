@@ -2,30 +2,16 @@ package isolate
 
 import (
 	"io"
-	"sync"
 
 	"golang.org/x/net/context"
 )
 
-const outputChunkSize = 1024
-
-var (
-	outputPool = sync.Pool{
-		New: func() interface{} {
-			return make([]byte, outputChunkSize)
-		},
-	}
-)
-
-// GetPreallocatedOutputChunk returns []byte which should be used
-// by boxes to collect output. Isolate is responsible for returning
-// any chunk to the pool
-func GetPreallocatedOutputChunk() []byte {
-	return outputPool.Get().([]byte)
-}
-
-func backToPool(b []byte) {
-	outputPool.Put(b)
+type SpawnConfig struct {
+	Opts       Profile
+	Name       string
+	Executable string
+	Args       map[string]string
+	Env        map[string]string
 }
 
 type (
@@ -42,18 +28,12 @@ type (
 
 	Box interface {
 		Spool(ctx context.Context, name string, opts Profile) error
-		Spawn(ctx context.Context, opts Profile, name, executable string, args, env map[string]string) (Process, error)
+		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
 		Close() error
 	}
 
 	Process interface {
-		Output() <-chan ProcessOutput
 		Kill() error
-	}
-
-	ProcessOutput struct {
-		Err  error
-		Data []byte
 	}
 
 	Boxes map[string]Box
@@ -68,8 +48,12 @@ const (
 	decoderInitTag  = "decoder.init.tag"
 )
 
-func NotifyAbouStart(ch chan ProcessOutput) {
-	ch <- ProcessOutput{Data: []byte(""), Err: nil}
+var (
+	notificationByte = []byte("")
+)
+
+func NotifyAbouStart(wr io.Writer) {
+	wr.Write(notificationByte)
 }
 
 func withArgsUnpacker(ctx context.Context, au ArgsUnpacker) context.Context {

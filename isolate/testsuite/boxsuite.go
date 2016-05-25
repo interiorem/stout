@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/noxiouz/stout/isolate"
 
@@ -79,24 +80,20 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	err := suite.Box.Spool(ctx, name, suite.opts)
 	c.Assert(err, check.IsNil)
 
-	pr, err := suite.Box.Spawn(ctx, suite.opts, name, executable, args, env)
-	c.Assert(err, check.IsNil)
-	defer pr.Kill()
-
-	// collect output
-	first := true
-	body := new(bytes.Buffer)
-	for inc := range pr.Output() {
-		c.Assert(inc.Err, check.IsNil)
-		if first {
-			// first chunk must be empty according to the spec
-			// to notify cocaine-runtime that worker has been launched
-			first = false
-			c.Assert(inc.Data, check.HasLen, 0)
-		}
-
-		body.Write(inc.Data)
+	config := isolate.SpawnConfig{
+		Opts:       suite.opts,
+		Name:       name,
+		Executable: executable,
+		Args:       args,
+		Env:        env,
 	}
+
+	body := new(bytes.Buffer)
+	pr, err := suite.Box.Spawn(ctx, config, body)
+	c.Assert(err, check.IsNil)
+	// TODO: add synchronized writer
+	time.Sleep(5 * time.Second)
+	defer pr.Kill()
 
 	// verify args
 	unsplittedArgs, err := body.ReadString('\n')
