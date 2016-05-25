@@ -58,16 +58,8 @@ func newProcess(ctx context.Context, executable string, args, env map[string]str
 			}
 		}()
 
-		var first = true
-
 		for {
-			var p []byte
-			if first {
-				// NOTE: do not allocate memory if worker will die in silence
-				p = make([]byte, 1)
-			} else {
-				p = isolate.GetPreallocatedOutputChunk()
-			}
+			p := isolate.GetPreallocatedOutputChunk()
 			nn, err := r.Read(p)
 			if nn > 0 {
 				pr.output <- isolate.ProcessOutput{
