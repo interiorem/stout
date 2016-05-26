@@ -7,41 +7,26 @@ import (
 	"time"
 
 	apexctx "github.com/m0sth8/context"
+	"github.com/tinylib/msgp/msgp"
 	"golang.org/x/net/context"
 )
-
-// Decoder decodes messages from Cocaine-runtime
-type Decoder interface {
-	Decode(interface{}) error
-}
 
 // Encoder sends replies to the Cocaine-runtime
 type Encoder interface {
 	Encode(interface{}) error
 }
 
-type message struct {
-	Channel int
-	Number  int
-	Args    []interface{}
-}
-
-func (m *message) String() string {
-	return fmt.Sprintf("%d %d %v", m.Channel, m.Number, m.Args)
-}
-
 // Dispatcher handles incoming messages and keeps the state of the channel
 type Dispatcher interface {
-	Handle(msg *message) (Dispatcher, error)
+	Handle(c int64, r *msgp.Reader) (Dispatcher, error)
 }
 
 // ConnectionHandler provides method to handle accepted connection for Listener
 type ConnectionHandler struct {
 	ctx            context.Context
-	session        map[int]Dispatcher
-	highestChannel int
+	session        map[int64]Dispatcher
+	highestChannel int64
 
-	newDecoder    decoderInit
 	newDispatcher dispatcherInit
 
 	connID string
@@ -49,20 +34,19 @@ type ConnectionHandler struct {
 
 // NewConnectionHandler creates new ConnectionHandler
 func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
-	ctx = withArgsUnpacker(ctx, msgpackArgsDecoder{})
-	return newConnectionHandler(ctx, newMsgpackDecoder, newInitialDispatch)
+	// ctx = withArgsUnpacker(ctx, msgpackArgsDecoder{})
+	return newConnectionHandler(ctx, newInitialDispatch)
 }
 
-func newConnectionHandler(ctx context.Context, newDec decoderInit, newDisp dispatcherInit) (*ConnectionHandler, error) {
+func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*ConnectionHandler, error) {
 	connID := getID(ctx)
 	ctx = apexctx.WithLogger(ctx, apexctx.GetLogger(ctx).WithField("conn.id", connID))
 
 	return &ConnectionHandler{
 		ctx:            ctx,
-		session:        make(map[int]Dispatcher),
+		session:        make(map[int64]Dispatcher),
 		highestChannel: 0,
 
-		newDecoder:    newDec,
 		newDispatcher: newDisp,
 
 		connID: connID,
@@ -87,75 +71,103 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 	logger := apexctx.GetLogger(h.ctx)
 
-	decoder := h.newDecoder(conn)
+	r := msgp.NewReader(conn)
 	for {
-		var msg message
-
-		err := decoder.Decode(&msg)
+		size, err := r.ReadArrayHeader()
 		if err != nil {
-			if err == io.EOF {
-				apexctx.GetLogger(h.ctx).Warnf("remote side has closed the connection")
-			} else {
-				apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Close the connection")
-			}
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read an array header")
+			return
+		}
+
+		channel, err := r.ReadInt64()
+		if err != nil {
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a channel")
+			return
+		}
+
+		c, err := r.ReadInt64()
+		if err != nil {
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a command type")
 			return
 		}
 
 		// NOTE: it can be the bottleneck
-		dispatcher, ok := h.session[msg.Channel]
+		dispatcher, ok := h.session[channel]
 		if !ok {
-			if msg.Number < h.highestChannel {
-				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", msg.Number, h.highestChannel)
-				continue
+			if channel < h.highestChannel {
+				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
+				return
 			}
 
 			// TODO: refactor
-			var dw = newDownstream(newMsgpackEncoder(conn), msg.Channel)
-			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, msg.Channel)))
+			dw := newDownstream(ctx, conn, channel)
+			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
 			ctx = withDownstream(ctx, dw)
 			dispatcher = h.newDispatcher(ctx)
 		}
 
-		dispatcher, err = dispatcher.Handle(&msg)
+		dispatcher, err = dispatcher.Handle(c, r)
+		if size == 4 {
+			r.Skip()
+		}
+		// NOTE: handle ErrInvalidArgsNum
 		if err != nil {
+			if err == ErrInvalidArgsNum {
+				apexctx.GetLogger(h.ctx).WithError(err).Errorf("protocol error")
+				return
+			}
+
 			apexctx.GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
-			delete(h.session, msg.Channel)
+			delete(h.session, channel)
 			continue
 		}
 		if dispatcher == nil {
-			delete(h.session, msg.Channel)
+			delete(h.session, channel)
 			continue
 		}
-		h.session[msg.Channel] = dispatcher
+		h.session[channel] = dispatcher
 	}
 }
 
 type downstream struct {
-	enc     Encoder
-	channel int
+	ctx     context.Context
+	wr      io.Writer
+	channel int64
 }
 
-func newDownstream(enc Encoder, channel int) Downstream {
+func newDownstream(ctx context.Context, wr io.Writer, channel int64) Downstream {
 	return &downstream{
-		enc:     enc,
+		ctx:     ctx,
+		wr:      wr,
 		channel: channel,
 	}
 }
 
-func (d *downstream) Reply(code int, args ...interface{}) error {
-	if args == nil {
-		args = []interface{}{}
+func (d *downstream) Reply(code int64, args ...interface{}) error {
+	var (
+		p   = msgpackBytePool.Get().([]byte)[:0]
+		err error
+	)
+	defer msgpackBytePool.Put(p)
+
+	// NOTE: `3` without headers!
+	p = msgp.AppendArrayHeader(p, 3)
+	p = msgp.AppendInt64(p, d.channel)
+	p = msgp.AppendInt64(p, code)
+
+	// pack args
+	p = msgp.AppendArrayHeader(p, uint32(len(args)))
+	for _, arg := range args {
+		if p, err = msgp.AppendIntf(p, arg); err != nil {
+			apexctx.GetLogger(d.ctx).WithError(err).Errorf("error dumping arg %[1]T: %[1]v", arg)
+			return err
+		}
 	}
 
-	var msg = message{
-		Channel: d.channel,
-		Number:  code,
-		Args:    args,
+	if _, err = d.wr.Write(p); err != nil {
+		apexctx.GetLogger(d.ctx).WithError(err).Errorf("error writing Reply")
+		return err
 	}
 
-	// pc, file, line, _ := runtime.Caller(2)
-	// f := runtime.FuncForPC(pc)
-	// fmt.Printf("%s:%d %s %v\n", file, line, f.Name(), msg)
-
-	return d.enc.Encode(msg)
+	return nil
 }

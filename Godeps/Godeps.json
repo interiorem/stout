@@ -36,17 +36,17 @@
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
-			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+			"Rev": "2df174808ee097f90d259e432cc04442cf60be21"
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/digest",
-			"Comment": "v2.4.1-100-gba2fa04",
-			"Rev": "ba2fa04f01ee01ca1be5cce73ca3f96ad5b94941"
+			"Comment": "v2.4.1-102-g8ebf288",
+			"Rev": "8ebf288d8f6571faaa0968cb3ccaf8c8338db1d4"
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/reference",
-			"Comment": "v2.4.1-100-gba2fa04",
-			"Rev": "ba2fa04f01ee01ca1be5cce73ca3f96ad5b94941"
+			"Comment": "v2.4.1-102-g8ebf288",
+			"Rev": "8ebf288d8f6571faaa0968cb3ccaf8c8338db1d4"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client",
@@ -152,6 +152,10 @@
 			"Rev": "3f4f4420fded8d19cf29a1b6a631b7e31f7f9c68"
 		},
 		{
+			"ImportPath": "github.com/philhofer/fwd",
+			"Rev": "98c11a7a6ec829d672b03833c3d69a7fae1ca972"
+		},
+		{
 			"ImportPath": "github.com/pmezard/go-difflib/difflib",
 			"Rev": "d8ed2627bdf02c080bf22230dbb337003b7aba2d"
 		},
@@ -169,16 +173,21 @@
 			"Rev": "6cb3b85ef5a0efef77caef88363ec4d4b5c0976d"
 		},
 		{
+			"ImportPath": "github.com/tinylib/msgp/msgp",
+			"Comment": "v1.0-beta-10-g05e600e",
+			"Rev": "05e600edf28f1b907005ddf6b0488fe68b819971"
+		},
+		{
 			"ImportPath": "github.com/ugorji/go/codec",
 			"Rev": "1d5269ed4e89d423d40362a0914e1c99adb13cc8"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "76e74a336561c500a376b406eb649727eeb3477f"
+			"Rev": "972f0c5fbe4ae29e666c3f78c3ed42ae7a448b0a"
 		},
 		{
 			"ImportPath": "golang.org/x/net/proxy",
-			"Rev": "76e74a336561c500a376b406eb649727eeb3477f"
+			"Rev": "972f0c5fbe4ae29e666c3f78c3ed42ae7a448b0a"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",

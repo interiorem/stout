@@ -1,12 +1,15 @@
 package isolate
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"sync/atomic"
 
 	"golang.org/x/net/context"
 
 	apexctx "github.com/m0sth8/context"
+	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -22,6 +25,50 @@ const (
 	replySpawnClose = 2
 )
 
+var (
+	// ErrInvalidArgsNum should be returned if number of arguments is wrong
+	ErrInvalidArgsNum = errors.New("invalid arguments number")
+	_onSpoolArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpool).NumIn())
+	_onSpawnArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpawn).NumIn())
+)
+
+func checkSize(num uint32, r *msgp.Reader) error {
+	size, err := r.ReadArrayHeader()
+	if err != nil {
+		return err
+	}
+
+	if size != num {
+		return ErrInvalidArgsNum
+	}
+
+	return nil
+}
+
+func readMapStrStr(r *msgp.Reader, mp map[string]string) (err error) {
+	var sz uint32
+	sz, err = r.ReadMapHeader()
+	if err != nil {
+		return err
+	}
+
+	for i := uint32(0); i < sz; i++ {
+		var key string
+		var val string
+		key, err = r.ReadString()
+		if err != nil {
+			return err
+		}
+		val, err = r.ReadString()
+		if err != nil {
+			return err
+		}
+		mp[key] = val
+	}
+
+	return
+}
+
 type initialDispatch struct {
 	ctx context.Context
 }
@@ -30,29 +77,62 @@ func newInitialDispatch(ctx context.Context) Dispatcher {
 	return &initialDispatch{ctx: ctx}
 }
 
-func (d *initialDispatch) Handle(msg *message) (Dispatcher, error) {
-	switch msg.Number {
+func (d *initialDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
+	var err error
+	switch id {
 	case spool:
-		return d.onSpool(msg)
+		var opts = make(Profile)
+		var name string
+
+		if err = checkSize(_onSpoolArgsNum, r); err != nil {
+			return nil, err
+		}
+
+		if err = r.ReadMapStrIntf(opts); err != nil {
+			return nil, err
+		}
+
+		if name, err = r.ReadString(); err != nil {
+			return nil, err
+		}
+
+		return d.onSpool(opts, name)
 	case spawn:
-		return d.onSpawn(msg)
+		var (
+			opts             = make(Profile)
+			name, executable string
+			args             = make(map[string]string)
+			env              = make(map[string]string)
+		)
+		if err = checkSize(_onSpawnArgsNum, r); err != nil {
+			return nil, err
+		}
+
+		if err = r.ReadMapStrIntf(opts); err != nil {
+			return nil, err
+		}
+		if name, err = r.ReadString(); err != nil {
+			return nil, err
+		}
+		if executable, err = r.ReadString(); err != nil {
+			return nil, err
+		}
+
+		if err = readMapStrStr(r, args); err != nil {
+			return nil, err
+		}
+
+		if err = readMapStrStr(r, env); err != nil {
+			return nil, err
+		}
+
+		return d.onSpawn(opts, name, executable, args, env)
 	default:
-		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
+		return nil, fmt.Errorf("unknown transition id: %d", id)
 	}
 }
 
-func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
-	var (
-		opts Profile
-		name string
-	)
-
-	if err := unpackArgs(d.ctx, msg.Args, &opts, &name); err != nil {
-		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
-		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
-		return nil, err
-	}
-
+func (d *initialDispatch) onSpool(opts Profile, name string) (Dispatcher, error) {
 	isolateType := opts.Type()
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
@@ -83,19 +163,7 @@ func (d *initialDispatch) onSpool(msg *message) (Dispatcher, error) {
 	return newSpoolCancelationDispatch(ctx, cancel), nil
 }
 
-func (d *initialDispatch) onSpawn(msg *message) (Dispatcher, error) {
-	var (
-		opts             Profile
-		name, executable string
-		args, env        map[string]string
-	)
-
-	if err := unpackArgs(d.ctx, msg.Args, &opts, &name, &executable, &args, &env); err != nil {
-		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to unpack a message.args")
-		reply(d.ctx, replySpawnError, errBadMsg, err.Error())
-		return nil, err
-	}
-
+func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, env map[string]string) (Dispatcher, error) {
 	isolateType := opts.Type()
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
@@ -177,7 +245,7 @@ func (o *OutputCollector) Write(p []byte) (int, error) {
 
 	// if the first output comes earlier than Notify() is called
 	if atomic.CompareAndSwapUint32(&o.notified, 0, 1) {
-		reply(o.ctx, replySpawnWrite, []byte(""))
+		reply(o.ctx, replySpawnWrite, notificationByte)
 		if len(p) == 0 {
 			return 0, nil
 		}
