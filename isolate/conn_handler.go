@@ -7,6 +7,7 @@ import (
 	"time"
 
 	apexctx "github.com/m0sth8/context"
+	"github.com/tinylib/msgp/msgp"
 	"golang.org/x/net/context"
 )
 
@@ -32,7 +33,7 @@ func (m *message) String() string {
 
 // Dispatcher handles incoming messages and keeps the state of the channel
 type Dispatcher interface {
-	Handle(msg *message) (Dispatcher, error)
+	Handle(c int, r *msgp.Reader) (Dispatcher, error)
 }
 
 // ConnectionHandler provides method to handle accepted connection for Listener
@@ -87,46 +88,55 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 	logger := apexctx.GetLogger(h.ctx)
 
-	decoder := h.newDecoder(conn)
+	r := msgp.NewReader(conn)
 	for {
-		var msg message
-
-		err := decoder.Decode(&msg)
+		size, err := r.ReadArrayHeader()
 		if err != nil {
-			if err == io.EOF {
-				apexctx.GetLogger(h.ctx).Warnf("remote side has closed the connection")
-			} else {
-				apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to Decode protocol message. Close the connection")
-			}
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read an array header")
+			return
+		}
+
+		channel, err := r.ReadInt()
+		if err != nil {
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a channel")
+			return
+		}
+
+		c, err := r.ReadInt()
+		if err != nil {
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a command type")
 			return
 		}
 
 		// NOTE: it can be the bottleneck
-		dispatcher, ok := h.session[msg.Channel]
+		dispatcher, ok := h.session[channel]
 		if !ok {
-			if msg.Number < h.highestChannel {
-				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", msg.Number, h.highestChannel)
-				continue
+			if channel < h.highestChannel {
+				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
+				return
 			}
 
 			// TODO: refactor
-			var dw = newDownstream(newMsgpackEncoder(conn), msg.Channel)
-			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, msg.Channel)))
+			var dw = newDownstream(newMsgpackEncoder(conn), channel)
+			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
 			ctx = withDownstream(ctx, dw)
 			dispatcher = h.newDispatcher(ctx)
 		}
 
-		dispatcher, err = dispatcher.Handle(&msg)
+		dispatcher, err = dispatcher.Handle(c, r)
+		if size == 4 {
+			r.Skip()
+		}
 		if err != nil {
 			apexctx.GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
-			delete(h.session, msg.Channel)
+			delete(h.session, channel)
 			continue
 		}
 		if dispatcher == nil {
-			delete(h.session, msg.Channel)
+			delete(h.session, channel)
 			continue
 		}
-		h.session[msg.Channel] = dispatcher
+		h.session[channel] = dispatcher
 	}
 }
 

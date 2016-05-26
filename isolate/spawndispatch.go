@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/tinylib/msgp/msgp"
+
 	"golang.org/x/net/context"
 )
 
@@ -30,14 +32,15 @@ func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh 
 	}
 }
 
-func (d *spawnDispatch) Handle(msg *message) (Dispatcher, error) {
-	switch msg.Number {
+func (d *spawnDispatch) Handle(id int, r *msgp.Reader) (Dispatcher, error) {
+	switch id {
 	case spawnKill:
+		r.Skip()
 		go d.asyncKill()
 		// NOTE: do not return an err on purpose
 		return nil, nil
 	default:
-		return nil, fmt.Errorf("unknown transition id: %d", msg.Number)
+		return nil, fmt.Errorf("unknown transition id: %d", id)
 	}
 }
 
