@@ -55,10 +55,6 @@ func NotifyAbouStart(wr io.Writer) {
 	wr.Write(notificationByte)
 }
 
-func withArgsUnpacker(ctx context.Context, au ArgsUnpacker) context.Context {
-	return context.WithValue(ctx, argsUnpackerTag, au)
-}
-
 func withDownstream(ctx context.Context, dw Downstream) context.Context {
 	return context.WithValue(ctx, downstreamTag, dw)
 }
