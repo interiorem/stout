@@ -28,7 +28,7 @@ func newSpoolCancelationDispatch(ctx context.Context, cancel context.CancelFunc)
 	}
 }
 
-func (s *spoolCancelationDispatch) Handle(id int, r *msgp.Reader) (Dispatcher, error) {
+func (s *spoolCancelationDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
 	switch id {
 	case spoolCancel:
 		// Skip empty array

@@ -15,11 +15,10 @@ type SpawnConfig struct {
 }
 
 type (
-	decoderInit    func(io.Reader) Decoder
 	dispatcherInit func(context.Context) Dispatcher
 
 	Downstream interface {
-		Reply(code int, args ...interface{}) error
+		Reply(code int64, args ...interface{}) error
 	}
 
 	ArgsUnpacker interface {
@@ -60,10 +59,6 @@ func withArgsUnpacker(ctx context.Context, au ArgsUnpacker) context.Context {
 	return context.WithValue(ctx, argsUnpackerTag, au)
 }
 
-func withDecoderInit(ctx context.Context, di decoderInit) context.Context {
-	return context.WithValue(ctx, decoderInitTag, di)
-}
-
 func withDownstream(ctx context.Context, dw Downstream) context.Context {
 	return context.WithValue(ctx, downstreamTag, dw)
 }
@@ -77,7 +72,7 @@ func getBoxes(ctx context.Context) Boxes {
 	return box
 }
 
-func reply(ctx context.Context, code int, args ...interface{}) error {
+func reply(ctx context.Context, code int64, args ...interface{}) error {
 	downstream, ok := ctx.Value(downstreamTag).(Downstream)
 	if !ok {
 		panic("context.Context does not contain downstream")

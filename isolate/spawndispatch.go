@@ -32,7 +32,7 @@ func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh 
 	}
 }
 
-func (d *spawnDispatch) Handle(id int, r *msgp.Reader) (Dispatcher, error) {
+func (d *spawnDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
 	switch id {
 	case spawnKill:
 		r.Skip()

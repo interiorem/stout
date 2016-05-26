@@ -26,12 +26,13 @@ const (
 )
 
 var (
+	// ErrInvalidArgsNum should be returned if number of arguments is wrong
 	ErrInvalidArgsNum = errors.New("invalid arguments number")
 	_onSpoolArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpool).NumIn())
 	_onSpawnArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpawn).NumIn())
 )
 
-func i(num uint32, r *msgp.Reader) error {
+func checkSize(num uint32, r *msgp.Reader) error {
 	size, err := r.ReadArrayHeader()
 	if err != nil {
 		return err
@@ -76,14 +77,14 @@ func newInitialDispatch(ctx context.Context) Dispatcher {
 	return &initialDispatch{ctx: ctx}
 }
 
-func (d *initialDispatch) Handle(id int, r *msgp.Reader) (Dispatcher, error) {
+func (d *initialDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
 	var err error
 	switch id {
 	case spool:
 		var opts = make(Profile)
 		var name string
 
-		if err = i(_onSpoolArgsNum, r); err != nil {
+		if err = checkSize(_onSpoolArgsNum, r); err != nil {
 			return nil, err
 		}
 
@@ -103,7 +104,7 @@ func (d *initialDispatch) Handle(id int, r *msgp.Reader) (Dispatcher, error) {
 			args             = make(map[string]string)
 			env              = make(map[string]string)
 		)
-		if err = i(_onSpawnArgsNum, r); err != nil {
+		if err = checkSize(_onSpawnArgsNum, r); err != nil {
 			return nil, err
 		}
 
@@ -244,7 +245,7 @@ func (o *OutputCollector) Write(p []byte) (int, error) {
 
 	// if the first output comes earlier than Notify() is called
 	if atomic.CompareAndSwapUint32(&o.notified, 0, 1) {
-		reply(o.ctx, replySpawnWrite, []byte(""))
+		reply(o.ctx, replySpawnWrite, notificationByte)
 		if len(p) == 0 {
 			return 0, nil
 		}

@@ -1,11 +1,14 @@
 package isolate
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"testing"
 	"time"
+
+	"github.com/tinylib/msgp/msgp"
 
 	"golang.org/x/net/context"
 
@@ -136,11 +139,12 @@ func (s *initialDispatchSuite) TestSpool(c *C) {
 		args = Profile{
 			"type": "test",
 		}
-		appName  = "application"
-		spoolMsg = message{s.session, spool, []interface{}{args, appName}}
+		appName     = "application"
+		spoolMsg, _ = msgp.AppendIntf(nil, []interface{}{map[string]interface{}(args), appName})
 	)
 
-	spoolDisp, err := s.d.Handle(&spoolMsg)
+	// spoolDisp, err := s.d.Handle(&spoolMsg)
+	spoolDisp, err := s.d.Handle(spool, msgp.NewReader(bytes.NewReader(spoolMsg)))
 	c.Assert(err, IsNil)
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	msg := <-s.dw.ch
@@ -152,15 +156,15 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 		args = Profile{
 			"type": "testSleep",
 		}
-		appName   = "application"
-		spoolMsg  = message{s.session, spool, []interface{}{args, appName}}
-		cancelMsg = message{s.session, spoolCancel, []interface{}{}}
+		appName      = "application"
+		spoolMsg, _  = msgp.AppendIntf(nil, []interface{}{map[string]interface{}(args), appName})
+		cancelMsg, _ = msgp.AppendIntf(nil, []interface{}{})
 	)
 
-	spoolDisp, err := s.d.Handle(&spoolMsg)
+	spoolDisp, err := s.d.Handle(spool, msgp.NewReader(bytes.NewReader(spoolMsg)))
 	c.Assert(err, IsNil)
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
-	spoolDisp.Handle(&cancelMsg)
+	spoolDisp.Handle(spoolCancel, msgp.NewReader(bytes.NewReader(cancelMsg)))
 	msg := <-s.dw.ch
 	c.Assert(msg.code, Equals, replySpoolError)
 }
@@ -170,11 +174,11 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 		args = Profile{
 			"type": "testError",
 		}
-		appName  = "application"
-		spoolMsg = message{s.session, spool, []interface{}{args, appName}}
+		appName     = "application"
+		spoolMsg, _ = msgp.AppendIntf(nil, []interface{}{map[string]interface{}(args), appName})
 	)
 
-	spoolDisp, err := s.d.Handle(&spoolMsg)
+	spoolDisp, err := s.d.Handle(spool, msgp.NewReader(bytes.NewReader(spoolMsg)))
 	c.Assert(err, IsNil)
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	msg := <-s.dw.ch
@@ -190,10 +194,11 @@ func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 		executable = "test_app.exe"
 		args       = make(map[string]string, 0)
 		env        = make(map[string]string, 0)
-		spawnMsg   = message{s.session, spawn, []interface{}{opts, appName, executable, args, env}}
-		killMsg    = message{s.session, spawnKill, []interface{}{}}
+		// spawnMsg   = message{s.session, spawn, []interface{}{opts, appName, executable, args, env}}
+		spawnMsg, _ = msgp.AppendIntf(nil, []interface{}{map[string]interface{}(opts), appName, executable, args, env})
+		killMsg, _  = msgp.AppendIntf(nil, []interface{}{})
 	)
-	spawnDisp, err := s.d.Handle(&spawnMsg)
+	spawnDisp, err := s.d.Handle(spawn, msgp.NewReader(bytes.NewReader(spawnMsg)))
 	c.Assert(err, IsNil)
 	c.Assert(spawnDisp, FitsTypeOf, &spawnDispatch{})
 
@@ -214,7 +219,7 @@ func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Assert(data, Not(HasLen), 0)
 
-	noneDisp, err := spawnDisp.Handle(&killMsg)
+	noneDisp, err := spawnDisp.Handle(spawnKill, msgp.NewReader(bytes.NewReader(killMsg)))
 	c.Assert(err, IsNil)
 	c.Assert(noneDisp, IsNil)
 }
