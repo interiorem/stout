@@ -1,3 +1,11 @@
+cocaine-isolate-daemon (0.1.6.0) unstable; urgency=low
+
+  * Feature(dispatch): implemrnt spawn EAGAIN logic
+  * Feature(protocol): optimize decoding/encoding
+  * Feature(optimization): collect stdout/stderr via io.Writer
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Mon, 30 May 2016 01:33:20 +0300
+
 cocaine-isolate-daemon (0.1.5.15) unstable; urgency=low
 
   * Fix(dispatch): notify SpawnDispatch about start
