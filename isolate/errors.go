@@ -1,11 +1,17 @@
 package isolate
 
+import (
+	"errors"
+	"syscall"
+)
+
 const (
 	isolateErrCategory = 42
 )
 
 const (
-	codeBadMsg = 1 + iota
+	codeSpawnEAGAIN = int(syscall.EAGAIN) + iota
+	codeBadMsg
 	codeBadProfile
 	codeUnknownIsolate
 	codeSpoolingFailed
@@ -24,4 +30,9 @@ var (
 	errOutputError            = [2]int{isolateErrCategory, codeOutputError}
 	errKillError              = [2]int{isolateErrCategory, codeKillError}
 	errSpoolCancellationError = [2]int{isolateErrCategory, codeSpoolCancellationError}
+	errSpawnEAGAIN            = [2]int{isolateErrCategory, codeSpawnEAGAIN}
+)
+
+var (
+	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync/atomic"
+	"syscall"
 
 	"golang.org/x/net/context"
 
@@ -204,8 +205,15 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 		}
 		pr, err := box.Spawn(ctx, config, outputCollector)
 		if err != nil {
-			apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
-			reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
+			switch err {
+			case ErrSpawningCancelled, context.Canceled:
+				spawnCancelledMeter.Mark(1)
+			case syscall.EAGAIN:
+				reply(d.ctx, replySpawnError, errSpawnEAGAIN, err.Error())
+			default:
+				apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
+				reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
+			}
 			return
 		}
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	apexctx "github.com/m0sth8/context"
@@ -200,10 +201,14 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	start := time.Now()
 
 	spawningQueueSize.Inc(1)
+	if spawningQueueSize.Count() > 10 {
+		spawningQueueSize.Dec(1)
+		return nil, syscall.EAGAIN
+	}
 	err = b.spawnSM.Acquire(ctx)
 	spawningQueueSize.Dec(1)
 	if err != nil {
-		return nil, err
+		return nil, isolate.ErrSpawningCancelled
 	}
 	defer b.spawnSM.Release()
 
