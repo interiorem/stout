@@ -1,7 +1,6 @@
 package process
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,8 +31,6 @@ var (
 			locator: locator,
 		}
 	}
-
-	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )
 
 type codeStorage interface {
@@ -194,10 +191,14 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	// Update statistics
 	start := time.Now()
 	spawningQueueSize.Inc(1)
+	if spawningQueueSize.Count() > 10 {
+		spawningQueueSize.Dec(1)
+		return nil, syscall.EAGAIN
+	}
 	err = b.spawnSm.Acquire(ctx)
 	spawningQueueSize.Dec(1)
 	if err != nil {
-		return nil, ErrSpawningCancelled
+		return nil, isolate.ErrSpawningCancelled
 	}
 	defer b.spawnSm.Release()
 	// NOTE: once process was put to the map
@@ -207,7 +208,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	b.mu.Lock()
 	if isolate.IsCancelled(ctx) {
 		b.mu.Unlock()
-		return nil, ErrSpawningCancelled
+		return nil, isolate.ErrSpawningCancelled
 	}
 
 	newProcStart := time.Now()
