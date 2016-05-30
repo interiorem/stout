@@ -6,6 +6,7 @@ import (
 )
 
 const (
+	systemCategory     = 1
 	isolateErrCategory = 42
 )
 
@@ -30,7 +31,7 @@ var (
 	errOutputError            = [2]int{isolateErrCategory, codeOutputError}
 	errKillError              = [2]int{isolateErrCategory, codeKillError}
 	errSpoolCancellationError = [2]int{isolateErrCategory, codeSpoolCancellationError}
-	errSpawnEAGAIN            = [2]int{isolateErrCategory, codeSpawnEAGAIN}
+	errSpawnEAGAIN            = [2]int{systemCategory, codeSpawnEAGAIN}
 )
 
 var (
