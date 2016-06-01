@@ -6,9 +6,12 @@ import (
 	"io"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/apex/log"
+)
+
+const (
+	timeFormat = "2006-01-02T15:04:05.999Z07:00"
 )
 
 var bytesPool = sync.Pool{
@@ -54,7 +57,7 @@ func (lh *logHandler) HandleLog(entry *log.Entry) error {
 
 	sort.Strings(keys)
 
-	buf := bytes.NewBuffer(entry.Timestamp.AppendFormat(getBytesFromPool(), time.RFC3339))
+	buf := bytes.NewBuffer(entry.Timestamp.AppendFormat(getBytesFromPool(), timeFormat))
 	buf.WriteByte('\t')
 	buf.WriteString(getLevel(entry.Level))
 	buf.WriteByte('\t')
