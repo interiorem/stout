@@ -19,12 +19,15 @@ type spoolCancelationDispatch struct {
 	ctx context.Context
 
 	cancel context.CancelFunc
+
+	stream ResponseStream
 }
 
-func newSpoolCancelationDispatch(ctx context.Context, cancel context.CancelFunc) *spoolCancelationDispatch {
+func newSpoolCancelationDispatch(ctx context.Context, cancel context.CancelFunc, stream ResponseStream) *spoolCancelationDispatch {
 	return &spoolCancelationDispatch{
 		ctx:    ctx,
 		cancel: cancel,
+		stream: stream,
 	}
 }
 
@@ -35,7 +38,6 @@ func (s *spoolCancelationDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher,
 		r.Skip()
 		// TODO: cancel only if I'm spooling
 		s.cancel()
-		// reply(s.ctx, replyCancelOk, nil)
 		// NOTE: do not return an err on purpose
 		return nil, nil
 	default:

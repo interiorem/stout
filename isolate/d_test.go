@@ -31,8 +31,18 @@ type testDownstream struct {
 	ch chan testDownstreamItem
 }
 
-func (t *testDownstream) Reply(code int64, args ...interface{}) error {
-	t.ch <- testDownstreamItem{code, args}
+func (t *testDownstream) Write(ctx context.Context, code int64, data []byte) error {
+	t.ch <- testDownstreamItem{code, []interface{}{data}}
+	return nil
+}
+
+func (t *testDownstream) Error(ctx context.Context, code int64, errorcode [2]int, msg string) error {
+	t.ch <- testDownstreamItem{code, []interface{}{errorcode, msg}}
+	return nil
+}
+
+func (t *testDownstream) Close(ctx context.Context, code int64) error {
+	t.ch <- testDownstreamItem{code, []interface{}{}}
 	return nil
 }
 
@@ -124,8 +134,7 @@ func (s *initialDispatchSuite) SetUpTest(c *C) {
 		ch: make(chan testDownstreamItem),
 	}
 
-	ctx = withDownstream(s.ctx, s.dw)
-	d := newInitialDispatch(ctx)
+	d := newInitialDispatch(ctx, s.dw)
 	s.d = d
 }
 

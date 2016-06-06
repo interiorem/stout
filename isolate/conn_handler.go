@@ -1,9 +1,12 @@
 package isolate
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	apexctx "github.com/m0sth8/context"
@@ -11,9 +14,35 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Encoder sends replies to the Cocaine-runtime
-type Encoder interface {
-	Encode(interface{}) error
+type sessions struct {
+	sync.Mutex
+
+	session map[int64]Dispatcher
+}
+
+func newSessions() *sessions {
+	return &sessions{
+		session: make(map[int64]Dispatcher),
+	}
+}
+
+func (s *sessions) Attach(channel int64, dispatch Dispatcher) {
+	s.Lock()
+	s.session[channel] = dispatch
+	s.Unlock()
+}
+
+func (s *sessions) Detach(channel int64) {
+	s.Lock()
+	delete(s.session, channel)
+	s.Unlock()
+}
+
+func (s *sessions) Get(channel int64) (Dispatcher, bool) {
+	s.Lock()
+	dispatch, ok := s.session[channel]
+	s.Unlock()
+	return dispatch, ok
 }
 
 // Dispatcher handles incoming messages and keeps the state of the channel
@@ -23,8 +52,8 @@ type Dispatcher interface {
 
 // ConnectionHandler provides method to handle accepted connection for Listener
 type ConnectionHandler struct {
-	ctx            context.Context
-	session        map[int64]Dispatcher
+	ctx context.Context
+	*sessions
 	highestChannel int64
 
 	newDispatcher dispatcherInit
@@ -34,7 +63,6 @@ type ConnectionHandler struct {
 
 // NewConnectionHandler creates new ConnectionHandler
 func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
-	// ctx = withArgsUnpacker(ctx, msgpackArgsDecoder{})
 	return newConnectionHandler(ctx, newInitialDispatch)
 }
 
@@ -44,7 +72,7 @@ func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*Connect
 
 	return &ConnectionHandler{
 		ctx:            ctx,
-		session:        make(map[int64]Dispatcher),
+		sessions:       newSessions(),
 		highestChannel: 0,
 
 		newDispatcher: newDisp,
@@ -63,6 +91,25 @@ func getID(ctx context.Context) string {
 	return uniqueid
 }
 
+func (h *ConnectionHandler) next(r *msgp.Reader) (sz uint32, channel int64, c int64, err error) {
+	sz, err = r.ReadArrayHeader()
+	if err != nil {
+		return
+	}
+
+	channel, err = r.ReadInt64()
+	if err != nil {
+		return
+	}
+
+	c, err = r.ReadInt64()
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 // HandleConn decodes commands from Cocaine runtime and calls dispatchers
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
@@ -73,77 +120,100 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 	r := msgp.NewReader(conn)
 	for {
-		size, err := r.ReadArrayHeader()
+		size, channel, c, err := h.next(r)
 		if err != nil {
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read an array header")
-			return
-		}
-
-		channel, err := r.ReadInt64()
-		if err != nil {
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a channel")
-			return
-		}
-
-		c, err := r.ReadInt64()
-		if err != nil {
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("unable to read a command type")
+			if err == io.EOF {
+				apexctx.GetLogger(h.ctx).Errorf("Connection has been closed")
+				return
+			}
+			apexctx.GetLogger(h.ctx).WithError(err).Errorf("next(): unable to read message")
 			return
 		}
 
 		// NOTE: it can be the bottleneck
-		dispatcher, ok := h.session[channel]
+		dispatcher, ok := h.sessions.Get(channel)
 		if !ok {
 			if channel < h.highestChannel {
-				apexctx.GetLogger(h.ctx).Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
+				logger.Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
 				return
 			}
+			h.highestChannel = channel
 
-			// TODO: refactor
-			dw := newDownstream(ctx, conn, channel)
 			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
-			ctx = withDownstream(ctx, dw)
-			dispatcher = h.newDispatcher(ctx)
+			rs := newResponseStream(ctx, conn, channel)
+			rs.OnClose(func(ctx context.Context) {
+				h.sessions.Detach(channel)
+			})
+			dispatcher = h.newDispatcher(ctx, rs)
 		}
 
 		dispatcher, err = dispatcher.Handle(c, r)
+		// NOTE: remove it when the headers are being handling properly
 		if size == 4 {
 			r.Skip()
 		}
-		// NOTE: handle ErrInvalidArgsNum
+
 		if err != nil {
 			if err == ErrInvalidArgsNum {
-				apexctx.GetLogger(h.ctx).WithError(err).Errorf("protocol error")
+				logger.WithError(err).Error("protocol error", dispatcher)
 				return
 			}
 
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("Handle returned an error")
-			delete(h.session, channel)
+			logger.WithError(err).Errorf("Handle returned an error")
+			h.sessions.Detach(channel)
 			continue
 		}
 		if dispatcher == nil {
-			delete(h.session, channel)
+			h.sessions.Detach(channel)
 			continue
 		}
-		h.session[channel] = dispatcher
+
+		h.sessions.Attach(channel, dispatcher)
 	}
 }
 
-type downstream struct {
+type responseStream struct {
 	ctx     context.Context
 	wr      io.Writer
 	channel int64
+
+	onClose func(ctx context.Context)
+	closed  uint32
 }
 
-func newDownstream(ctx context.Context, wr io.Writer, channel int64) Downstream {
-	return &downstream{
+var errStreamIsClosed = errors.New("Stream is closed")
+
+func newResponseStream(ctx context.Context, wr io.Writer, channel int64) *responseStream {
+	return &responseStream{
 		ctx:     ctx,
 		wr:      wr,
 		channel: channel,
+		onClose: nil,
 	}
 }
 
-func (d *downstream) Reply(code int64, args ...interface{}) error {
+func (r *responseStream) OnClose(onClose func(context.Context)) {
+	r.onClose = onClose
+}
+
+func (r *responseStream) close(ctx context.Context) error {
+	if !atomic.CompareAndSwapUint32(&r.closed, 0, 1) {
+		return errStreamIsClosed
+	}
+
+	if r.onClose != nil {
+		r.onClose(ctx)
+	}
+
+	return nil
+}
+
+func (r *responseStream) Write(ctx context.Context, num int64, data []byte) error {
+	if atomic.LoadUint32(&r.closed) == 1 {
+		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
+		return errStreamIsClosed
+	}
+
 	var (
 		p   = msgpackBytePool.Get().([]byte)[:0]
 		err error
@@ -152,22 +222,79 @@ func (d *downstream) Reply(code int64, args ...interface{}) error {
 
 	// NOTE: `3` without headers!
 	p = msgp.AppendArrayHeader(p, 3)
-	p = msgp.AppendInt64(p, d.channel)
-	p = msgp.AppendInt64(p, code)
+	p = msgp.AppendInt64(p, r.channel)
+	p = msgp.AppendInt64(p, num)
 
-	// pack args
-	p = msgp.AppendArrayHeader(p, uint32(len(args)))
-	for _, arg := range args {
-		if p, err = msgp.AppendIntf(p, arg); err != nil {
-			apexctx.GetLogger(d.ctx).WithError(err).Errorf("error dumping arg %[1]T: %[1]v", arg)
-			return err
-		}
+	p = msgp.AppendArrayHeader(p, 1)
+	p = msgp.AppendStringFromBytes(p, data)
+
+	if _, err = r.wr.Write(p); err != nil {
+		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Write")
+		return err
 	}
+	return nil
+}
 
-	if _, err = d.wr.Write(p); err != nil {
-		apexctx.GetLogger(d.ctx).WithError(err).Errorf("error writing Reply")
+func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg string) error {
+	if err := r.close(ctx); err != nil {
+		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Error")
 		return err
 	}
 
+	var (
+		p   = msgpackBytePool.Get().([]byte)[:0]
+		err error
+	)
+	defer msgpackBytePool.Put(p)
+
+	// NOTE: `3` without headers!
+	p = msgp.AppendArrayHeader(p, 3)
+	p = msgp.AppendInt64(p, r.channel)
+	p = msgp.AppendInt64(p, num)
+
+	// code_category + error message
+	p = msgp.AppendArrayHeader(p, 2)
+
+	// code & category
+	p = msgp.AppendArrayHeader(p, 2)
+	p = msgp.AppendInt(p, code[0])
+	p = msgp.AppendInt(p, code[1])
+
+	// error message
+	p = msgp.AppendString(p, msg)
+
+	if _, err = r.wr.Write(p); err != nil {
+		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		return err
+	}
+	return nil
+}
+
+func (r *responseStream) Close(ctx context.Context, num int64) error {
+	if err := r.close(ctx); err != nil {
+		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Close")
+		return err
+	}
+
+	if r.onClose != nil {
+		r.onClose(ctx)
+	}
+
+	var (
+		p   = msgpackBytePool.Get().([]byte)[:0]
+		err error
+	)
+	defer msgpackBytePool.Put(p)
+
+	// NOTE: `3` without headers!
+	p = msgp.AppendArrayHeader(p, 3)
+	p = msgp.AppendInt64(p, r.channel)
+	p = msgp.AppendInt64(p, num)
+
+	p = msgp.AppendArrayHeader(p, 0)
+	if _, err = r.wr.Write(p); err != nil {
+		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		return err
+	}
 	return nil
 }
