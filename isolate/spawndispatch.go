@@ -69,7 +69,8 @@ func (d *spawnDispatch) asyncKill() {
 				return
 			}
 
-			d.stream.Close(d.ctx, replyKillOk)
+			// NOTE: send nothing
+			// d.stream.Close(d.ctx, replyKillOk)
 		}
 	case <-d.ctx.Done():
 		// NOTE: should we kill anything here?
