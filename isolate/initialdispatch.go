@@ -236,7 +236,8 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 					return
 				}
 
-				d.stream.Close(d.ctx, replyKillOk)
+				// NOTE: send nothing
+				// d.stream.Close(d.ctx, replyKillOk)
 			}
 		}
 	}()

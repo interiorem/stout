@@ -218,10 +218,7 @@ func (r *responseStream) Write(ctx context.Context, num int64, data []byte) erro
 		return errStreamIsClosed
 	}
 
-	var (
-		p   = msgpackBytePool.Get().([]byte)[:0]
-		err error
-	)
+	p := msgpackBytePool.Get().([]byte)[:0]
 	defer msgpackBytePool.Put(p)
 
 	// NOTE: `3` without headers!
@@ -232,7 +229,7 @@ func (r *responseStream) Write(ctx context.Context, num int64, data []byte) erro
 	p = msgp.AppendArrayHeader(p, 1)
 	p = msgp.AppendStringFromBytes(p, data)
 
-	if _, err = r.wr.Write(p); err != nil {
+	if _, err := r.wr.Write(p); err != nil {
 		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Write")
 		return err
 	}
@@ -245,10 +242,7 @@ func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg 
 		return err
 	}
 
-	var (
-		p   = msgpackBytePool.Get().([]byte)[:0]
-		err error
-	)
+	p := msgpackBytePool.Get().([]byte)[:0]
 	defer msgpackBytePool.Put(p)
 
 	// NOTE: `3` without headers!
@@ -267,7 +261,7 @@ func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg 
 	// error message
 	p = msgp.AppendString(p, msg)
 
-	if _, err = r.wr.Write(p); err != nil {
+	if _, err := r.wr.Write(p); err != nil {
 		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
 		return err
 	}
@@ -284,10 +278,7 @@ func (r *responseStream) Close(ctx context.Context, num int64) error {
 		r.onClose(ctx)
 	}
 
-	var (
-		p   = msgpackBytePool.Get().([]byte)[:0]
-		err error
-	)
+	p := msgpackBytePool.Get().([]byte)[:0]
 	defer msgpackBytePool.Put(p)
 
 	// NOTE: `3` without headers!
@@ -296,7 +287,8 @@ func (r *responseStream) Close(ctx context.Context, num int64) error {
 	p = msgp.AppendInt64(p, num)
 
 	p = msgp.AppendArrayHeader(p, 0)
-	if _, err = r.wr.Write(p); err != nil {
+
+	if _, err := r.wr.Write(p); err != nil {
 		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
 		return err
 	}
