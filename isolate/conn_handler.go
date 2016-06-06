@@ -115,7 +115,6 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer conn.Close()
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
-
 	logger := apexctx.GetLogger(h.ctx)
 
 	r := msgp.NewReader(conn)
@@ -129,6 +128,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 			apexctx.GetLogger(h.ctx).WithError(err).Errorf("next(): unable to read message")
 			return
 		}
+		logger.Infof("array length %d, channel %d, number %d", size, channel, c)
 
 		// NOTE: it can be the bottleneck
 		dispatcher, ok := h.sessions.Get(channel)
@@ -136,7 +136,11 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 			if channel < h.highestChannel {
 				logger.Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
 				return
+			} else if channel == h.highestChannel {
+				// NOTE: we cannot reply to this, because Downstream has been already closed
+				return
 			}
+
 			h.highestChannel = channel
 
 			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
@@ -155,7 +159,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 		if err != nil {
 			if err == ErrInvalidArgsNum {
-				logger.WithError(err).Error("protocol error", dispatcher)
+				logger.WithError(err).Errorf("channel %d, number %d", channel, c)
 				return
 			}
 
