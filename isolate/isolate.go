@@ -15,20 +15,18 @@ type SpawnConfig struct {
 }
 
 type (
-	dispatcherInit func(context.Context) Dispatcher
-
-	Downstream interface {
-		Reply(code int64, args ...interface{}) error
-	}
-
-	ArgsUnpacker interface {
-		Unpack(in interface{}, out ...interface{}) error
-	}
+	dispatcherInit func(context.Context, ResponseStream) Dispatcher
 
 	Box interface {
 		Spool(ctx context.Context, name string, opts Profile) error
 		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
 		Close() error
+	}
+
+	ResponseStream interface {
+		Write(ctx context.Context, num int64, data []byte) error
+		Error(ctx context.Context, num int64, code [2]int, msg string) error
+		Close(ctx context.Context, num int64) error
 	}
 
 	Process interface {
@@ -40,12 +38,7 @@ type (
 	BoxConfig map[string]interface{}
 )
 
-const (
-	BoxesTag        = "isolate.boxes.tag"
-	downstreamTag   = "downstream.tag"
-	argsUnpackerTag = "args.unpacker.tag"
-	decoderInitTag  = "decoder.init.tag"
-)
+const BoxesTag = "isolate.boxes.tag"
 
 var (
 	notificationByte = []byte("")
@@ -55,10 +48,6 @@ func NotifyAbouStart(wr io.Writer) {
 	wr.Write(notificationByte)
 }
 
-func withDownstream(ctx context.Context, dw Downstream) context.Context {
-	return context.WithValue(ctx, downstreamTag, dw)
-}
-
 func getBoxes(ctx context.Context) Boxes {
 	val := ctx.Value(BoxesTag)
 	box, ok := val.(Boxes)
@@ -66,17 +55,4 @@ func getBoxes(ctx context.Context) Boxes {
 		panic("context.Context does not contain Box")
 	}
 	return box
-}
-
-func reply(ctx context.Context, code int64, args ...interface{}) error {
-	downstream, ok := ctx.Value(downstreamTag).(Downstream)
-	if !ok {
-		panic("context.Context does not contain downstream")
-	}
-
-	return downstream.Reply(code, args...)
-}
-
-func unpackArgs(ctx context.Context, in interface{}, out ...interface{}) error {
-	return ctx.Value(argsUnpackerTag).(ArgsUnpacker).Unpack(in, out...)
 }

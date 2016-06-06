@@ -71,11 +71,15 @@ func readMapStrStr(r *msgp.Reader, mp map[string]string) (err error) {
 }
 
 type initialDispatch struct {
-	ctx context.Context
+	ctx    context.Context
+	stream ResponseStream
 }
 
-func newInitialDispatch(ctx context.Context) Dispatcher {
-	return &initialDispatch{ctx: ctx}
+func newInitialDispatch(ctx context.Context, stream ResponseStream) Dispatcher {
+	return &initialDispatch{
+		ctx:    ctx,
+		stream: stream,
+	}
 }
 
 func (d *initialDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
@@ -138,7 +142,7 @@ func (d *initialDispatch) onSpool(opts Profile, name string) (Dispatcher, error)
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
 		apexctx.GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
-		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
+		d.stream.Error(d.ctx, replySpoolError, errBadProfile, err.Error())
 		return nil, err
 	}
 
@@ -146,7 +150,7 @@ func (d *initialDispatch) onSpool(opts Profile, name string) (Dispatcher, error)
 	if !ok {
 		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
-		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
+		d.stream.Error(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
 	}
 
@@ -154,14 +158,14 @@ func (d *initialDispatch) onSpool(opts Profile, name string) (Dispatcher, error)
 
 	go func() {
 		if err := box.Spool(ctx, name, opts); err != nil {
-			reply(ctx, replySpoolError, errSpoolingFailed, err.Error())
+			d.stream.Error(ctx, replySpoolError, errSpoolingFailed, err.Error())
 			return
 		}
 		// NOTE: make sure that nil is packed as []interface{}
-		reply(ctx, replySpoolOk, nil)
+		d.stream.Close(ctx, replySpoolOk)
 	}()
 
-	return newSpoolCancelationDispatch(ctx, cancel), nil
+	return newSpoolCancelationDispatch(ctx, cancel, d.stream), nil
 }
 
 func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, env map[string]string) (Dispatcher, error) {
@@ -169,7 +173,7 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 	if isolateType == "" {
 		err := fmt.Errorf("corrupted profile: %v", opts)
 		apexctx.GetLogger(d.ctx).Error("unable to detect isolate type from a profile")
-		reply(d.ctx, replySpawnError, errBadProfile, err.Error())
+		d.stream.Error(d.ctx, replySpawnError, errBadProfile, err.Error())
 		return nil, err
 	}
 
@@ -177,7 +181,7 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 	if !ok {
 		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
-		reply(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
+		d.stream.Error(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
 	}
 
@@ -201,6 +205,7 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 
 		outputCollector := &OutputCollector{
 			ctx:        d.ctx,
+			stream:     d.stream,
 			flagKilled: &flagKilled,
 		}
 		pr, err := box.Spawn(ctx, config, outputCollector)
@@ -209,10 +214,10 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 			case ErrSpawningCancelled, context.Canceled:
 				spawnCancelledMeter.Mark(1)
 			case syscall.EAGAIN:
-				reply(d.ctx, replySpawnError, errSpawnEAGAIN, err.Error())
+				d.stream.Error(d.ctx, replySpawnError, errSpawnEAGAIN, err.Error())
 			default:
 				apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
-				reply(d.ctx, replySpawnError, errSpawningFailed, err.Error())
+				d.stream.Error(d.ctx, replySpawnError, errSpawningFailed, err.Error())
 			}
 			return
 		}
@@ -227,20 +232,22 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 			// sending duplicated messages, reply WithKillOk
 			if atomic.CompareAndSwapUint32(&flagKilled, 0, 1) {
 				if err := pr.Kill(); err != nil {
-					reply(d.ctx, replyKillError, errKillError, err.Error())
+					d.stream.Error(d.ctx, replyKillError, errKillError, err.Error())
 					return
 				}
 
-				reply(d.ctx, replyKillOk, nil)
+				d.stream.Close(d.ctx, replyKillOk)
 			}
 		}
 	}()
 
-	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled), nil
+	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled, d.stream), nil
 }
 
 type OutputCollector struct {
 	ctx context.Context
+
+	stream ResponseStream
 
 	flagKilled *uint32
 	notified   uint32
@@ -253,12 +260,12 @@ func (o *OutputCollector) Write(p []byte) (int, error) {
 
 	// if the first output comes earlier than Notify() is called
 	if atomic.CompareAndSwapUint32(&o.notified, 0, 1) {
-		reply(o.ctx, replySpawnWrite, notificationByte)
+		o.stream.Write(o.ctx, replySpawnWrite, notificationByte)
 		if len(p) == 0 {
 			return 0, nil
 		}
 	}
 
-	reply(o.ctx, replySpawnWrite, p)
+	o.stream.Write(o.ctx, replySpawnWrite, p)
 	return len(p), nil
 }

@@ -19,13 +19,17 @@ const (
 type spawnDispatch struct {
 	ctx         context.Context
 	cancelSpawn context.CancelFunc
-	killed      *uint32
-	process     <-chan Process
+
+	stream  ResponseStream
+	killed  *uint32
+	process <-chan Process
 }
 
-func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh <-chan Process, flagKilled *uint32) *spawnDispatch {
+func newSpawnDispatch(ctx context.Context, cancelSpawn context.CancelFunc, prCh <-chan Process, flagKilled *uint32, stream ResponseStream) *spawnDispatch {
 	return &spawnDispatch{
-		ctx:         ctx,
+		ctx: ctx,
+
+		stream:      stream,
 		cancelSpawn: cancelSpawn,
 		killed:      flagKilled,
 		process:     prCh,
@@ -61,11 +65,11 @@ func (d *spawnDispatch) asyncKill() {
 		if atomic.CompareAndSwapUint32(d.killed, 0, 1) {
 			killMeter.Mark(1)
 			if err := pr.Kill(); err != nil {
-				reply(d.ctx, replyKillError, errKillError, err.Error())
+				d.stream.Error(d.ctx, replyKillError, errKillError, err.Error())
 				return
 			}
 
-			reply(d.ctx, replyKillOk, nil)
+			d.stream.Close(d.ctx, replyKillOk)
 		}
 	case <-d.ctx.Done():
 		// NOTE: should we kill anything here?
