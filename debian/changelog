@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.1) unstable; urgency=low
+
+  * Fix(protocol): Spool & Spawn cancellation codes
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Wed, 08 Jun 2016 13:37:25 +0300
+
 cocaine-isolate-daemon (0.1.6.0) unstable; urgency=low
 
   * Feature(dispatch): implemrnt spawn EAGAIN logic
