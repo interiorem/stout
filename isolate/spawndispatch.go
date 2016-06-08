@@ -12,7 +12,7 @@ import (
 const (
 	spawnKill = 0
 
-	replyKillOk    = 0
+	replyKillOk    = 2
 	replyKillError = 1
 )
 
