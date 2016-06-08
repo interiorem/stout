@@ -131,7 +131,7 @@ func (s *initialDispatchSuite) SetUpTest(c *C) {
 	s.session = 100
 
 	s.dw = &testDownstream{
-		ch: make(chan testDownstreamItem),
+		ch: make(chan testDownstreamItem, 1000),
 	}
 
 	d := newInitialDispatch(ctx, s.dw)
@@ -174,7 +174,7 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	spoolDisp.Handle(spoolCancel, msgp.NewReader(bytes.NewReader(cancelMsg)))
 	msg := <-s.dw.ch
-	c.Assert(msg.code, DeepEquals, int64(replySpoolError))
+	c.Assert(msg.code, DeepEquals, int64(replySpoolOk))
 }
 
 func (s *initialDispatchSuite) TestSpoolError(c *C) {
