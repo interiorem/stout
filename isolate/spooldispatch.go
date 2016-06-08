@@ -41,6 +41,7 @@ func (s *spoolCancelationDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher,
 		// TODO: cancel only if I'm spooling
 		s.cancel()
 		// NOTE: do not return an err on purpose
+		s.stream.Close(s.ctx, replySpoolOk)
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", id)
