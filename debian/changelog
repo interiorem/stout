@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.2) unstable; urgency=low
+
+  * Fix(protocol): Do not close connection when dispatch is detached
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 09 Jun 2016 15:00:39 +0300
+
 cocaine-isolate-daemon (0.1.6.1) unstable; urgency=low
 
   * Fix(protocol): Spool & Spawn cancellation codes
