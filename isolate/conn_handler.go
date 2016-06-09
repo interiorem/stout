@@ -91,11 +91,13 @@ func getID(ctx context.Context) string {
 	return uniqueid
 }
 
-func (h *ConnectionHandler) next(r *msgp.Reader) (sz uint32, channel int64, c int64, err error) {
+func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel int64, c int64, err error) {
+	var sz uint32
 	sz, err = r.ReadArrayHeader()
 	if err != nil {
 		return
 	}
+	hasHeaders = sz == 4
 
 	channel, err = r.ReadInt64()
 	if err != nil {
@@ -112,33 +114,40 @@ func (h *ConnectionHandler) next(r *msgp.Reader) (sz uint32, channel int64, c in
 
 // HandleConn decodes commands from Cocaine runtime and calls dispatchers
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		apexctx.GetLogger(h.ctx).Errorf("Connection has been closed")
+	}()
+
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
 	logger := apexctx.GetLogger(h.ctx)
 
 	r := msgp.NewReader(conn)
+LOOP:
 	for {
-		size, channel, c, err := h.next(r)
+		hasHeaders, channel, c, err := h.next(r)
 		if err != nil {
 			if err == io.EOF {
-				apexctx.GetLogger(h.ctx).Errorf("Connection has been closed")
 				return
 			}
 			apexctx.GetLogger(h.ctx).WithError(err).Errorf("next(): unable to read message")
 			return
 		}
-		logger.Infof("array length %d, channel %d, number %d", size, channel, c)
+		logger.Infof("channel %d, number %d", channel, c)
 
-		// NOTE: it can be the bottleneck
 		dispatcher, ok := h.sessions.Get(channel)
 		if !ok {
-			if channel < h.highestChannel {
-				logger.Errorf("channel has been revoked: %d %d", channel, h.highestChannel)
-				return
-			} else if channel == h.highestChannel {
-				// NOTE: we cannot reply to this, because Downstream has been already closed
-				return
+			if channel <= h.highestChannel {
+				// dispatcher was detached from ResponseStream.OnClose
+				// This message must be `close` message.
+				// `channel`, `number` are parsed, skip `args` and probably `headers`
+				logger.Infof("dispatcher for channel %d was detached", channel)
+				r.Skip()
+				if hasHeaders {
+					r.Skip()
+				}
+				continue LOOP
 			}
 
 			h.highestChannel = channel
@@ -153,7 +162,7 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 		dispatcher, err = dispatcher.Handle(c, r)
 		// NOTE: remove it when the headers are being handling properly
-		if size == 4 {
+		if hasHeaders {
 			r.Skip()
 		}
 
@@ -165,11 +174,11 @@ func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 
 			logger.WithError(err).Errorf("Handle returned an error")
 			h.sessions.Detach(channel)
-			continue
+			continue LOOP
 		}
 		if dispatcher == nil {
 			h.sessions.Detach(channel)
-			continue
+			continue LOOP
 		}
 
 		h.sessions.Attach(channel, dispatcher)
