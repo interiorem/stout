@@ -179,7 +179,7 @@ func (b *Box) watchEvents() {
 			if sleep > maxSleep {
 				sleep = maxSleep
 			}
-			logger.WithError(err).Errorf("unable to listen events. Sleep %s", sleep)
+			logger.WithError(err).Warnf("unable to listen events. Sleep %s", sleep)
 			time.Sleep(sleep)
 		}
 	}
