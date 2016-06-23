@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.3) unstable; urgency=low
+
+  * Fix(docker): Spool can process \n and no-\n replies
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 24 Jun 2016 01:29:12 +0300
+
 cocaine-isolate-daemon (0.1.6.2) unstable; urgency=low
 
   * Fix(protocol): Do not close connection when dispatch is detached
