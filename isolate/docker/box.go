@@ -265,30 +265,66 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	}
 	defer body.Close()
 
-	var (
-		resp   spoolResponseProtocol
-		logger = apexctx.GetLogger(ctx).WithField("name", name)
-	)
-
-	scanner := bufio.NewScanner(body)
-	for scanner.Scan() {
-		if err = json.NewDecoder(bytes.NewReader(scanner.Bytes())).Decode(&resp); err != nil {
-			logger.WithError(err).Errorf("unable to decode JSON docker reply %s", scanner.Bytes())
-			return err
-		}
-
-		if len(resp.Error) != 0 {
-			return fmt.Errorf("spooling error %s", resp.Error)
-		}
-
-		if len(resp.Status) != 0 {
-			logger.Debugf("%s", resp.Status)
-		}
-	}
-
-	if err = scanner.Err(); err != nil {
+	if err := decodeImagePull(ctx, body); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// decodeImagePull detects Error of an image pulling proces
+// by decoding reply from Docker
+// Although Docker should reply with JSON Encoded items
+// one per line, in different versions it could vary.
+// This decoders can detect error even in mixed replies:
+// {"Status": "OK"}\n{"Status": "OK"}
+// {"Status": "OK"}{"Error": "error"}
+func decodeImagePull(ctx context.Context, r io.Reader) error {
+	logger := apexctx.GetLogger(ctx)
+	more := true
+
+	rd := bufio.NewReader(r)
+	for more {
+		line, err := rd.ReadBytes('\n')
+		switch err {
+		case nil:
+			// pass
+		case io.EOF:
+			more = false
+		default:
+			return err
+		}
+
+		if len(line) == 0 {
+			return fmt.Errorf("Empty response line")
+		}
+
+		if line[len(line)-1] == '\n' {
+			line = line[:len(line)-1]
+		}
+
+		if err = decodePullLine(line); err != nil {
+			logger.WithError(err).Errorf("unable to decode JSON docker reply")
+			return err
+		}
+	}
+	return nil
+}
+
+func decodePullLine(line []byte) error {
+	var resp spoolResponseProtocol
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	for {
+		if err := decoder.Decode(&resp); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+
+			return err
+		}
+
+		if len(resp.Error) != 0 {
+			return fmt.Errorf(resp.Error)
+		}
+	}
 }
