@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -75,4 +77,28 @@ func TestContainer(t *testing.T) {
 	container.Kill()
 	_, err = client.ContainerInspect(ctx, container.containerID)
 	assert.Error(err)
+}
+
+func TestImagePull(t *testing.T) {
+	assert := assert.New(t)
+	ctx := context.Background()
+
+	fixtures := []struct {
+		name string
+		body []byte
+		err  error
+	}{
+		{"NoEOF", []byte(`{"Status": "OK"}`), nil},
+		{"LinesCase", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}"), nil},
+		{"LinesCaseError", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}{\"Error\": \"blabla\"}"), fmt.Errorf("blabla")},
+		{"FlatCase", []byte("{\"Status\": \"OK\"}{\"Status\": \"OK\"}"), nil},
+		{"FlatCaseError", []byte(`{"Status": "OK"}{"Status": "OK"}{"Error": "blabla"}`), fmt.Errorf("blabla")},
+		{"MixedCase", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}{\"Status\": \"OK\"}"), nil},
+		{"MixedCaseError", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}{\"Error\": \"blabla\"}"), fmt.Errorf("blabla")},
+	}
+
+	for _, fixt := range fixtures {
+		err := decodeImagePull(ctx, bytes.NewReader(fixt.body))
+		assert.Equal(fixt.err, err, "invalid error for %v", fixt.name)
+	}
 }
