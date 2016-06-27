@@ -1,1 +1,2 @@
 contrib/ubic/cocaine-isolate-daemon /etc/ubic/service
+contrib/init.d/cocaine-isolate-daemon /etc/init.d/cocaine-isolate-daemon
