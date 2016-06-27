@@ -290,6 +290,9 @@ func decodeImagePull(ctx context.Context, r io.Reader) error {
 		case nil:
 			// pass
 		case io.EOF:
+			if len(line) == 0 {
+				return nil
+			}
 			more = false
 		default:
 			return err
