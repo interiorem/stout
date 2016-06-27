@@ -14,6 +14,7 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
+	"github.com/noxiouz/stout/isolate"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -79,7 +80,7 @@ func TestContainer(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestImagePull(t *testing.T) {
+func TestImagePullFromMock(t *testing.T) {
 	assert := assert.New(t)
 	ctx := context.Background()
 
@@ -88,8 +89,9 @@ func TestImagePull(t *testing.T) {
 		body []byte
 		err  error
 	}{
-		{"NoEOF", []byte(`{"Status": "OK"}`), nil},
-		{"LinesCase", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}"), nil},
+		{"NoEOF", []byte("{\"Status\": \"OK\"}\n"), nil},
+		{"LinesCase", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}\n"), nil},
+		{"LinesCaseNoEnd", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}"), nil},
 		{"LinesCaseError", []byte("{\"Status\": \"OK\"}\n{\"Status\": \"OK\"}{\"Error\": \"blabla\"}"), fmt.Errorf("blabla")},
 		{"FlatCase", []byte("{\"Status\": \"OK\"}{\"Status\": \"OK\"}"), nil},
 		{"FlatCaseError", []byte(`{"Status": "OK"}{"Status": "OK"}{"Error": "blabla"}`), fmt.Errorf("blabla")},
@@ -101,4 +103,44 @@ func TestImagePull(t *testing.T) {
 		err := decodeImagePull(ctx, bytes.NewReader(fixt.body))
 		assert.Equal(fixt.err, err, "invalid error for %v", fixt.name)
 	}
+}
+
+func TestImagePullFromRegistry(t *testing.T) {
+	assert := assert.New(t)
+	var endpoint string
+	if endpoint = os.Getenv("DOCKER_HOST"); endpoint == "" {
+		endpoint = client.DefaultDockerHost
+	}
+	client, err := client.NewClient(endpoint, "", nil, defaultHeaders)
+	assert.NoError(err)
+
+	ctx := context.Background()
+	box := Box{
+		ctx:    ctx,
+		client: client,
+		config: &dockerBoxConfig{},
+	}
+
+	var profile = isolate.Profile{
+		"registry": "docker.io",
+	}
+
+	t.Logf("Clean up docker.io/alpine:latest if it exists")
+	client.ImageRemove(ctx, "docker.io/alpine:latest", types.ImageRemoveOptions{Force: false, PruneChildren: false})
+	t.Logf("Spool via box on 'clean' system")
+	err = box.Spool(ctx, "alpine", profile)
+	assert.NoError(err)
+	imgs, err := client.ImageList(ctx, types.ImageListOptions{})
+	found := false
+	for _, img := range imgs {
+		if strings.Contains(img.RepoTags[0], "alpine") {
+			found = true
+			break
+		}
+	}
+	assert.NoError(err)
+	assert.True(found)
+	t.Logf("Spool an already spooled image")
+	err = box.Spool(ctx, "alpine", profile)
+	assert.NoError(err)
 }
