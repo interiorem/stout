@@ -241,12 +241,13 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	}
 
 	if profile.Registry == "" {
-		apexctx.GetLogger(ctx).WithFields(log.Fields{"name": name}).Info("local image will be used")
+		apexctx.GetLogger(ctx).WithField("name", name).Info("local image will be used")
 		return nil
 	}
 
-	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spooling an image").Stop(&err)
+	ref := filepath.Join(profile.Registry, profile.Repository, name)
 
+	defer apexctx.GetLogger(ctx).WithField("ref", ref).Trace("spooling an image").Stop(&err)
 	pullOpts := types.ImagePullOptions{
 		All: false,
 	}
@@ -255,17 +256,14 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		pullOpts.RegistryAuth = registryAuth
 	}
 
-	ref := fmt.Sprintf("%s:%s", filepath.Join(profile.Registry, profile.Repository, name), "latest")
-
 	body, err := b.client.ImagePull(ctx, ref, pullOpts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(
-			log.Fields{"name": name, "ref": ref}).Error("unable to pull an image")
+		apexctx.GetLogger(ctx).WithError(err).WithField("ref", ref).Error("unable to pull an image")
 		return err
 	}
 	defer body.Close()
 
-	if err := decodeImagePull(ctx, body); err != nil {
+	if err = decodeImagePull(ctx, body); err != nil {
 		return err
 	}
 
