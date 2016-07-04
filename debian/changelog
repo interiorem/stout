@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.5) unstable; urgency=low
+
+  * Feat(docker): Docker Spool supports tags
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Mon, 04 Jul 2016 13:56:51 +0300
+
 cocaine-isolate-daemon (0.1.6.4) unstable; urgency=low
 
   * Fix(docker): Spooling "last line" fix
