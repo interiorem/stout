@@ -55,10 +55,10 @@ func unpackArchive(ctx context.Context, data []byte, target string) (err error) 
 			break
 		}
 	}
-
 	defer archiveReader.Close()
 
 	tr := tar.NewReader(archiveReader)
+UNPACK:
 	for {
 		hdr, err := tr.Next()
 		if err != nil {
@@ -70,12 +70,26 @@ func unpackArchive(ctx context.Context, data []byte, target string) (err error) 
 
 		path := filepath.Join(target, hdr.Name)
 		info := hdr.FileInfo()
+
 		if info.IsDir() {
 			log.Debugf("unpackArchive: unpack directory %s (size %d) to %s", hdr.Name, hdr.Size, path)
 			if err = os.MkdirAll(path, info.Mode()); err != nil {
 				return err
 			}
-			continue
+			continue UNPACK
+		}
+
+		// NOTE: some archives don't contain headers with a directory item
+		if dirpath := filepath.Dir(path); dirpath != "." {
+			_, err = os.Stat(dirpath)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return err
+				}
+				if err = os.MkdirAll(dirpath, 0770); err != nil {
+					return err
+				}
+			}
 		}
 
 		log.Debugf("unpackArchive: unpack %s (size %d) to %s", hdr.Name, hdr.Size, path)
