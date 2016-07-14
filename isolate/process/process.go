@@ -29,10 +29,20 @@ func newProcess(ctx context.Context, executable string, args, env []string, work
 		Args:        args,
 		Dir:         workDir,
 		Path:        executable,
-		Stdout:      output,
-		Stderr:      output,
 		SysProcAttr: getSysProctAttr(),
 	}
+	// It's imposible to set io.Writer directly to Cmd, because of
+	// https://github.com/golang/go/issues/13155
+	stdErrRd, err := pr.cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	stdOutRd, err := pr.cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	go io.Copy(output, stdErrRd)
+	go io.Copy(output, stdOutRd)
 
 	if err := pr.cmd.Start(); err != nil {
 		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
