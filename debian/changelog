@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.7) unstable; urgency=low
+
+  * Fix(process): Workaround for an exec.Cmd bug
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 14 Jul 2016 21:24:28 +0300
+
 cocaine-isolate-daemon (0.1.6.6) unstable; urgency=low
 
   * Fix(process): Unpack archives with nested dir without tar headers
