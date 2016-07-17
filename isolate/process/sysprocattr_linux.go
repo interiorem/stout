@@ -8,6 +8,7 @@ import (
 
 func getSysProctAttr() *syscall.SysProcAttr {
 	attrs := &syscall.SysProcAttr{
+		Setpgid:   true,
 		Pdeathsig: syscall.SIGKILL,
 	}
 

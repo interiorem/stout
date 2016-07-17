@@ -7,5 +7,7 @@ import (
 )
 
 func getSysProctAttr() *syscall.SysProcAttr {
-	return nil
+	return &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 }

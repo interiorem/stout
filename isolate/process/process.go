@@ -3,6 +3,7 @@ package process
 import (
 	"io"
 	"os/exec"
+	"syscall"
 
 	"golang.org/x/net/context"
 
@@ -44,14 +45,23 @@ func newProcess(ctx context.Context, executable string, args, env []string, work
 	go io.Copy(output, stdErrRd)
 	go io.Copy(output, stdOutRd)
 
-	if err := pr.cmd.Start(); err != nil {
+	if err = pr.cmd.Start(); err != nil {
 		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
 		return nil, err
 	}
+
 	apexctx.GetLogger(ctx).WithField("pid", pr.cmd.Process.Pid).Info("executable has been launched")
 	return &pr, nil
 }
 
 func (p *process) Kill() error {
-	return p.cmd.Process.Kill()
+	return killPg(p.cmd.Process.Pid)
+}
+
+func killPg(pgid int) error {
+	if pgid > 0 {
+		pgid = -pgid
+	}
+
+	return syscall.Kill(pgid, syscall.SIGKILL)
 }
