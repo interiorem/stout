@@ -60,7 +60,7 @@ func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
 	}
 }
 
-func (b *testBox) Spawn(ctx context.Context, config SpawnConfig, wr io.Writer) (Process, error) {
+func (b *testBox) Spawn(ctx context.Context, config SpawnConfig, wr io.WriteCloser) (Process, error) {
 	return spawnTestProcess(ctx, wr), nil
 }
 

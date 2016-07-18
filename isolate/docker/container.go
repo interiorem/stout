@@ -129,7 +129,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 	return pr, nil
 }
 
-func (p *process) startContainer(wr io.Writer) error {
+func (p *process) startContainer(wr io.WriteCloser) error {
 	var startBarier = make(chan struct{})
 	go p.collectOutput(startBarier, wr)
 	if err := p.client.ContainerStart(p.ctx, p.containerID, ""); err != nil {
@@ -158,7 +158,9 @@ func (p *process) remove() {
 	containerRemove(p.client, p.ctx, p.containerID)
 }
 
-func (p *process) collectOutput(started chan struct{}, writer io.Writer) {
+func (p *process) collectOutput(started chan struct{}, writer io.WriteCloser) {
+	// NOTE: It means that either Docker downs or a worker
+	defer writer.Close()
 	attachOpts := types.ContainerAttachOptions{
 		Stream: true,
 		Stdin:  false,

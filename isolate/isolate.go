@@ -19,7 +19,7 @@ type (
 
 	Box interface {
 		Spool(ctx context.Context, name string, opts Profile) error
-		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
+		Spawn(ctx context.Context, config SpawnConfig, output io.WriteCloser) (Process, error)
 		Close() error
 	}
 

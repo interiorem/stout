@@ -57,6 +57,14 @@ func (suite *BoxSuite) TearDownSuite(c *check.C) {
 	}
 }
 
+type nopCloser struct {
+	io.Writer
+}
+
+func (nopCloser) Close() error {
+	return nil
+}
+
 // TestSpawn spool code, spawns special worker.sh to verify if env and args are set correctly and
 // output is collected properly
 func (suite *BoxSuite) TestSpawn(c *check.C) {
@@ -89,7 +97,7 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	}
 
 	body := new(bytes.Buffer)
-	pr, err := suite.Box.Spawn(ctx, config, body)
+	pr, err := suite.Box.Spawn(ctx, config, nopCloser{body})
 	c.Assert(err, check.IsNil)
 	// TODO: add synchronized writer
 	time.Sleep(5 * time.Second)

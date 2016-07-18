@@ -20,7 +20,7 @@ type process struct {
 	cmd *exec.Cmd
 }
 
-func newProcess(ctx context.Context, executable string, args, env []string, workDir string, output io.Writer) (*process, error) {
+func newProcess(ctx context.Context, executable string, args, env []string, workDir string, output io.WriteCloser) (*process, error) {
 	pr := process{
 		ctx: ctx,
 	}
@@ -42,8 +42,13 @@ func newProcess(ctx context.Context, executable string, args, env []string, work
 	if err != nil {
 		return nil, err
 	}
-	go io.Copy(output, stdErrRd)
-	go io.Copy(output, stdOutRd)
+
+	copyOutput := func(dst io.WriteCloser, src io.Reader) {
+		io.Copy(dst, src)
+		dst.Close()
+	}
+	go copyOutput(output, stdErrRd)
+	go copyOutput(output, stdOutRd)
 
 	if err = pr.cmd.Start(); err != nil {
 		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)

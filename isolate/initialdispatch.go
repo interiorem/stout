@@ -251,6 +251,7 @@ type OutputCollector struct {
 
 	flagKilled *uint32
 	notified   uint32
+	closed     uint32
 }
 
 func (o *OutputCollector) Write(p []byte) (int, error) {
@@ -268,4 +269,12 @@ func (o *OutputCollector) Write(p []byte) (int, error) {
 
 	o.stream.Write(o.ctx, replySpawnWrite, p)
 	return len(p), nil
+}
+
+func (o *OutputCollector) Close() error {
+	if atomic.CompareAndSwapUint32(&o.closed, 0, 1) && atomic.LoadUint32(o.flagKilled) == 0 {
+		o.stream.Close(o.ctx, replyKillOk)
+	}
+
+	return nil
 }
