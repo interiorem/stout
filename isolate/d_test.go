@@ -23,7 +23,7 @@ func init() {
 }
 
 type testDownstreamItem struct {
-	code int64
+	code uint64
 	args []interface{}
 }
 
@@ -31,17 +31,17 @@ type testDownstream struct {
 	ch chan testDownstreamItem
 }
 
-func (t *testDownstream) Write(ctx context.Context, code int64, data []byte) error {
+func (t *testDownstream) Write(ctx context.Context, code uint64, data []byte) error {
 	t.ch <- testDownstreamItem{code, []interface{}{data}}
 	return nil
 }
 
-func (t *testDownstream) Error(ctx context.Context, code int64, errorcode [2]int, msg string) error {
+func (t *testDownstream) Error(ctx context.Context, code uint64, errorcode [2]int, msg string) error {
 	t.ch <- testDownstreamItem{code, []interface{}{errorcode, msg}}
 	return nil
 }
 
-func (t *testDownstream) Close(ctx context.Context, code int64) error {
+func (t *testDownstream) Close(ctx context.Context, code uint64) error {
 	t.ch <- testDownstreamItem{code, []interface{}{}}
 	return nil
 }
@@ -156,7 +156,7 @@ func (s *initialDispatchSuite) TestSpool(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	msg := <-s.dw.ch
-	c.Assert(msg.code, DeepEquals, int64(replySpoolOk))
+	c.Assert(msg.code, DeepEquals, uint64(replySpoolOk))
 }
 
 func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
@@ -174,7 +174,7 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	spoolDisp.Handle(spoolCancel, msgp.NewReader(bytes.NewReader(cancelMsg)))
 	msg := <-s.dw.ch
-	c.Assert(msg.code, DeepEquals, int64(replySpoolOk))
+	c.Assert(msg.code, DeepEquals, uint64(replySpoolOk))
 }
 
 func (s *initialDispatchSuite) TestSpoolError(c *C) {
@@ -190,7 +190,7 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(spoolDisp, FitsTypeOf, &spoolCancelationDispatch{})
 	msg := <-s.dw.ch
-	c.Assert(msg.code, Equals, int64(replySpoolError))
+	c.Assert(msg.code, Equals, uint64(replySpoolError))
 }
 
 func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
@@ -212,7 +212,7 @@ func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 
 	// First chunk must be empty to notify about start
 	msg := <-s.dw.ch
-	c.Assert(msg.code, DeepEquals, int64(replySpawnWrite))
+	c.Assert(msg.code, DeepEquals, uint64(replySpawnWrite))
 	c.Assert(msg.args, HasLen, 1)
 	data, ok := msg.args[0].([]byte)
 	c.Assert(ok, Equals, true)
@@ -220,7 +220,7 @@ func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 
 	// Let's read some output
 	msg = <-s.dw.ch
-	c.Assert(msg.code, Equals, int64(replySpawnWrite))
+	c.Assert(msg.code, Equals, uint64(replySpawnWrite))
 	c.Assert(msg.args, HasLen, 1)
 
 	data, ok = msg.args[0].([]byte)

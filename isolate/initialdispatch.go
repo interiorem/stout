@@ -82,7 +82,7 @@ func newInitialDispatch(ctx context.Context, stream ResponseStream) Dispatcher {
 	}
 }
 
-func (d *initialDispatch) Handle(id int64, r *msgp.Reader) (Dispatcher, error) {
+func (d *initialDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher, error) {
 	var err error
 	switch id {
 	case spool:

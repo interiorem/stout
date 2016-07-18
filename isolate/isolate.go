@@ -24,9 +24,9 @@ type (
 	}
 
 	ResponseStream interface {
-		Write(ctx context.Context, num int64, data []byte) error
-		Error(ctx context.Context, num int64, code [2]int, msg string) error
-		Close(ctx context.Context, num int64) error
+		Write(ctx context.Context, num uint64, data []byte) error
+		Error(ctx context.Context, num uint64, code [2]int, msg string) error
+		Close(ctx context.Context, num uint64) error
 	}
 
 	Process interface {
