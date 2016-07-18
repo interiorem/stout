@@ -129,6 +129,8 @@ func (b *Box) wait() {
 			pr, ok := b.children[pid]
 			if ok {
 				delete(b.children, pid)
+				// Send SIGKILL to a process group associated with the child
+				killPg(pid)
 				// There is no point to check error here,
 				// as it always returns "Wait error", because Wait4 has been already called.
 				// But we have to call Wait to close all associated fds and to release other resources
