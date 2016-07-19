@@ -17,28 +17,28 @@ import (
 type sessions struct {
 	sync.Mutex
 
-	session map[int64]Dispatcher
+	session map[uint64]Dispatcher
 }
 
 func newSessions() *sessions {
 	return &sessions{
-		session: make(map[int64]Dispatcher),
+		session: make(map[uint64]Dispatcher),
 	}
 }
 
-func (s *sessions) Attach(channel int64, dispatch Dispatcher) {
+func (s *sessions) Attach(channel uint64, dispatch Dispatcher) {
 	s.Lock()
 	s.session[channel] = dispatch
 	s.Unlock()
 }
 
-func (s *sessions) Detach(channel int64) {
+func (s *sessions) Detach(channel uint64) {
 	s.Lock()
 	delete(s.session, channel)
 	s.Unlock()
 }
 
-func (s *sessions) Get(channel int64) (Dispatcher, bool) {
+func (s *sessions) Get(channel uint64) (Dispatcher, bool) {
 	s.Lock()
 	dispatch, ok := s.session[channel]
 	s.Unlock()
@@ -47,14 +47,14 @@ func (s *sessions) Get(channel int64) (Dispatcher, bool) {
 
 // Dispatcher handles incoming messages and keeps the state of the channel
 type Dispatcher interface {
-	Handle(c int64, r *msgp.Reader) (Dispatcher, error)
+	Handle(c uint64, r *msgp.Reader) (Dispatcher, error)
 }
 
 // ConnectionHandler provides method to handle accepted connection for Listener
 type ConnectionHandler struct {
 	ctx context.Context
 	*sessions
-	highestChannel int64
+	highestChannel uint64
 
 	newDispatcher dispatcherInit
 
@@ -91,7 +91,7 @@ func getID(ctx context.Context) string {
 	return uniqueid
 }
 
-func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel int64, c int64, err error) {
+func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel uint64, c uint64, err error) {
 	var sz uint32
 	sz, err = r.ReadArrayHeader()
 	if err != nil {
@@ -99,12 +99,12 @@ func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel int64
 	}
 	hasHeaders = sz == 4
 
-	channel, err = r.ReadInt64()
+	channel, err = r.ReadUint64()
 	if err != nil {
 		return
 	}
 
-	c, err = r.ReadInt64()
+	c, err = r.ReadUint64()
 	if err != nil {
 		return
 	}
@@ -188,7 +188,7 @@ LOOP:
 type responseStream struct {
 	ctx     context.Context
 	wr      io.Writer
-	channel int64
+	channel uint64
 
 	onClose func(ctx context.Context)
 	closed  uint32
@@ -196,7 +196,7 @@ type responseStream struct {
 
 var errStreamIsClosed = errors.New("Stream is closed")
 
-func newResponseStream(ctx context.Context, wr io.Writer, channel int64) *responseStream {
+func newResponseStream(ctx context.Context, wr io.Writer, channel uint64) *responseStream {
 	return &responseStream{
 		ctx:     ctx,
 		wr:      wr,
@@ -221,7 +221,7 @@ func (r *responseStream) close(ctx context.Context) error {
 	return nil
 }
 
-func (r *responseStream) Write(ctx context.Context, num int64, data []byte) error {
+func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) error {
 	if atomic.LoadUint32(&r.closed) == 1 {
 		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
 		return errStreamIsClosed
@@ -232,8 +232,8 @@ func (r *responseStream) Write(ctx context.Context, num int64, data []byte) erro
 
 	// NOTE: `3` without headers!
 	p = msgp.AppendArrayHeader(p, 3)
-	p = msgp.AppendInt64(p, r.channel)
-	p = msgp.AppendInt64(p, num)
+	p = msgp.AppendUint64(p, r.channel)
+	p = msgp.AppendUint64(p, num)
 
 	p = msgp.AppendArrayHeader(p, 1)
 	p = msgp.AppendStringFromBytes(p, data)
@@ -245,7 +245,7 @@ func (r *responseStream) Write(ctx context.Context, num int64, data []byte) erro
 	return nil
 }
 
-func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg string) error {
+func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg string) error {
 	if err := r.close(ctx); err != nil {
 		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Error")
 		return err
@@ -256,8 +256,8 @@ func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg 
 
 	// NOTE: `3` without headers!
 	p = msgp.AppendArrayHeader(p, 3)
-	p = msgp.AppendInt64(p, r.channel)
-	p = msgp.AppendInt64(p, num)
+	p = msgp.AppendUint64(p, r.channel)
+	p = msgp.AppendUint64(p, num)
 
 	// code_category + error message
 	p = msgp.AppendArrayHeader(p, 2)
@@ -277,7 +277,7 @@ func (r *responseStream) Error(ctx context.Context, num int64, code [2]int, msg 
 	return nil
 }
 
-func (r *responseStream) Close(ctx context.Context, num int64) error {
+func (r *responseStream) Close(ctx context.Context, num uint64) error {
 	if err := r.close(ctx); err != nil {
 		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Close")
 		return err
@@ -292,8 +292,8 @@ func (r *responseStream) Close(ctx context.Context, num int64) error {
 
 	// NOTE: `3` without headers!
 	p = msgp.AppendArrayHeader(p, 3)
-	p = msgp.AppendInt64(p, r.channel)
-	p = msgp.AppendInt64(p, num)
+	p = msgp.AppendUint64(p, r.channel)
+	p = msgp.AppendUint64(p, num)
 
 	p = msgp.AppendArrayHeader(p, 0)
 	if _, err := r.wr.Write(p); err != nil {
