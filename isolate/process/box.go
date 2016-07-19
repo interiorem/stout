@@ -156,7 +156,7 @@ func (b *Box) wait() {
 }
 
 // Spawn spawns a new process
-func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
+func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.WriteCloser) (isolate.Process, error) {
 	spoolPath := b.spoolPath
 	if val, ok := config.Opts["spool"]; ok {
 		spoolPath = fmt.Sprintf("%s", val)

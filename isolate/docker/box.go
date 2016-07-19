@@ -192,7 +192,7 @@ func (b *Box) Close() error {
 }
 
 // Spawn spawns a prcess using container
-func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
+func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.WriteCloser) (isolate.Process, error) {
 	profile, err := convertProfile(config.Opts)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")

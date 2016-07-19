@@ -1,6 +1,7 @@
 package process
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -11,6 +12,14 @@ import (
 
 	"github.com/noxiouz/stout/isolate"
 )
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (nopCloser) Close() error {
+	return nil
+}
 
 func BenchmarkSpawnSeq(b *testing.B) {
 	spoolDir, err := ioutil.TempDir("", "example")
@@ -44,7 +53,7 @@ func BenchmarkSpawnSeq(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p, err := box.Spawn(ctx, config, ioutil.Discard)
+		p, err := box.Spawn(ctx, config, nopCloser{ioutil.Discard})
 		if err != nil {
 			b.Fatal("Spawn error: ", err)
 		}
@@ -85,7 +94,7 @@ func BenchmarkSpawnParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			p, err := box.Spawn(ctx, config, ioutil.Discard)
+			p, err := box.Spawn(ctx, config, nopCloser{ioutil.Discard})
 			if err != nil {
 				b.Fatal("Spawn error: ", err)
 			}
