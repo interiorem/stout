@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.9) unstable; urgency=low
+
+  * Fix(protocol): Unpack channels to uint64
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 19 Jul 2016 12:59:53 +0300
+
 cocaine-isolate-daemon (0.1.6.8) unstable; urgency=low
 
   * Feat(process): Set process group
