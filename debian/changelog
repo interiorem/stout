@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.11) unstable; urgency=low
+
+  * Optimization(process): decrease memory consumption
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 21 Jul 2016 00:33:22 +0300
+
 cocaine-isolate-daemon (0.1.6.10) unstable; urgency=low
 
   * AUX(process): fix logs and add zombieWaitTimer
