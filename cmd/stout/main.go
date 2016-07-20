@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/json"
+	_ "expvar"
 	"fmt"
 	"io/ioutil"
 	"net"
