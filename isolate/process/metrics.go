@@ -17,6 +17,8 @@ var (
 
 	totalSpawnTimer = metrics.NewTimer()
 	procsNewTimer   = metrics.NewTimer()
+
+	zombieWaitTimer = metrics.NewTimer()
 )
 
 func init() {
@@ -27,4 +29,5 @@ func init() {
 	registry.Register("procs_waited", procsWaitedCounter)
 	registry.Register("total_spawn_timer", totalSpawnTimer)
 	registry.Register("procs_new_timer", procsNewTimer)
+	registry.Register("zombie_wait_timer", zombieWaitTimer)
 }

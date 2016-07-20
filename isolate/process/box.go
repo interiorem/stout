@@ -94,15 +94,18 @@ func (b *Box) sigchldHandler() {
 	sigchld := make(chan os.Signal, 1)
 	signal.Notify(sigchld, syscall.SIGCHLD)
 	defer signal.Stop(sigchld)
-
+	var beforeWait, afterWait time.Time
 	for {
 		select {
 		case <-sigchld:
 			// NOTE: due to possible signal merging
 			// Box.wait tries to call Wait unless ECHILD occures
 			b.mu.Lock()
+			beforeWait = time.Now()
 			b.wait()
+			afterWait = time.Now()
 			b.mu.Unlock()
+			zombieWaitTimer.Update(afterWait.Sub(beforeWait))
 		case <-b.ctx.Done():
 			return
 		}
