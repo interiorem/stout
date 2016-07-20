@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.10) unstable; urgency=low
+
+  * AUX(process): fix logs and add zombieWaitTimer
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Wed, 20 Jul 2016 16:47:06 +0300
+
 cocaine-isolate-daemon (0.1.6.9) unstable; urgency=low
 
   * Fix(protocol): Unpack channels to uint64
