@@ -94,15 +94,18 @@ func (b *Box) sigchldHandler() {
 	sigchld := make(chan os.Signal, 1)
 	signal.Notify(sigchld, syscall.SIGCHLD)
 	defer signal.Stop(sigchld)
-
+	var beforeWait, afterWait time.Time
 	for {
 		select {
 		case <-sigchld:
 			// NOTE: due to possible signal merging
 			// Box.wait tries to call Wait unless ECHILD occures
 			b.mu.Lock()
+			beforeWait = time.Now()
 			b.wait()
+			afterWait = time.Now()
 			b.mu.Unlock()
+			zombieWaitTimer.Update(afterWait.Sub(beforeWait))
 		case <-b.ctx.Done():
 			return
 		}
@@ -156,7 +159,7 @@ func (b *Box) wait() {
 }
 
 // Spawn spawns a new process
-func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
+func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (proc isolate.Process, err error) {
 	spoolPath := b.spoolPath
 	if val, ok := config.Opts["spool"]; ok {
 		spoolPath = fmt.Sprintf("%s", val)
@@ -178,11 +181,6 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	for k, v := range config.Args {
 		packedArgs = append(packedArgs, k, v)
 	}
-
-	var (
-		err error
-		pr  *process
-	)
 
 	defer apexctx.GetLogger(ctx).WithFields(
 		log.Fields{"name": config.Name, "executable": config.Executable,
@@ -212,7 +210,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	}
 
 	newProcStart := time.Now()
-	pr, err = newProcess(ctx, execPath, packedArgs, packedEnv, workDir, output)
+	pr, err := newProcess(ctx, execPath, packedArgs, packedEnv, workDir, output)
 	newProcStarted := time.Now()
 	// Update has lock, so move it out from Hot spot
 	defer procsNewTimer.Update(newProcStarted.Sub(newProcStart))
