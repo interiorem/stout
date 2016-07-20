@@ -13,37 +13,23 @@ import (
 
 type cocaineCodeStorage struct {
 	m       sync.Mutex
-	service *cocaine.Service
 	locator []string
 }
 
-func (st *cocaineCodeStorage) lazyStorageCreate(ctx context.Context) (err error) {
+func (st *cocaineCodeStorage) createStorage(ctx context.Context) (service *cocaine.Service, err error) {
 	defer apexctx.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
-
-	st.m.Lock()
-	defer st.m.Unlock()
-	if st.service != nil {
-		return nil
-	}
-
-	var service *cocaine.Service
-	service, err = cocaine.NewService(ctx, "storage", st.locator)
-	if err != nil {
-		return err
-	}
-
-	st.service = service
-
-	return nil
+	return cocaine.NewService(ctx, "storage", st.locator)
 }
 
 func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data []byte, err error) {
-	if err = st.lazyStorageCreate(ctx); err != nil {
+	storage, err := st.createStorage(ctx)
+	if err != nil {
 		return nil, err
 	}
+	defer storage.Close()
 	defer apexctx.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
 
-	channel, err := st.service.Call(ctx, "read", "apps", appname)
+	channel, err := storage.Call(ctx, "read", "apps", appname)
 	if err != nil {
 		return nil, err
 	}
