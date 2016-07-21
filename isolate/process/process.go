@@ -8,11 +8,6 @@ import (
 	"golang.org/x/net/context"
 
 	apexctx "github.com/m0sth8/context"
-	"github.com/noxiouz/stout/isolate"
-)
-
-var (
-	_ isolate.Process = &process{}
 )
 
 type process struct {
