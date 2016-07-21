@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.6.12) unstable; urgency=low
+
+  * Optimization(process): Spool uses one copy of on archive
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 21 Jul 2016 11:44:30 +0300
+
 cocaine-isolate-daemon (0.1.6.11) unstable; urgency=low
 
   * Optimization(process): decrease memory consumption
