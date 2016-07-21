@@ -40,13 +40,13 @@
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/digest",
-			"Comment": "v2.4.1-102-g8ebf288",
-			"Rev": "8ebf288d8f6571faaa0968cb3ccaf8c8338db1d4"
+			"Comment": "v2.5.0-rc.1-40-g4bf4a25",
+			"Rev": "4bf4a259244e3eb286e974bb81ea946450a7e344"
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/reference",
-			"Comment": "v2.4.1-102-g8ebf288",
-			"Rev": "8ebf288d8f6571faaa0968cb3ccaf8c8338db1d4"
+			"Comment": "v2.5.0-rc.1-40-g4bf4a25",
+			"Rev": "4bf4a259244e3eb286e974bb81ea946450a7e344"
 		},
 		{
 			"ImportPath": "github.com/docker/engine-api/client",
@@ -178,20 +178,26 @@
 			"Rev": "05e600edf28f1b907005ddf6b0488fe68b819971"
 		},
 		{
-			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "1d5269ed4e89d423d40362a0914e1c99adb13cc8"
-		},
-		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "972f0c5fbe4ae29e666c3f78c3ed42ae7a448b0a"
+			"Rev": "4876518f9e71663000c348837735820161a42df7"
 		},
 		{
 			"ImportPath": "golang.org/x/net/proxy",
-			"Rev": "972f0c5fbe4ae29e666c3f78c3ed42ae7a448b0a"
+			"Rev": "4876518f9e71663000c348837735820161a42df7"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
 			"Rev": "64131543e7896d5bcc6bd5a76287eb75ea96c673"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/vendor/github.com/davecgh/go-spew/spew",
+			"Comment": "v1.1.3-16-g6cb3b85",
+			"Rev": "6cb3b85ef5a0efef77caef88363ec4d4b5c0976d"
+		},
+		{
+			"ImportPath": "github.com/stretchr/testify/vendor/github.com/pmezard/go-difflib/difflib",
+			"Comment": "v1.1.3-16-g6cb3b85",
+			"Rev": "6cb3b85ef5a0efef77caef88363ec4d4b5c0976d"
 		}
 	]
 }
