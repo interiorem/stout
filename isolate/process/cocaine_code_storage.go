@@ -1,14 +1,16 @@
 package process
 
 import (
+	"fmt"
 	"sync"
 
 	"golang.org/x/net/context"
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
-	"github.com/ugorji/go/codec"
 
 	apexctx "github.com/m0sth8/context"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
 type cocaineCodeStorage struct {
@@ -39,13 +41,28 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 		return nil, err
 	}
 
-	var raw []byte
-	if err = res.ExtractTuple(&raw); err != nil {
-		return nil, err
+	num, val, err := res.Result()
+	if err != nil || num != 0 || len(val) != 1 {
+		return nil, fmt.Errorf("invalid Storage service reply err: %v, num %d, len(val): %d", err, num, len(val))
 	}
 
-	if err = codec.NewDecoderBytes(raw, &codec.MsgpackHandle{}).Decode(&data); err != nil {
-		return nil, err
+	var raw, rest []byte
+	raw, ok := val[0].([]byte)
+	if !ok {
+		return nil, fmt.Errorf("invalid Storage.Read value type %T", val[0])
 	}
-	return data, nil
+
+	switch tp := msgp.NextType(raw); tp {
+	case msgp.BinType:
+		data, rest, err = msgp.ReadBytesZC(raw)
+	case msgp.StrType:
+		data, rest, err = msgp.ReadStringZC(raw)
+	default:
+		return nil, fmt.Errorf("invalid msgpack type for an archive: %s", tp)
+	}
+
+	if len(rest) != 0 {
+		apexctx.GetLogger(ctx).WithField("app", appname).Warnf("Some left unpacked: %d", len(rest))
+	}
+	return data, err
 }
