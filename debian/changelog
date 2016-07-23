@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.0) unstable; urgency=low
+
+  * Feat(isolation): introduce Porto support
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Sat, 23 Jul 2016 15:52:42 +0300
+
 cocaine-isolate-daemon (0.1.6.12) unstable; urgency=low
 
   * Optimization(process): Spool uses one copy of on archive
