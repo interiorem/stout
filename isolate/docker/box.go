@@ -193,7 +193,7 @@ func (b *Box) Close() error {
 
 // Spawn spawns a prcess using container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
-	profile, err := convertProfile(config.Opts)
+	profile, err := ConvertProfile(config.Opts)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
@@ -234,7 +234,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 // Spool spools an image with a tag latest
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
-	profile, err := convertProfile(opts)
+	profile, err := ConvertProfile(opts)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
 		return err
