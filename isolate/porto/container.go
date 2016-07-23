@@ -97,27 +97,32 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		}
 		apexctx.GetLogger(ctx).WithField("container", cfg.ID).Info("volume already exists")
 	} else {
-		apexctx.GetLogger(ctx).WithField("container", cfg.ID).Infof("Created volume %v", volumeDescription)
+		apexctx.GetLogger(ctx).WithField("container", cfg.ID).Infof("created volume %v", volumeDescription)
 	}
 
 	if err = portoConn.Create(cfg.ID); err != nil {
 		return nil, err
 	}
-	// TODO: Not sure it gonna work if RuntimePath differs from the host one
-	bind := filepath.Dir(info.args["--endpoint"]) + " " + info.RuntimePath
+
+	// NOTE: Porto cannot mount directories to symlinked dirs
+	hostDir := info.args["--endpoint"]
+	info.args["--endpoint"] = "/run/cocaine"
+	bind := hostDir + " " + info.args["--endpoint"]
+	if err = portoConn.SetProperty(cfg.ID, "bind", bind); err != nil {
+		return nil, err
+	}
 	if err = portoConn.SetProperty(cfg.ID, "command", formatCommand(info.executable, info.args)); err != nil {
 		return nil, err
 	}
 	if err = portoConn.SetProperty(cfg.ID, "env", formatEnv(info.env)); err != nil {
 		return nil, err
 	}
-	if err = portoConn.SetProperty(cfg.ID, "cwd", info.Cwd); err != nil {
-		return nil, err
+	if info.Cwd != "" {
+		if err = portoConn.SetProperty(cfg.ID, "cwd", info.Cwd); err != nil {
+			return nil, err
+		}
 	}
 	if err = portoConn.SetProperty(cfg.ID, "net", pickNetwork(string(info.NetworkMode))); err != nil {
-		return nil, err
-	}
-	if err = portoConn.SetProperty(cfg.ID, "bind", bind); err != nil {
 		return nil, err
 	}
 	if info.Resources.Memory != 0 {

@@ -190,7 +190,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	if err = portoConn.RemoveLayer(layerName); err != nil && !isEqualPortoError(err, portorpc.EError_LayerNotFound) {
 		return err
 	}
-
+	apexctx.GetLogger(ctx).WithField("name", name).Infof("create a layer %s in Porto with merge", layerName)
 	for _, descriptor := range manifest.References() {
 		blobPath, err := b.blobRepo.Get(ctx, repo, descriptor.Digest)
 		if err != nil {
@@ -200,7 +200,6 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -246,6 +245,8 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		return nil, isolate.ErrSpawningCancelled
 	}
 	defer b.spawnSM.Release()
+
+	apexctx.GetLogger(ctx).WithFields(log.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 
 	containersCreatedCounter.Inc(1)
 	pr, err := newContainer(ctx, portoConn, cfg, ei)
