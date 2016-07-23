@@ -8,11 +8,15 @@ go:
 services:
  - docker
 
+before_install:
+ - docker run -d -p 5000:5000 --restart=always --name registry registry:2
+ - sudo groupadd porto && sudo dpkg -i ci/yandex-porto_2.11_amd64.deb -y || sudo apt-get install -f -y
+
 install:
  - go env
 
 script:
- - make
+ - make test
  - make build_travis_release
 
 after_success:
