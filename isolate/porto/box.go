@@ -61,6 +61,7 @@ type Box struct {
 
 // NewBox creates new Box
 func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+	apexctx.GetLogger(ctx).Warn("Porto Box is unstable")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
 	}

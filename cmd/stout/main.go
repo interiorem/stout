@@ -22,8 +22,10 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/docker"
-	"github.com/noxiouz/stout/isolate/process"
+	_ "github.com/noxiouz/stout/isolate/docker"
+	_ "github.com/noxiouz/stout/isolate/porto"
+	_ "github.com/noxiouz/stout/isolate/process"
+
 	"github.com/noxiouz/stout/pkg/config"
 	"github.com/noxiouz/stout/pkg/exportmetrics"
 	"github.com/noxiouz/stout/pkg/fds"
@@ -206,16 +208,8 @@ func main() {
 
 	boxes := isolate.Boxes{}
 	for name, cfg := range config.Isolate {
-		var box isolate.Box
 		boxCtx := apexctx.WithLogger(ctx, logger.WithField("box", name))
-		switch name {
-		case "docker":
-			box, err = docker.NewBox(boxCtx, cfg)
-		case "process":
-			box, err = process.NewBox(boxCtx, cfg)
-		default:
-			logger.WithError(err).WithField("box", name).Fatal("unknown box type")
-		}
+		box, err := isolate.ConstructBox(boxCtx, name, cfg)
 		if err != nil {
 			logger.WithError(err).WithField("box", name).Fatal("unable to create box")
 		}
