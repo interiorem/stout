@@ -30,7 +30,7 @@ type Profile struct {
 	Tmpfs     map[string]string `json:"tmpfs"`
 }
 
-func convertProfile(rawprofile isolate.Profile) (*Profile, error) {
+func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
 	// Create profile with default values
 	// They can be overwritten by decode
 	var profile = &Profile{

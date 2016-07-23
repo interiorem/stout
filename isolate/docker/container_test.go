@@ -32,10 +32,10 @@ func TestContainer(t *testing.T) {
 	version, err := client.ServerVersion(ctx)
 	assert.NoError(err)
 
-	imgs, err := client.ImageList(ctx, types.ImageListOptions{MatchName: "ubuntu:trusty"})
+	imgs, err := client.ImageList(ctx, types.ImageListOptions{MatchName: "alpine"})
 	assert.NoError(err)
 	if len(imgs) == 0 {
-		resp, err := client.ImagePull(ctx, "ubuntu:trusty", types.ImagePullOptions{})
+		resp, err := client.ImagePull(ctx, "alpine", types.ImagePullOptions{})
 		assert.NoError(err)
 		io.Copy(ioutil.Discard, resp)
 		resp.Close()
@@ -56,7 +56,7 @@ func TestContainer(t *testing.T) {
 	args := map[string]string{"--endpoint": "/var/run/cocaine.sock"}
 	env := map[string]string{"A": "B"}
 
-	container, err := newContainer(ctx, client, &profile, "ubuntu:trusty", "echo", args, env)
+	container, err := newContainer(ctx, client, &profile, "alpine", "echo", args, env)
 	assert.NoError(err)
 
 	inspect, err := client.ContainerInspect(ctx, container.containerID)
