@@ -24,6 +24,7 @@ func (d *JSONEncodedDuration) UnmarshalJSON(b []byte) error {
 
 // Config describes a configuration file for the daemon
 type Config struct {
+	Version     int      `json:"version"`
 	Endpoints   []string `json:"endpoints"`
 	DebugServer string   `json:"debugserver"`
 	Logger      struct {
@@ -35,7 +36,10 @@ type Config struct {
 		Period JSONEncodedDuration `json:"period"`
 		Args   json.RawMessage     `json:"args"`
 	} `json:"metrics"`
-	Isolate map[string]isolate.BoxConfig `json:"isolate"`
+	Isolate map[string]struct {
+		Type string            `json:"type"`
+		Args isolate.BoxConfig `json:"args"`
+	} `json:"isolate"`
 }
 
 func (c *Config) Validate() error {
