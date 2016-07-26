@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.2) unstable; urgency=low
+
+  * isolate(porto): add waitLoop to track dead containers
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 26 Jul 2016 14:32:39 +0300
+
 cocaine-isolate-daemon (0.1.7.1) unstable; urgency=low
 
   * config(main): allow to specify a name to plugin (Config changed)
