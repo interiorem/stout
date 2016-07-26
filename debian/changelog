@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.1) unstable; urgency=low
+
+  * config(main): allow to specify a name to plugin (Config changed)
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Tue, 26 Jul 2016 11:22:12 +0300
+
 cocaine-isolate-daemon (0.1.7.0) unstable; urgency=low
 
   * Feat(isolation): introduce Porto support
