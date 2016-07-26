@@ -57,6 +57,8 @@ type Box struct {
 	muContainers sync.Mutex
 	containers   map[string]*container
 	blobRepo     BlobRepository
+
+	onClose context.CancelFunc
 }
 
 // NewBox creates new Box
@@ -111,17 +113,93 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		},
 	}
 
+	ctx, onClose := context.WithCancel(ctx)
 	box := &Box{
 		config:     config,
 		instanceID: uuid.New(),
 		transport:  tr,
 		spawnSM:    semaphore.New(config.SpawnConcurrency),
 		containers: make(map[string]*container),
+		onClose:    onClose,
 
 		blobRepo: blobRepo,
 	}
 
+	go box.waitLoop(ctx)
+
 	return box, nil
+}
+
+func (b *Box) waitLoop(ctx context.Context) {
+	apexctx.GetLogger(ctx).Info("start waitLoop")
+	var (
+		portoConn porto.API
+		err       error
+	)
+
+	var waitTimeout = 30 * time.Second
+
+	closed := func(portoConn porto.API) bool {
+		select {
+		case <-ctx.Done():
+			if portoConn != nil {
+				portoConn.Close()
+			}
+			return true
+		default:
+			return false
+		}
+	}
+
+LOOP:
+	for {
+		apexctx.GetLogger(ctx).Info("next iteration of waitLoop")
+		if closed(portoConn) {
+			return
+		}
+		// Connect to Porto if we have not connected yet.
+		// In case of error: wait either a fixed timeout or closing of Box
+		if portoConn == nil {
+			apexctx.GetLogger(ctx).Info("waitLoop: connect to Portod")
+			portoConn, err = porto.Connect()
+			if err != nil {
+				apexctx.GetLogger(ctx).WithError(err).Warn("unable to connect to Portod")
+				select {
+				case <-time.After(time.Second):
+					continue LOOP
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+
+		// * means all containers
+		// if no containers dead for waitTimeout, name will be an empty string
+		containerName, err := portoConn.Wait([]string{"*"}, 30*waitTimeout)
+		if err != nil {
+			portoConn.Close()
+			portoConn = nil
+			continue LOOP
+		}
+
+		if containerName != "" {
+			apexctx.GetLogger(ctx).Infof("Wait reports %s to be dead", containerName)
+			b.muContainers.Lock()
+			container, ok := b.containers[containerName]
+			if ok {
+				delete(b.containers, containerName)
+			}
+			rest := len(b.containers)
+			b.muContainers.Unlock()
+			if ok {
+				if err = container.Kill(); err != nil {
+					apexctx.GetLogger(ctx).WithError(err).Errorf("Killing %s error", containerName)
+				}
+			}
+
+			apexctx.GetLogger(ctx).Infof("%d containers are being tracked now", rest)
+		}
+	}
 }
 
 func (b *Box) appLayerName(appname string) string {
@@ -271,5 +349,6 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 // Close releases all resources such as idle connections from http.Transport
 func (b *Box) Close() error {
 	b.transport.CloseIdleConnections()
+	b.onClose()
 	return nil
 }

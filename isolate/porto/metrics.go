@@ -12,6 +12,7 @@ var (
 	containersCreatedCounter = metrics.NewCounter()
 	// containers that crashed during spawning
 	containersErroredCounter = metrics.NewCounter()
+	containersKilledCounter  = metrics.NewCounter()
 
 	totalSpawnTimer = metrics.NewTimer()
 )
@@ -21,5 +22,6 @@ func init() {
 	registry.Register("spawning_queue_size", spawningQueueSize)
 	registry.Register("containers_created", containersCreatedCounter)
 	registry.Register("containers_errored", containersErroredCounter)
+	registry.Register("containers_killed", containersKilledCounter)
 	registry.Register("total_spawn_timer", totalSpawnTimer)
 }
