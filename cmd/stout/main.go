@@ -51,6 +51,8 @@ var (
 	conns      = metrics.NewCounter()
 )
 
+const requiredConfigVersion = 2
+
 func init() {
 	registry := metrics.NewPrefixedChildRegistry(metrics.DefaultRegistry, "daemon_")
 	registry.Register("open_fds", openFDs)
@@ -145,6 +147,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if config.Version != requiredConfigVersion {
+		fmt.Fprintf(os.Stderr, "invalid config version (%d). %d is required\n", config.Version, requiredConfigVersion)
+		os.Exit(1)
+	}
+
 	output, err := logutils.NewLogFileOutput(config.Logger.Output)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to open logfile output: %v\n", err)
@@ -206,14 +213,19 @@ func main() {
 
 	checkLimits(ctx)
 
+	boxTypes := map[string]struct{}{}
 	boxes := isolate.Boxes{}
 	for name, cfg := range config.Isolate {
+		if _, ok := boxTypes[cfg.Type]; ok {
+			logger.WithField("box", name).WithField("type", cfg.Type).Fatal("dublicated box type")
+		}
 		boxCtx := apexctx.WithLogger(ctx, logger.WithField("box", name))
-		box, err := isolate.ConstructBox(boxCtx, name, cfg)
+		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args)
 		if err != nil {
-			logger.WithError(err).WithField("box", name).Fatal("unable to create box")
+			logger.WithError(err).WithField("box", name).WithField("type", cfg.Type).Fatal("unable to create box")
 		}
 		boxes[name] = box
+		boxTypes[cfg.Type] = struct{}{}
 	}
 
 	ctx = context.WithValue(ctx, isolate.BoxesTag, boxes)
