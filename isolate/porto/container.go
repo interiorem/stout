@@ -88,6 +88,13 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	if err = os.MkdirAll(volumePath, 0775); err != nil {
 		return nil, err
 	}
+	defer func(err *error) {
+		if *err != nil {
+			apexctx.GetLogger(ctx).WithField("container", cfg.ID).Infof("cleaunup unfinished container footprint due to error %v", *err)
+			portoConn.UnlinkVolume(volumePath, cfg.ID)
+			os.RemoveAll(volumePath)
+		}
+	}(&err)
 
 	volumeDescription, err := portoConn.CreateVolume(volumePath, volumeProperties)
 	if err != nil {

@@ -60,6 +60,8 @@ type Box struct {
 	containers   map[string]*container
 	blobRepo     BlobRepository
 
+	rootPrefix string
+
 	onClose context.CancelFunc
 }
 
@@ -125,6 +127,17 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		},
 	}
 
+	portoConn, err := porto.Connect()
+	if err != nil {
+		return nil, err
+	}
+	defer portoConn.Close()
+
+	rootPrefix, err := portoConn.GetProperty("self", "absolute_name")
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, onClose := context.WithCancel(ctx)
 	box := &Box{
 		config:     config,
@@ -133,6 +146,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		spawnSM:    semaphore.New(config.SpawnConcurrency),
 		containers: make(map[string]*container),
 		onClose:    onClose,
+		rootPrefix: rootPrefix,
 
 		blobRepo: blobRepo,
 	}
@@ -216,6 +230,10 @@ LOOP:
 
 func (b *Box) appLayerName(appname string) string {
 	return b.instanceID + appname
+}
+
+func (b *Box) addRootNamespacePrefix(container string) string {
+	return filepath.Join(b.rootPrefix, container)
 }
 
 // Spool downloades Docker images from Distribution, builds base layer for Porto container
@@ -319,7 +337,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	ID := uuid.New()
 	cfg := containerConfig{
 		Root:  filepath.Join(b.config.Containers, ID),
-		ID:    ID,
+		ID:    b.addRootNamespacePrefix(ID),
 		Layer: b.appLayerName(config.Name),
 	}
 
@@ -351,6 +369,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	if err = pr.start(portoConn, output); err != nil {
 		containersErroredCounter.Inc(1)
+		pr.Cleanup(portoConn)
 		return nil, err
 	}
 	isolate.NotifyAbouStart(output)
