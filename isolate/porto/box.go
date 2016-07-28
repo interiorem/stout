@@ -3,6 +3,7 @@ package porto
 import (
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -41,6 +42,7 @@ type portoBoxConfig struct {
 
 	SpawnConcurrency uint              `json:"concurrency"`
 	RegistryAuth     map[string]string `json:"registryauth"`
+	DialRetries      int               `json:"dialretries"`
 }
 
 func (cfg *portoBoxConfig) ContainerRootDir(name, containerID string) string {
@@ -66,6 +68,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	apexctx.GetLogger(ctx).Warn("Porto Box is unstable")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
+		DialRetries:      10,
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -105,11 +108,20 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 
 	tr := &http.Transport{
 		Dial: func(network, addr string) (net.Conn, error) {
-			dialer := net.Dialer{
-				DualStack: true,
-				Timeout:   5 * time.Second,
+			for i := 0; i <= config.DialRetries; i++ {
+				dialer := net.Dialer{
+					DualStack: true,
+					Timeout:   5 * time.Second,
+				}
+				conn, err := dialer.Dial(network, addr)
+				if err == nil {
+					return conn, err
+				}
+				sleepTime := time.Duration(rand.Int63n(500)) * time.Millisecond
+				apexctx.GetLogger(ctx).WithError(err).Errorf("dial error to %s %s. Sleep %v", network, addr, sleepTime)
+				time.Sleep(sleepTime)
 			}
-			return dialer.Dial(network, addr)
+			return nil, fmt.Errorf("no retries available")
 		},
 	}
 
