@@ -43,6 +43,8 @@ type portoBoxConfig struct {
 	SpawnConcurrency uint              `json:"concurrency"`
 	RegistryAuth     map[string]string `json:"registryauth"`
 	DialRetries      int               `json:"dialretries"`
+	CleanupEnabled   bool              `json:"cleanupenabled"`
+	WeakEnabled      bool              `json:"weakenabled"`
 }
 
 func (cfg *portoBoxConfig) ContainerRootDir(name, containerID string) string {
@@ -71,6 +73,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
 		DialRetries:      10,
+
+		CleanupEnabled: true,
+		WeakEnabled:    false,
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -231,7 +236,10 @@ LOOP:
 }
 
 func (b *Box) appLayerName(appname string) string {
-	return "_weak_" + b.instanceID + appname
+	if b.config.WeakEnabled {
+		return "_weak_" + b.instanceID + appname
+	}
+	return b.instanceID + appname
 }
 
 func (b *Box) addRootNamespacePrefix(container string) string {
@@ -338,9 +346,10 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	ID := uuid.New()
 	cfg := containerConfig{
-		Root:  filepath.Join(b.config.Containers, ID),
-		ID:    b.addRootNamespacePrefix(ID),
-		Layer: b.appLayerName(config.Name),
+		Root:           filepath.Join(b.config.Containers, ID),
+		ID:             b.addRootNamespacePrefix(ID),
+		Layer:          b.appLayerName(config.Name),
+		CleanupEnabled: b.config.CleanupEnabled,
 	}
 
 	portoConn, err := porto.Connect()

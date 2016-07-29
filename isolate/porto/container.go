@@ -20,9 +20,10 @@ import (
 type container struct {
 	ctx context.Context
 
-	containerID string
-	rootDir     string
-	volumePath  string
+	containerID    string
+	rootDir        string
+	volumePath     string
+	cleanupEnabled bool
 }
 
 type execInfo struct {
@@ -32,9 +33,10 @@ type execInfo struct {
 }
 
 type containerConfig struct {
-	Root  string
-	ID    string
-	Layer string
+	Root           string
+	ID             string
+	Layer          string
+	CleanupEnabled bool
 }
 
 func formatCommand(executable string, args map[string]string) string {
@@ -147,9 +149,10 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	cnt = &container{
 		ctx: ctx,
 
-		containerID: cfg.ID,
-		rootDir:     cfg.Root,
-		volumePath:  volumePath,
+		containerID:    cfg.ID,
+		rootDir:        cfg.Root,
+		volumePath:     volumePath,
+		cleanupEnabled: cfg.CleanupEnabled,
 	}
 	return cnt, nil
 }
@@ -190,6 +193,9 @@ func (c *container) Kill() (err error) {
 }
 
 func (c *container) Cleanup(portoConn porto.API) {
+	if !c.cleanupEnabled {
+		return
+	}
 	var err error
 	if err = portoConn.UnlinkVolume(c.volumePath, c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Unlink volume %s", c.volumePath)
