@@ -231,7 +231,7 @@ LOOP:
 }
 
 func (b *Box) appLayerName(appname string) string {
-	return b.instanceID + appname
+	return "_weak_" + b.instanceID + appname
 }
 
 func (b *Box) addRootNamespacePrefix(container string) string {
