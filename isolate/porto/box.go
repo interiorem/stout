@@ -163,6 +163,8 @@ func (b *Box) waitLoop(ctx context.Context) {
 		err       error
 	)
 
+	waitPattern := filepath.Join(b.rootPrefix, "*")
+
 	var waitTimeout = 30 * time.Second
 
 	closed := func(portoConn porto.API) bool {
@@ -201,7 +203,7 @@ LOOP:
 
 		// * means all containers
 		// if no containers dead for waitTimeout, name will be an empty string
-		containerName, err := portoConn.Wait([]string{"*"}, 30*waitTimeout)
+		containerName, err := portoConn.Wait([]string{waitPattern}, 30*waitTimeout)
 		if err != nil {
 			portoConn.Close()
 			portoConn = nil
