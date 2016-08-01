@@ -157,13 +157,9 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	return cnt, nil
 }
 
-func (c *container) start(portoConn porto.API, output io.Writer) error {
-	if err := portoConn.Start(c.containerID); err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("Start error")
-		return err
-	}
-
-	return nil
+func (c *container) start(portoConn porto.API, output io.Writer) (err error) {
+	defer apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Trace("start container").Stop(&err)
+	return portoConn.Start(c.containerID)
 }
 
 func (c *container) Kill() (err error) {
@@ -184,8 +180,12 @@ func (c *container) Kill() (err error) {
 		return nil
 	}
 
+	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("footprint %s", containerFootprint{
+		portoConn:   portoConn,
+		containerID: c.containerID,
+	})
+
 	if _, err = portoConn.Wait([]string{c.containerID}, 5*time.Second); err != nil {
-		portoConn.Kill(c.containerID, syscall.SIGTERM)
 		return err
 	}
 
@@ -196,6 +196,7 @@ func (c *container) Cleanup(portoConn porto.API) {
 	if !c.cleanupEnabled {
 		return
 	}
+
 	var err error
 	if err = portoConn.UnlinkVolume(c.volumePath, c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Unlink volume %s", c.volumePath)

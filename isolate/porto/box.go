@@ -248,6 +248,7 @@ func (b *Box) addRootNamespacePrefix(container string) string {
 
 // Spool downloades Docker images from Distribution, builds base layer for Porto container
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
+	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spool").Stop(&err)
 	profile, err := docker.ConvertProfile(opts)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
@@ -309,12 +310,17 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 	apexctx.GetLogger(ctx).WithField("name", name).Infof("create a layer %s in Porto with merge", layerName)
+
 	for _, descriptor := range manifest.References() {
 		blobPath, err := b.blobRepo.Get(ctx, repo, descriptor.Digest)
 		if err != nil {
 			return err
 		}
-		if err = portoConn.ImportLayer(layerName, blobPath, true); err != nil {
+
+		entry := apexctx.GetLogger(ctx).WithField("layer", layerName).Trace("ImportLayer with merge")
+		err = portoConn.ImportLayer(layerName, blobPath, true)
+		entry.Stop(&err)
+		if err != nil {
 			return err
 		}
 	}
