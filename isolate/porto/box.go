@@ -43,6 +43,8 @@ type portoBoxConfig struct {
 	SpawnConcurrency uint              `json:"concurrency"`
 	RegistryAuth     map[string]string `json:"registryauth"`
 	DialRetries      int               `json:"dialretries"`
+	CleanupEnabled   bool              `json:"cleanupenabled"`
+	WeakEnabled      bool              `json:"weakenabled"`
 }
 
 func (cfg *portoBoxConfig) ContainerRootDir(name, containerID string) string {
@@ -71,6 +73,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
 		DialRetries:      10,
+
+		CleanupEnabled: true,
+		WeakEnabled:    false,
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -163,6 +168,8 @@ func (b *Box) waitLoop(ctx context.Context) {
 		err       error
 	)
 
+	waitPattern := filepath.Join(b.rootPrefix, "*")
+
 	var waitTimeout = 30 * time.Second
 
 	closed := func(portoConn porto.API) bool {
@@ -201,7 +208,7 @@ LOOP:
 
 		// * means all containers
 		// if no containers dead for waitTimeout, name will be an empty string
-		containerName, err := portoConn.Wait([]string{"*"}, 30*waitTimeout)
+		containerName, err := portoConn.Wait([]string{waitPattern}, 30*waitTimeout)
 		if err != nil {
 			portoConn.Close()
 			portoConn = nil
@@ -229,6 +236,9 @@ LOOP:
 }
 
 func (b *Box) appLayerName(appname string) string {
+	if b.config.WeakEnabled {
+		return "_weak_" + b.instanceID + appname
+	}
 	return b.instanceID + appname
 }
 
@@ -238,6 +248,7 @@ func (b *Box) addRootNamespacePrefix(container string) string {
 
 // Spool downloades Docker images from Distribution, builds base layer for Porto container
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
+	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spool").Stop(&err)
 	profile, err := docker.ConvertProfile(opts)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
@@ -299,12 +310,17 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 	apexctx.GetLogger(ctx).WithField("name", name).Infof("create a layer %s in Porto with merge", layerName)
+
 	for _, descriptor := range manifest.References() {
 		blobPath, err := b.blobRepo.Get(ctx, repo, descriptor.Digest)
 		if err != nil {
 			return err
 		}
-		if err = portoConn.ImportLayer(layerName, blobPath, true); err != nil {
+
+		entry := apexctx.GetLogger(ctx).WithField("layer", layerName).Trace("ImportLayer with merge")
+		err = portoConn.ImportLayer(layerName, blobPath, true)
+		entry.Stop(&err)
+		if err != nil {
 			return err
 		}
 	}
@@ -336,9 +352,10 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	ID := uuid.New()
 	cfg := containerConfig{
-		Root:  filepath.Join(b.config.Containers, ID),
-		ID:    b.addRootNamespacePrefix(ID),
-		Layer: b.appLayerName(config.Name),
+		Root:           filepath.Join(b.config.Containers, ID),
+		ID:             b.addRootNamespacePrefix(ID),
+		Layer:          b.appLayerName(config.Name),
+		CleanupEnabled: b.config.CleanupEnabled,
 	}
 
 	portoConn, err := porto.Connect()
