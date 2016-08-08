@@ -64,7 +64,7 @@ func (c containerFootprint) String() string {
 			if err != nil {
 				return
 			}
-			properties = make([]string, len(portoProps), 0)
+			properties = make([]string, 0, len(portoProps))
 			for _, property := range portoProps {
 				properties = append(properties, property.Name)
 			}
@@ -84,7 +84,7 @@ func (c containerFootprint) String() string {
 			if err != nil {
 				return
 			}
-			data = make([]string, len(portoData), 0)
+			data = make([]string, 0, len(portoData))
 			for _, dataItem := range portoData {
 				data = append(data, dataItem.Name)
 			}
