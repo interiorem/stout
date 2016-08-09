@@ -236,6 +236,7 @@ LOOP:
 }
 
 func (b *Box) appLayerName(appname string) string {
+	appname = strings.Replace(appname, ":", "_", -1)
 	if b.config.WeakEnabled {
 		return "_weak_" + b.instanceID + appname
 	}
