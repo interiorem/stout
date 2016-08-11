@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.3) unstable; urgency=low
+
+  * isolate(docker): fix --endpoint when the socket path is non-default
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 11 Aug 2016 16:56:15 +0300
+
 cocaine-isolate-daemon (0.1.7.2) unstable; urgency=low
 
   * isolate(porto): add waitLoop to track dead containers
