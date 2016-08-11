@@ -61,14 +61,16 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Env = append(Env, k+"="+v)
 	}
 
+	var binds = make([]string, 1)
+	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
+	// update args["--endpoint"] according to the container's point of view
+	args["--endpoint"] = filepath.Join(profile.RuntimePath, filepath.Base(args["--endpoint"]))
+
 	var Cmd = make(strslice.StrSlice, 1, len(args)+1)
 	Cmd[0] = executable
 	for k, v := range args {
 		Cmd = append(Cmd, k, v)
 	}
-
-	var binds = make([]string, 1)
-	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
 
 	config := container.Config{
 		AttachStdin:  false,
