@@ -150,7 +150,7 @@ func (d *initialDispatch) onSpool(opts Profile, name string) (Dispatcher, error)
 	if !ok {
 		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
-		d.stream.Error(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
+		d.stream.Error(d.ctx, replySpoolError, errUnknownIsolate, err.Error())
 		return nil, err
 	}
 
