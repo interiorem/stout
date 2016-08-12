@@ -13,7 +13,12 @@ const (
 )
 
 type Resources struct {
-	Memory int64 `json:"memory"`
+	Memory     int64  `json:"memory"`
+	CPUShares  int64  `json:"CpuShares"`
+	CPUPeriod  int64  `json:"CpuPeriod"` // CPU CFS (Completely Fair Scheduler) period
+	CPUQuota   int64  `json:"CpuQuota"`  // CPU CFS (Completely Fair Scheduler) quota
+	CpusetCpus string `json:"CpusetCpus"`
+	CpusetMems string `json:"CpusetMems"`
 }
 
 // Profile describes a Cocaine profile for Docker isolation type
