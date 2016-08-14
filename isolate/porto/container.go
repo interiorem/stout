@@ -165,7 +165,7 @@ func (c *container) start(portoConn porto.API, output io.Writer) (err error) {
 func (c *container) Kill() (err error) {
 	defer apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Trace("Kill container").Stop(&err)
 	containersKilledCounter.Inc(1)
-	portoConn, err := porto.Connect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		return err
 	}
