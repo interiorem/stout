@@ -132,7 +132,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		},
 	}
 
-	portoConn, err := porto.Connect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ LOOP:
 		// In case of error: wait either a fixed timeout or closing of Box
 		if portoConn == nil {
 			apexctx.GetLogger(ctx).Info("waitLoop: connect to Portod")
-			portoConn, err = porto.Connect()
+			portoConn, err = portoConnect()
 			if err != nil {
 				apexctx.GetLogger(ctx).WithError(err).Warn("unable to connect to Portod")
 				select {
@@ -261,7 +261,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return fmt.Errorf("Registry must be non empty")
 	}
 
-	portoConn, err := porto.Connect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Error("Porto connection error")
 		return err
@@ -359,7 +359,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		CleanupEnabled: b.config.CleanupEnabled,
 	}
 
-	portoConn, err := porto.Connect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		return nil, err
 	}

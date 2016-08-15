@@ -68,7 +68,7 @@ func TestContainer(t *testing.T) {
 		},
 	}
 
-	portoConn, err := porto.Connect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,8 +2,10 @@ package porto
 
 import (
 	"bytes"
+	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
@@ -123,4 +125,22 @@ func (c containerFootprint) String() string {
 	}
 
 	return buff.String()
+}
+
+// NOTE: it's dummy connet_with_retyr implementation
+// It's subject to replace
+func portoConnect() (porto.API, error) {
+	for {
+		conn, err := porto.Connect()
+		if err == nil {
+			return conn, nil
+		}
+
+		if ne, ok := err.(net.Error); ok && ne.Temporary() {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		return nil, err
+	}
 }
