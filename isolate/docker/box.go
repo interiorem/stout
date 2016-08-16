@@ -100,6 +100,12 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		containers: make(map[string]*process),
 	}
 
+	body, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
+	dockerConfig.Set(string(body))
+
 	go box.watchEvents()
 
 	return box, nil
