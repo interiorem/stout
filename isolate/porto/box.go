@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
@@ -40,6 +41,8 @@ type portoBoxConfig struct {
 	Layers string `json:"layers"`
 	// Directory for containers
 	Containers string `json:"containers"`
+	// Path to a journal file
+	Journal string `json:"journal"`
 
 	SpawnConcurrency uint              `json:"concurrency"`
 	RegistryAuth     map[string]string `json:"registryauth"`
@@ -48,14 +51,22 @@ type portoBoxConfig struct {
 	WeakEnabled      bool              `json:"weakenabled"`
 }
 
+func (c *portoBoxConfig) String() string {
+	body, err := json.Marshal(c)
+	if err != nil {
+		return err.Error()
+	}
+	return string(body)
+}
+
 func (cfg *portoBoxConfig) ContainerRootDir(name, containerID string) string {
 	return filepath.Join(cfg.Containers, name, containerID)
 }
 
 // Box operates with Porto to launch containers
 type Box struct {
-	config     *portoBoxConfig
-	instanceID string
+	config  *portoBoxConfig
+	journal *journal
 
 	spawnSM      semaphore.Semaphore
 	transport    *http.Transport
@@ -97,6 +108,10 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	}
 	if config.Containers == "" {
 		return nil, fmt.Errorf("option Containers is invalid or unspecified")
+	}
+
+	if config.Journal == "" {
+		return nil, fmt.Errorf("option Journal is empty or unspecified")
 	}
 
 	apexctx.GetLogger(ctx).WithField("dir", config.Layers).Info("create directory for Layers")
@@ -147,7 +162,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	ctx, onClose := context.WithCancel(ctx)
 	box := &Box{
 		config:     config,
-		instanceID: uuid.New(),
+		journal:    newJournal(),
 		transport:  tr,
 		spawnSM:    semaphore.New(config.SpawnConcurrency),
 		containers: make(map[string]*container),
@@ -163,9 +178,75 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	}
 	portoConfig.Set(string(body))
 
+	if err = box.loadJournal(ctx); err != nil {
+		box.Close()
+		return nil, err
+	}
+
+	layers, err := portoConn.ListLayers()
+	if err != nil {
+		return nil, err
+	}
+
+	box.journal.UpdateFromPorto(layers)
+
+	journalContent.Set(box.journal.String())
+
 	go box.waitLoop(ctx)
+	go box.dumpJournalEvery(ctx, time.Minute)
 
 	return box, nil
+}
+
+func (b *Box) dumpJournalEvery(ctx context.Context, every time.Duration) {
+	for {
+		select {
+		case <-time.After(every):
+			b.dumpJournal(ctx)
+		case <-ctx.Done():
+			b.dumpJournal(ctx)
+			return
+		}
+	}
+}
+
+func (b *Box) dumpJournal(ctx context.Context) (err error) {
+	defer apexctx.GetLogger(ctx).Trace("dump journal").Stop(&err)
+	tempfile, err := ioutil.TempFile("", "portojournalbak")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tempfile.Name())
+	defer tempfile.Close()
+
+	if err = b.journal.Dump(tempfile); err != nil {
+		return err
+	}
+
+	if err = os.Rename(tempfile.Name(), b.config.Journal); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (b *Box) loadJournal(ctx context.Context) error {
+	f, err := os.Open(b.config.Journal)
+	if err != nil {
+		apexctx.GetLogger(ctx).Warnf("unable to open Journal file: %v", err)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	if err = b.journal.Load(f); err != nil {
+		apexctx.GetLogger(ctx).WithError(err).Error("unable to load Journal")
+		return err
+	}
+
+	return nil
 }
 
 func (b *Box) waitLoop(ctx context.Context) {
@@ -245,9 +326,9 @@ LOOP:
 func (b *Box) appLayerName(appname string) string {
 	appname = strings.Replace(appname, ":", "_", -1)
 	if b.config.WeakEnabled {
-		return "_weak_" + b.instanceID + appname
+		return "_weak_" + b.journal.UUID + appname
 	}
-	return b.instanceID + appname
+	return b.journal.UUID + appname
 }
 
 func (b *Box) addRootNamespacePrefix(container string) string {
@@ -303,6 +384,13 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 
+	layerName := b.appLayerName(name)
+	digest := tagDescriptor.Digest.String()
+	if b.journal.In(layerName, digest) {
+		apexctx.GetLogger(ctx).WithField("name", name).Infof("layer %s has been found in the cache", digest)
+		return nil
+	}
+
 	manifests, err := repo.Manifests(ctx)
 	if err != nil {
 		return err
@@ -313,7 +401,6 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 
-	layerName := b.appLayerName(name)
 	if err = portoConn.RemoveLayer(layerName); err != nil && !isEqualPortoError(err, portorpc.EError_LayerNotFound) {
 		return err
 	}
@@ -332,6 +419,9 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 			return err
 		}
 	}
+	b.journal.Insert(layerName, digest)
+	// NOTE: Not so fast, but it's important to debug
+	journalContent.Set(b.journal.String())
 	return nil
 }
 

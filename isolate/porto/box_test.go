@@ -95,6 +95,7 @@ func portoBoxConstructor(c *C) (isolate.Box, error) {
 	cfg := isolate.BoxConfig{
 		"layers":     "/var/tmp/layers",
 		"containers": "/var/tmp/containers",
+		"journal":    "/var/tmp/portojournal.jrnl",
 	}
 
 	b, err := NewBox(apexctx.Background(), cfg)
