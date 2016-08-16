@@ -1,6 +1,8 @@
 package docker
 
 import (
+	"expvar"
+
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -14,6 +16,8 @@ var (
 	containersErroredCounter = metrics.NewCounter()
 
 	totalSpawnTimer = metrics.NewTimer()
+
+	dockerConfig = expvar.NewString("docker_config")
 )
 
 func init() {

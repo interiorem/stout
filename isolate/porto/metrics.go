@@ -1,6 +1,8 @@
 package porto
 
 import (
+	"expvar"
+
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -15,6 +17,8 @@ var (
 	containersKilledCounter  = metrics.NewCounter()
 
 	totalSpawnTimer = metrics.NewTimer()
+
+	portoConfig = expvar.NewString("porto_config")
 )
 
 func init() {

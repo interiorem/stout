@@ -1,6 +1,7 @@
 package porto
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -155,6 +156,12 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 
 		blobRepo: blobRepo,
 	}
+
+	body, err := json.Marshal(config)
+	if err != nil {
+		return nil, err
+	}
+	portoConfig.Set(string(body))
 
 	go box.waitLoop(ctx)
 

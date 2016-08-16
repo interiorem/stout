@@ -1,12 +1,14 @@
 package process
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -74,6 +76,15 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		// NOTE: configurable
 		spawnSm: semaphore.New(10),
 	}
+
+	body, err := json.Marshal(map[string]string{
+		"spool":   box.spoolPath,
+		"locator": strings.Join(locator, " "),
+	})
+	if err != nil {
+		return nil, err
+	}
+	processConfig.Set(string(body))
 
 	box.wg.Add(1)
 	go func() {

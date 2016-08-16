@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/md5"
 	"encoding/json"
-	_ "expvar"
+	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -64,6 +64,9 @@ func init() {
 	registry.Register("hc_threads", metrics.NewHealthcheck(threadHealthCheck))
 
 	http.Handle("/metrics", exportmetrics.HTTPExport(metrics.DefaultRegistry))
+
+	expvar.NewString("version_info").Set(fmt.Sprintf("version:%s hash:%s build:%s tag:%s",
+		version.Version, version.GitHash, version.Build, version.GitTag))
 }
 
 func fdHealthCheck(h metrics.Healthcheck) {

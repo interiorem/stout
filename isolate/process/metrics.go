@@ -1,6 +1,8 @@
 package process
 
 import (
+	"expvar"
+
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -19,6 +21,8 @@ var (
 	procsNewTimer   = metrics.NewTimer()
 
 	zombieWaitTimer = metrics.NewTimer()
+
+	processConfig = expvar.NewString("process_config")
 )
 
 func init() {
