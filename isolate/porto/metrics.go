@@ -18,7 +18,8 @@ var (
 
 	totalSpawnTimer = metrics.NewTimer()
 
-	portoConfig = expvar.NewString("porto_config")
+	portoConfig    = expvar.NewString("porto_config")
+	journalContent = expvar.NewString("porto_journal")
 )
 
 func init() {
