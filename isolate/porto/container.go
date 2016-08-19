@@ -70,10 +70,10 @@ func pickNetwork(network string) string {
 	// TODO: this function is useless now
 	// but we have to add more mapping later
 	switch network {
-	case "host":
+	case "inherited":
 		return network
 	default:
-		return "host"
+		return "inherited"
 	}
 }
 
