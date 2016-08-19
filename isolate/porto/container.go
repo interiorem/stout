@@ -58,7 +58,7 @@ func formatEnv(env map[string]string) string {
 	defer buffPool.Put(buff)
 	for k, v := range env {
 		buff.WriteString(k)
-		buff.WriteByte(':')
+		buff.WriteByte('=')
 		buff.WriteString(v)
 		buff.WriteByte(';')
 	}
