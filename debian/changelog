@@ -1,3 +1,14 @@
+cocaine-isolate-daemon (0.1.7.4) unstable; urgency=low
+
+  * expvar: add expvar for the version and configs of plugins
+  * isolate(porto): retry to connect to porto in case of EAGAIN
+  * isolate(docker): add some resource limits
+  * isolate(porto): many fixes
+  * isolate(porto): fix network name
+  * isolate(porto): use = in env instead of :
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Thu, 18 Aug 2016 22:10:55 +0300
+
 cocaine-isolate-daemon (0.1.7.3) unstable; urgency=low
 
   * isolate(docker): fix --endpoint when the socket path is non-default
