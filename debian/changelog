@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.5) unstable; urgency=low
+
+  * bugfix(porto): use right layers oreder according the Scheme
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Wed, 24 Aug 2016 16:27:20 +0300
+
 cocaine-isolate-daemon (0.1.7.4) unstable; urgency=low
 
   * expvar: add expvar for the version and configs of plugins
