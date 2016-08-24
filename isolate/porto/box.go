@@ -28,8 +28,8 @@ import (
 	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 
-	_ "github.com/docker/distribution/manifest/schema1"
-	_ "github.com/docker/distribution/manifest/schema2"
+	"github.com/docker/distribution/manifest/schema1"
+	"github.com/docker/distribution/manifest/schema2"
 	"github.com/docker/distribution/reference"
 	"github.com/docker/distribution/registry/client"
 	"github.com/docker/distribution/registry/client/transport"
@@ -405,8 +405,17 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 	apexctx.GetLogger(ctx).WithField("name", name).Infof("create a layer %s in Porto with merge", layerName)
+	var order layersOrder
+	switch manifest.(type) {
+	case schema1.SignedManifest, *schema1.SignedManifest:
+		order = layerOrderV1
+	case schema2.DeserializedManifest, *schema2.DeserializedManifest:
+		order = layerOrderV2
+	default:
+		return fmt.Errorf("unknown manifest type %T", manifest)
+	}
 
-	for _, descriptor := range manifest.References() {
+	for _, descriptor := range order(manifest.References()) {
 		blobPath, err := b.blobRepo.Get(ctx, repo, descriptor.Digest)
 		if err != nil {
 			return err

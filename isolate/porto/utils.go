@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/docker/distribution"
 	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
@@ -143,4 +144,20 @@ func portoConnect() (porto.API, error) {
 
 		return nil, err
 	}
+}
+
+type layersOrder func(references []distribution.Descriptor) []distribution.Descriptor
+
+var layerOrderV1 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
+	return func(slice []distribution.Descriptor) []distribution.Descriptor {
+		size := len(slice) - 1
+		for i := 0; i < len(slice)/2; i++ {
+			slice[i], slice[size-i] = slice[size-i], slice[i]
+		}
+		return slice
+	}(references)
+}
+
+var layerOrderV2 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
+	return references
 }
