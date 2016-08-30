@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.6) unstable; urgency=low
+
+  * bugfix(porto): use same dir for tmp journal to prevent "invalid cross-device link" error
+
+ -- Dmitriy Karpukhin <kdmitriy@yandex-team.ru>  Tue, 30 Aug 2016 16:10:00 +0300
+
 cocaine-isolate-daemon (0.1.7.5) unstable; urgency=low
 
   * bugfix(porto): use right layers oreder according the Scheme
