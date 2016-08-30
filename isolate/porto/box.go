@@ -212,7 +212,7 @@ func (b *Box) dumpJournalEvery(ctx context.Context, every time.Duration) {
 
 func (b *Box) dumpJournal(ctx context.Context) (err error) {
 	defer apexctx.GetLogger(ctx).Trace("dump journal").Stop(&err)
-	tempfile, err := ioutil.TempFile("", "portojournalbak")
+	tempfile, err := ioutil.TempFile(filepath.Dir(b.config.Journal), "portojournalbak")
 	if err != nil {
 		return err
 	}
