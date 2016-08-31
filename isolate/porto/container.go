@@ -2,6 +2,7 @@ package porto
 
 import (
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,6 +27,8 @@ type container struct {
 	volumePath     string
 	cleanupEnabled bool
 	SetImgUri      bool
+
+	output io.Writer
 }
 
 type execInfo struct {
@@ -167,12 +170,15 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		volumePath:     volumePath,
 		cleanupEnabled: cfg.CleanupEnabled,
 		SetImgUri:      cfg.SetImgUri,
+
+		output: ioutil.Discard,
 	}
 	return cnt, nil
 }
 
 func (c *container) start(portoConn porto.API, output io.Writer) (err error) {
 	defer apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Trace("start container").Stop(&err)
+	c.output = output
 	return portoConn.Start(c.containerID)
 }
 
@@ -190,9 +196,25 @@ func (c *container) Kill() (err error) {
 		if !isEqualPortoError(err, portorpc.EError_InvalidState) {
 			return err
 		}
-
 		return nil
 	}
+
+	// After Kill the container must be in `dead` state
+	// Wait seems redundant as we sent SIGKILL
+	value, err := portoConn.GetData(c.containerID, "stdout")
+	if err != nil {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unbale to get stdout")
+	}
+	// TODO: add StringWriter interface to an output
+	c.output.Write([]byte(value))
+	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stdout have been sent", len(value))
+
+	value, err = portoConn.GetData(c.containerID, "stderr")
+	if err != nil {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unbale to get stderr")
+	}
+	c.output.Write([]byte(value))
+	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
 
 	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("footprint %s", containerFootprint{
 		portoConn:   portoConn,
