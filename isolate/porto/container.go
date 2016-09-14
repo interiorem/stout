@@ -200,14 +200,22 @@ func (c *container) Cleanup(portoConn porto.API) {
 	var err error
 	if err = portoConn.UnlinkVolume(c.volumePath, c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Unlink volume %s", c.volumePath)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Unlink volume %s successfully", c.volumePath)
 	}
 	if err = portoConn.UnlinkVolume(c.volumePath, "/"); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", "/").WithError(err).Warnf("Unlink volume %s", c.volumePath)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", "/").Debugf("Unlink volume %s successfully", c.volumePath)
 	}
 	if err = portoConn.Destroy(c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("Destroy error")
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Destroyed")
 	}
 	if err = os.RemoveAll(c.rootDir); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Remove dirs %s", c.rootDir)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Remove dirs %s successfully", c.rootDir)
 	}
 }
