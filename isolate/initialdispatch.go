@@ -185,7 +185,7 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 		return nil, err
 	}
 
-	apexctx.GetLogger(d.ctx).Debugf("onSpawn() Profile Dump: %s", opts.Dump())
+	apexctx.GetLogger(d.ctx).Debugf("onSpawn() Profile Dump: %s", opts.String())
 
 	prCh := make(chan Process)
 	flagKilled := uint32(0)
