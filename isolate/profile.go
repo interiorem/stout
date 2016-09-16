@@ -2,6 +2,7 @@ package isolate
 
 import (
 	"fmt"
+	"encoding/json"
 )
 
 type Profile map[string]interface{}
