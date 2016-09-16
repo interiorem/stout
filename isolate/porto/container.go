@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"fmt"
 
 	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
@@ -81,7 +80,7 @@ func pickNetwork(network string) string {
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
 
 func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig, info execInfo) (cnt *container, err error) {
-	apexctx.GetLogger(ctx).WithField("container", cfg.ID).Debugf("exec newContainer() with containerConfig: %s; execInfo: %s;", fmt.Sprintf("%s", cfg), fmt.Sprintf("%s", info))
+	apexctx.GetLogger(ctx).WithField("container", cfg.ID).Debugf("exec newContainer() with containerConfig: %s; execInfo: %s;", cfg, info)
 	volumeProperties := map[string]string{
 		"backend": "overlay",
 		"layers":  cfg.Layer,

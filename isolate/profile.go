@@ -14,9 +14,8 @@ func (p Profile) Type() string {
 func (p Profile) String() string {
 	j, e := json.Marshal(p)
 	if e == nil {
-		return fmt.Sprintf("%s", j)
-	} else {
-		return "nil"
+		return string(j)
 	}
+	return "nil"
 }
 
