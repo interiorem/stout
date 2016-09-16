@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.7.7) unstable; urgency=low
+
+  * isolate(porto): improve logging
+
+ -- Dmitriy Karpukhin <kdmitriy@yandex-team.ru>  Tue, 30 Aug 2016 21:30:15 +0300
+
 cocaine-isolate-daemon (0.1.7.6) unstable; urgency=low
 
   * bugfix(porto): use same dir for tmp journal to prevent "invalid cross-device link" error
