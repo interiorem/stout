@@ -1,7 +1,6 @@
 package porto
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
