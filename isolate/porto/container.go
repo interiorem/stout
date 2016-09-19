@@ -80,6 +80,7 @@ func pickNetwork(network string) string {
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
 
 func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig, info execInfo) (cnt *container, err error) {
+	apexctx.GetLogger(ctx).WithField("container", cfg.ID).Debugf("exec newContainer() with containerConfig: %s; execInfo: %s;", cfg, info)
 	volumeProperties := map[string]string{
 		"backend": "overlay",
 		"layers":  cfg.Layer,
@@ -200,14 +201,22 @@ func (c *container) Cleanup(portoConn porto.API) {
 	var err error
 	if err = portoConn.UnlinkVolume(c.volumePath, c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Unlink volume %s", c.volumePath)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Unlink volume %s successfully", c.volumePath)
 	}
 	if err = portoConn.UnlinkVolume(c.volumePath, "/"); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", "/").WithError(err).Warnf("Unlink volume %s", c.volumePath)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", "/").Debugf("Unlink volume %s successfully", c.volumePath)
 	}
 	if err = portoConn.Destroy(c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("Destroy error")
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Destroyed")
 	}
 	if err = os.RemoveAll(c.rootDir); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warnf("Remove dirs %s", c.rootDir)
+	} else {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Remove dirs %s successfully", c.rootDir)
 	}
 }

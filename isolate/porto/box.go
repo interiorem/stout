@@ -323,12 +323,16 @@ LOOP:
 	}
 }
 
-func (b *Box) appLayerName(appname string) string {
+func (b *Box) appGenLabel(appname string) string {
 	appname = strings.Replace(appname, ":", "_", -1)
+	return appname
+}
+
+func (b *Box) appLayerName(appname string) string {
 	if b.config.WeakEnabled {
-		return "_weak_" + b.journal.UUID + appname
+		return "_weak_" + b.appGenLabel(appname) + "_" + b.journal.UUID
 	}
-	return b.journal.UUID + appname
+	return b.appGenLabel(appname) + "_" + b.journal.UUID
 }
 
 func (b *Box) addRootNamespacePrefix(container string) string {
@@ -457,7 +461,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		env:        config.Env,
 	}
 
-	ID := uuid.New()
+	ID := b.appGenLabel(config.Name) + "_" + uuid.New()
 	cfg := containerConfig{
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
