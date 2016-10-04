@@ -24,6 +24,7 @@ type container struct {
 	rootDir        string
 	volumePath     string
 	cleanupEnabled bool
+	SetImgUri      bool
 }
 
 type execInfo struct {
@@ -37,6 +38,7 @@ type containerConfig struct {
 	ID             string
 	Layer          string
 	CleanupEnabled bool
+	SetImgUri      bool
 }
 
 func formatCommand(executable string, args map[string]string) string {
@@ -114,6 +116,10 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		return nil, err
 	}
 
+	if cfg.SetImgUri {
+		info.env["image_uri"] = info.Registry + "/" + info.name
+	}
+
 	// NOTE: Porto cannot mount directories to symlinked dirs
 	hostDir := info.args["--endpoint"]
 	info.args["--endpoint"] = "/run/cocaine"
@@ -154,6 +160,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		rootDir:        cfg.Root,
 		volumePath:     volumePath,
 		cleanupEnabled: cfg.CleanupEnabled,
+		SetImgUri:      cfg.SetImgUri,
 	}
 	return cnt, nil
 }

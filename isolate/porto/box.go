@@ -48,6 +48,7 @@ type portoBoxConfig struct {
 	RegistryAuth     map[string]string `json:"registryauth"`
 	DialRetries      int               `json:"dialretries"`
 	CleanupEnabled   bool              `json:"cleanupenabled"`
+	SetImgUri        bool              `json:"setimguri"`
 	WeakEnabled      bool              `json:"weakenabled"`
 }
 
@@ -378,6 +379,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	if !strings.HasPrefix(registry, "http") {
 		registry = "https://" + registry
 	}
+	apexctx.GetLogger(ctx).Debugf("Image URI generated at spawn with data: %s and %s", registry, named)
 	repo, err := client.NewRepository(ctx, named, registry, tr)
 	if err != nil {
 		return err
@@ -467,6 +469,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          b.appLayerName(config.Name),
 		CleanupEnabled: b.config.CleanupEnabled,
+		SetImgUri:      b.config.SetImgUri,
 	}
 
 	portoConn, err := portoConnect()

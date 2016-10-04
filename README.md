@@ -8,21 +8,46 @@ See configuration example:
 
 ```json
 {
+    "version": 2,
+    "metrics": {
+        "type": "graphite",
+        "period": "10s",
+        "args": {
+            "prefix": "cloud.env.{{hostname}}.cocaine_isolate_daemon",
+            "addr": ":12345"
+        }
+    },
     "logger": {
         "level": "debug",
-        "output": "/dev/stderr"
+        "output": "/dev/stdout"
     },
     "endpoints": ["0.0.0.0:29042"],
     "debugserver": "127.0.0.1:9000",
     "isolate": {
+        "porto": {
+            "type": "porto",
+            "args": {
+                "layers": "/tmp",
+                "cleanupenabled": true,
+                "setimgurl": false,
+                "weakenabled": false,
+                "journal": "/tmp/portojournal.jrnl",
+                "containers": "/tmp",
+                "registryauth": {
+                    "registry.your.domain": "OAuth youroauthkeyforregistry"
+                }
+            }
+        },
         "docker": {
-            "endpoint": "unix:///var/run/docker.sock",
-            "version": "v1.19",
-            "concurrency": 10
+            "type": "docker",
+            "args": {
+                "registryauth": {
+                    "registry.your.domain": "authdatafordockerdaemon"
+                }
+            }
         },
         "process": {
-            "spool": "/var/spool/cocaine",
-            "locator": "localhost:10053"
+            "type": "process"
         }
     }
 }
