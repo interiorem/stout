@@ -51,6 +51,7 @@ func TestContainer(t *testing.T) {
 		Tmpfs: map[string]string{
 			"/tmp/a": "size=100000",
 		},
+		Binds: []string{"/tmp:/bind:rw"},
 	}
 
 	args := map[string]string{"--endpoint": "/var/run/cocaine.sock"}
@@ -73,6 +74,8 @@ func TestContainer(t *testing.T) {
 		t.Logf("%s does not support tmpfs", version.Version)
 	}
 
+	assert.Equal("/var/run:/var/run", inspect.HostConfig.Binds[0])
+	assert.Equal("/tmp:/bind:rw", inspect.HostConfig.Binds[1])
 	assert.Equal(profile.Resources.Memory, inspect.HostConfig.Memory, "invalid memory limit")
 
 	container.Kill()
