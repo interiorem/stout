@@ -61,8 +61,10 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Env = append(Env, k+"="+v)
 	}
 
-	var binds = make([]string, 1)
+	var binds = make([]string, 1, len(profile.Binds)+1)
 	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
+	binds = append(binds, profile.Binds...)
+
 	// update args["--endpoint"] according to the container's point of view
 	args["--endpoint"] = filepath.Join(profile.RuntimePath, filepath.Base(args["--endpoint"]))
 
