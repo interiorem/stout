@@ -33,6 +33,7 @@ type Profile struct {
 
 	Resources `json:"resources"`
 	Tmpfs     map[string]string `json:"tmpfs"`
+	Binds     []string          `json:"binds"`
 }
 
 func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
