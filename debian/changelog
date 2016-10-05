@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.7.8) unstable; urgency=low
+
+  * isolate(porto): add option for set img url in porto container env property
+  * isolate(porto): add log when app spooled
+
+ -- Dmitriy Karpukhin <kdmitriy@yandex-team.ru>  Wed, 05 Oct 2016 14:44:43 +0300
+
 cocaine-isolate-daemon (0.1.7.7) unstable; urgency=low
 
   * isolate(porto): improve logging
