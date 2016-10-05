@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -120,10 +121,15 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		info.env["image_uri"] = info.Registry + "/" + info.name
 	}
 
+	var binds = make([]string, 1, len(info.Profile.Binds)+1)
 	// NOTE: Porto cannot mount directories to symlinked dirs
 	hostDir := info.args["--endpoint"]
 	info.args["--endpoint"] = "/run/cocaine"
-	bind := hostDir + " " + info.args["--endpoint"]
+	binds[0] = hostDir + " " + info.args["--endpoint"]
+	for _, dockerBind := range info.Profile.Binds {
+		binds = append(binds, strings.Replace(dockerBind, ":", " ", -1))
+	}
+	bind := strings.Join(binds, ";")
 	if err = portoConn.SetProperty(cfg.ID, "bind", bind); err != nil {
 		return nil, err
 	}
