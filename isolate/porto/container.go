@@ -217,10 +217,10 @@ func (c *container) Cleanup(portoConn porto.API) {
 	} else {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("Unlink volume %s successfully", c.volumePath)
 	}
-	if err = portoConn.UnlinkVolume(c.volumePath, "/"); err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", "/").WithError(err).Warnf("Unlink volume %s", c.volumePath)
+	if err = portoConn.UnlinkVolume(c.volumePath, "self"); err != nil {
+		apexctx.GetLogger(c.ctx).WithField("id", "self").WithError(err).Warnf("Unlink volume %s", c.volumePath)
 	} else {
-		apexctx.GetLogger(c.ctx).WithField("id", "/").Debugf("Unlink volume %s successfully", c.volumePath)
+		apexctx.GetLogger(c.ctx).WithField("id", "self").Debugf("Unlink volume %s successfully", c.volumePath)
 	}
 	if err = portoConn.Destroy(c.containerID); err != nil {
 		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("Destroy error")
