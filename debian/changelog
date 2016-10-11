@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.8.0) unstable; urgency=low
+
+  * isolate(porto): fix porto volume leak
+
+ -- Dmitriy Karpukhin <kdmitriy@yandex-team.ru>  Tue, 11 Oct 2016 20:14:50 +0300
+
 cocaine-isolate-daemon (0.1.7.9) unstable; urgency=low
 
   * feat(docker): add bind
