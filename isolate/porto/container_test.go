@@ -1,5 +1,3 @@
-// +build ignore
-
 package porto
 
 import (
@@ -14,7 +12,6 @@ import (
 	"github.com/docker/engine-api/types"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/stretchr/testify/require"
-	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 	"golang.org/x/net/context"
 )
