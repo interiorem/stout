@@ -1,19 +1,39 @@
-## Customize the test machine
 machine:
 
   services:
     - docker
 
-  # Add some environment variables
-  environment:
-    PATH: "/usr/local/go/bin:/usr/local/go_workspace/bin:~/.go_workspace/bin:${PATH}"
-    GOPATH: "${HOME}/.go_workspace:/usr/local/go_workspace:${HOME}/.go_project"
-  
+  pre:
+    - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/1.0.22/binscripts/gvm-installer)
+
   post:
+    - gvm install go1.7.1 --prefer-binary --name=stable
     - docker run -d -p 5000:5000 --restart=always --name registry registry:2
 
-## Customize test commands
+  environment:
+    CHECKOUT: /home/ubuntu/$CIRCLE_PROJECT_REPONAME
+    BASE_STABLE: ../../../$HOME/.gvm/pkgsets/stable/global/$BASE_DIR
+
+dependencies:
+  pre:
+    - >
+      gvm use stable &&
+      mkdir -p "$(dirname $BASE_STABLE)/src/github.com/noxiouz" &&
+      cp -R "$CHECKOUT" "$BASE_STABLE/src/github.com/noxiouz"
+
 test:
+  pre:
+  # Output the go versions we are going to test
+    - gvm use stable && go version
+
   override:
-    - make test
-    - make build_travis_release
+    - gvm use stable && cd cd ${BASE_STABLE}/src/github.com/noxiouz/stout && make test:
+        pwd: ${BASE_STABLE}/src/github.com/noxiouz/stout
+
+    - gvm use stable && cd ${BASE_STABLE}/src/github.com/noxiouz/stout && make build_travis_release:
+        pwd: ${BASE_STABLE}/src/github.com/noxiouz/stout
+
+  post:
+  # Report to codecov
+    - bash <(curl -s https://codecov.io/bash):
+        pwd: $BASE_STABLE
