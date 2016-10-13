@@ -11,7 +11,7 @@ go:
 before_install:
  - docker -v
  - docker run -d -p 5000:5000 --restart=always --name registry registry:2
- - sudo groupadd porto && sudo dpkg -i ci/yandex-porto_2.11_amd64.deb -y || sudo apt-get install -f -y
+ - sudo groupadd porto && sudo dpkg -i ci/yandex-porto_3.0.6_amd64.deb -y || sudo apt-get install -f -y
 
 install:
  - go env
