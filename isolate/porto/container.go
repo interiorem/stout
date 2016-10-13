@@ -60,12 +60,13 @@ func formatEnv(env map[string]string) string {
 	var buff = newBuff()
 	defer buffPool.Put(buff)
 	for k, v := range env {
+		if buff.Len() > 0 {
+			buff.WriteByte(';')
+		}
 		buff.WriteString(k)
 		buff.WriteByte('=')
 		buff.WriteString(v)
-		buff.WriteByte(';')
 	}
-
 	return buff.String()
 }
 
@@ -78,6 +79,23 @@ func pickNetwork(network string) string {
 	default:
 		return "inherited"
 	}
+}
+
+// formatBinds prepares mount points for two cases:
+// - endpoint with a cocaine socket. It always presents in info.args["--endpoint"]
+// - optional mountpoints specified in the profile according to a Docker format
+func formatBinds(info *execInfo) string {
+	var buff = newBuff()
+	defer buffPool.Put(buff)
+	buff.WriteString(info.args["--endpoint"])
+	buff.WriteByte(' ')
+	buff.WriteString("/run/cocaine")
+	info.args["--endpoint"] = "/run/cocaine"
+	for _, dockerBind := range info.Profile.Binds {
+		buff.WriteByte(';')
+		buff.WriteString(strings.Replace(dockerBind, ":", " ", -1))
+	}
+	return buff.String()
 }
 
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
@@ -121,16 +139,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		info.env["image_uri"] = info.Registry + "/" + info.name
 	}
 
-	var binds = make([]string, 1, len(info.Profile.Binds)+1)
-	// NOTE: Porto cannot mount directories to symlinked dirs
-	hostDir := info.args["--endpoint"]
-	info.args["--endpoint"] = "/run/cocaine"
-	binds[0] = hostDir + " " + info.args["--endpoint"]
-	for _, dockerBind := range info.Profile.Binds {
-		binds = append(binds, strings.Replace(dockerBind, ":", " ", -1))
-	}
-	bind := strings.Join(binds, ";")
-	if err = portoConn.SetProperty(cfg.ID, "bind", bind); err != nil {
+	if err = portoConn.SetProperty(cfg.ID, "bind", formatBinds(&info)); err != nil {
 		return nil, err
 	}
 	if err = portoConn.SetProperty(cfg.ID, "command", formatCommand(info.executable, info.args)); err != nil {
