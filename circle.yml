@@ -6,8 +6,8 @@ machine:
 
   # Add some environment variables
   environment:
-    CIRCLE_ENV: test
-    DATABASE_URL: postgres://ubuntu:@127.0.0.1:5432/circle_test
+    PATH: "/usr/local/go/bin:/usr/local/go_workspace/bin:~/.go_workspace/bin:${PATH}"
+    GOPATH: "${HOME}/.go_workspace:/usr/local/go_workspace:${HOME}/.go_project"
   
   post:
     - docker run -d -p 5000:5000 --restart=always --name registry registry:2
