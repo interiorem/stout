@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"testing"
 
 	"golang.org/x/net/context"
@@ -31,6 +32,9 @@ func init() {
 	testsuite.RegisterSuite(portoBoxConstructor, opts, func() string {
 		if os.Getenv("TRAVIS") == "true" {
 			return "Skip Porto tests under Travis CI"
+		}
+		if runtime.GOOS != "linux" {
+			return "Porto tests could be run in Linux only"
 		}
 		return ""
 	})

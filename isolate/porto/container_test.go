@@ -5,18 +5,73 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
+	"strings"
 	"testing"
 
-	"github.com/bmizerany/assert"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/noxiouz/stout/isolate/docker"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 	"golang.org/x/net/context"
 )
 
+func TestExecInfoFormatters(t *testing.T) {
+	assert := assert.New(t)
+	info := execInfo{
+		name:       "testapp",
+		executable: "/usr/bin/testapp",
+		args: map[string]string{
+			"--endpoint": "/var/run/cocaine.sock",
+			"--app":      "testapp",
+			"protocol":   "1",
+			"--locator":  "[2a02:6b8:0:1605::32]:10053,5.45.197.172:10053",
+			"--uuid":     "bfe13176-7195-47db-a469-1b73b25d18c2",
+		},
+		env: map[string]string{
+			"envA": "A",
+			"envB": "B",
+		},
+		Profile: &docker.Profile{
+			RuntimePath: "/var/run",
+			NetworkMode: "host",
+			Cwd:         "/tmp",
+			Resources: docker.Resources{
+				Memory: 4 * 1024 * 1024,
+			},
+			Tmpfs: map[string]string{
+				"/tmp/a": "size=100000",
+			},
+			Binds: []string{"/tmp:/bind:rw"},
+		},
+	}
+
+	assert.Equal("/var/run/cocaine.sock /run/cocaine;/tmp /bind rw", formatBinds(&info))
+	env := strings.Split(formatEnv(info.env), ";")
+	sort.Strings(env)
+	assert.Equal([]string{"envA=A", "envB=B"}, env)
+	cmd := strings.Split(formatCommand(info.executable, info.args), " ")
+	assert.Len(cmd, 1+len(info.args)*2)
+	assert.Equal(info.executable, cmd[0])
+
+	var found bool
+	for i, s := range cmd {
+		if s == "--endpoint" {
+			found = true
+			assert.Equal("/run/cocaine", cmd[i+1])
+		}
+	}
+	assert.True(found)
+}
+
 func TestContainer(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skipf("Skip under %s", runtime.GOOS)
+		return
+	}
 	require := require.New(t)
 	ctx := context.Background()
 
