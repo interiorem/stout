@@ -2,6 +2,7 @@ package context
 
 import (
 	"fmt"
+	"sync"
 
 	"runtime"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/apex/log/handlers/discard"
 	"golang.org/x/net/context"
 )
+
+var setHandler sync.Once
 
 type loggerKey struct{}
 
@@ -80,9 +83,11 @@ func getApexLogger(ctx context.Context, keys ...interface{}) *log.Entry {
 		// If no logger is found, just return the standard logger.
 		// TODO: (apex/log) has nil handler for standard logger
 		// https://github.com/apex/log/issues/6
-		if alog, ok := log.Log.(*log.Logger); ok && alog.Handler == nil {
-			log.SetHandler(discard.Default)
-		}
+		setHandler.Do(func() {
+			if alog, ok := log.Log.(*log.Logger); ok && alog.Handler == nil {
+				log.SetHandler(discard.Default)
+			}
+		})
 		logger = log.Log.WithFields(fields)
 
 	}
