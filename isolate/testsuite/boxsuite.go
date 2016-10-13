@@ -1,7 +1,7 @@
 package testsuite
 
 import (
-	"bytes"
+	"bufio"
 	"io"
 	"strings"
 	"time"
@@ -88,15 +88,19 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 		Env:        env,
 	}
 
-	body := new(bytes.Buffer)
-	pr, err := suite.Box.Spawn(ctx, config, body)
-	c.Assert(err, check.IsNil)
-	// TODO: add synchronized writer
-	time.Sleep(5 * time.Second)
-	defer pr.Kill()
+	rd, wr := io.Pipe()
+	go func() {
+		pr, err := suite.Box.Spawn(ctx, config, wr)
+		c.Assert(err, check.IsNil)
+		defer pr.Kill()
+		defer wr.CloseWithError(io.EOF)
+		// TODO: add synchronized writer
+		time.Sleep(5 * time.Second)
+	}()
 
+	br := bufio.NewReader(rd)
 	// verify args
-	unsplittedArgs, err := body.ReadString('\n')
+	unsplittedArgs, err := br.ReadString('\n')
 	c.Assert(err, check.IsNil)
 
 	cargs := strings.Split(strings.Trim(unsplittedArgs, "\n"), " ")
@@ -109,7 +113,7 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	// verify env
 	cenv := make(map[string]string)
 	for {
-		envline, err := body.ReadString('\n')
+		envline, err := br.ReadString('\n')
 		if err == io.EOF {
 			break
 		}
