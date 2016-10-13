@@ -72,6 +72,10 @@ func TestContainer(t *testing.T) {
 		t.Skipf("Skip under %s", runtime.GOOS)
 		return
 	}
+	if os.Getenv("TRAVIS") == "true" {
+		t.Skip("Skip Porto tests under Travis CI")
+		return
+	}
 	require := require.New(t)
 	ctx := context.Background()
 
