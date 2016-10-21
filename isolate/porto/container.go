@@ -195,6 +195,23 @@ func (c *container) Kill() (err error) {
 	defer portoConn.Close()
 	defer c.Cleanup(portoConn)
 
+	// After Kill the container must be in `dead` state
+	// Wait seems redundant as we sent SIGKILL
+	value, err := portoConn.GetData(c.containerID, "stdout")
+	if err != nil {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stdout")
+	}
+	// TODO: add StringWriter interface to an output
+	c.output.Write([]byte(value))
+	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stdout have been sent", len(value))
+
+	value, err = portoConn.GetData(c.containerID, "stderr")
+	if err != nil {
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stderr")
+	}
+	c.output.Write([]byte(value))
+	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
+
 	if err = portoConn.Kill(c.containerID, syscall.SIGKILL); err != nil {
 		if !isEqualPortoError(err, portorpc.EError_InvalidState) {
 			return err
