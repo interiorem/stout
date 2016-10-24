@@ -234,7 +234,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	b.mu.Unlock()
 
 	totalSpawnTimer.UpdateSince(start)
-	isolate.NotifyAbouStart(output)
+	isolate.NotifyAboutStart(output)
 	procsCreatedCounter.Inc(1)
 	return pr, err
 }

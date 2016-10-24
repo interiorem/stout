@@ -503,7 +503,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		pr.Cleanup(portoConn)
 		return nil, err
 	}
-	isolate.NotifyAbouStart(output)
+	isolate.NotifyAboutStart(output)
 	totalSpawnTimer.UpdateSince(start)
 	return pr, nil
 }
