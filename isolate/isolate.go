@@ -44,7 +44,7 @@ var (
 	notificationByte = []byte("")
 )
 
-func NotifyAbouStart(wr io.Writer) {
+func NotifyAboutStart(wr io.Writer) {
 	wr.Write(notificationByte)
 }
 

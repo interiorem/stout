@@ -143,7 +143,7 @@ func (p *process) startContainer(wr io.Writer) error {
 		p.cancellation()
 		return err
 	}
-	isolate.NotifyAbouStart(wr)
+	isolate.NotifyAboutStart(wr)
 	close(startBarier)
 	return nil
 }
