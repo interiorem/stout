@@ -242,7 +242,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
 	profile, err := ConvertProfile(opts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unable to convert raw profile to Docker specific profile")
 		return err
 	}
 

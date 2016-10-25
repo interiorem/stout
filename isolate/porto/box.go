@@ -345,7 +345,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spool").Stop(&err)
 	profile, err := docker.ConvertProfile(opts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
+		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unable to convert raw profile to Porto/Docker specific profile")
 		return err
 	}
 
