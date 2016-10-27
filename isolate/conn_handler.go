@@ -6,7 +6,6 @@ import (
 	"io"
 	"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	apexctx "github.com/m0sth8/context"
@@ -186,12 +185,14 @@ LOOP:
 }
 
 type responseStream struct {
+	sync.Mutex
+
 	ctx     context.Context
 	wr      io.Writer
 	channel uint64
 
 	onClose func(ctx context.Context)
-	closed  uint32
+	closed  bool
 }
 
 var errStreamIsClosed = errors.New("Stream is closed")
@@ -209,20 +210,21 @@ func (r *responseStream) OnClose(onClose func(context.Context)) {
 	r.onClose = onClose
 }
 
-func (r *responseStream) close(ctx context.Context) error {
-	if !atomic.CompareAndSwapUint32(&r.closed, 0, 1) {
-		return errStreamIsClosed
+func (r *responseStream) close(ctx context.Context) {
+	if r.closed {
+		return
 	}
 
 	if r.onClose != nil {
 		r.onClose(ctx)
 	}
-
-	return nil
 }
 
 func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) error {
-	if atomic.LoadUint32(&r.closed) == 1 {
+	r.Lock()
+	defer r.Unlock()
+
+	if r.closed {
 		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
 		return errStreamIsClosed
 	}
@@ -246,10 +248,13 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 }
 
 func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg string) error {
-	if err := r.close(ctx); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Error")
-		return err
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Error")
+		return errStreamIsClosed
 	}
+	defer r.close(ctx)
 
 	p := msgpackBytePool.Get().([]byte)[:0]
 	defer msgpackBytePool.Put(p)
@@ -278,14 +283,13 @@ func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg
 }
 
 func (r *responseStream) Close(ctx context.Context, num uint64) error {
-	if err := r.close(ctx); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Close")
-		return err
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Close")
+		return errStreamIsClosed
 	}
-
-	if r.onClose != nil {
-		r.onClose(ctx)
-	}
+	defer r.close(ctx)
 
 	p := msgpackBytePool.Get().([]byte)[:0]
 	defer msgpackBytePool.Put(p)
