@@ -206,9 +206,8 @@ func (d *initialDispatch) onSpawn(opts Profile, name, executable string, args, e
 		}
 
 		outputCollector := &OutputCollector{
-			ctx:        d.ctx,
-			stream:     d.stream,
-			flagKilled: &flagKilled,
+			ctx:    d.ctx,
+			stream: d.stream,
 		}
 		pr, err := box.Spawn(ctx, config, outputCollector)
 		if err != nil {
@@ -251,15 +250,10 @@ type OutputCollector struct {
 
 	stream ResponseStream
 
-	flagKilled *uint32
-	notified   uint32
+	notified uint32
 }
 
 func (o *OutputCollector) Write(p []byte) (int, error) {
-	if atomic.LoadUint32(o.flagKilled) != 0 {
-		return 0, nil
-	}
-
 	// if the first output comes earlier than Notify() is called
 	if atomic.CompareAndSwapUint32(&o.notified, 0, 1) {
 		o.stream.Write(o.ctx, replySpawnWrite, notificationByte)
