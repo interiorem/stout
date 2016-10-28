@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.9.0) unstable; urgency=low
+
+  * isolate(porto): fix crashlogs
+  * ResponseStream: fix bug with write after close
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 28 Oct 2016 18:01:47 +0300
+
 cocaine-isolate-daemon (0.1.8.0) unstable; urgency=low
 
   * isolate(porto): fix porto volume leak
