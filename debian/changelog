@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.9.1) unstable; urgency=low
+
+  * isolate(porto): add option for set ulimit
+  * Some spellfixes
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 16 Nov 2016 17:22:09 +0300
+
 cocaine-isolate-daemon (0.1.9.0) unstable; urgency=low
 
   * isolate(porto): fix crashlogs
