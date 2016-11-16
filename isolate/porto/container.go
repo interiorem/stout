@@ -33,7 +33,7 @@ type container struct {
 
 type execInfo struct {
 	*docker.Profile
-	name, executable string
+	name, executable, ulimits string
 	args, env        map[string]string
 }
 
@@ -151,6 +151,11 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	if err = portoConn.SetProperty(cfg.ID, "env", formatEnv(info.env)); err != nil {
 		return nil, err
 	}
+	if info.ulimits != "" {
+		if err = portoConn.SetProperty(cfg.ID, "ulimit", info.ulimits); err != nil {
+			return nil, err
+		}
+	}
 	if info.Cwd != "" {
 		if err = portoConn.SetProperty(cfg.ID, "cwd", info.Cwd); err != nil {
 			return nil, err
@@ -205,7 +210,7 @@ func (c *container) Kill() (err error) {
 	// Wait seems redundant as we sent SIGKILL
 	value, err := portoConn.GetData(c.containerID, "stdout")
 	if err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unbale to get stdout")
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stdout")
 	}
 	// TODO: add StringWriter interface to an output
 	c.output.Write([]byte(value))
@@ -213,15 +218,10 @@ func (c *container) Kill() (err error) {
 
 	value, err = portoConn.GetData(c.containerID, "stderr")
 	if err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unbale to get stderr")
+		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stderr")
 	}
 	c.output.Write([]byte(value))
 	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
-
-	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Debugf("footprint %s", containerFootprint{
-		portoConn:   portoConn,
-		containerID: c.containerID,
-	})
 
 	if err = portoConn.Kill(c.containerID, syscall.SIGKILL); err != nil {
 		if !isEqualPortoError(err, portorpc.EError_InvalidState) {

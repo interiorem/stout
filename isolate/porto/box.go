@@ -50,6 +50,7 @@ type portoBoxConfig struct {
 	CleanupEnabled   bool              `json:"cleanupenabled"`
 	SetImgUri        bool              `json:"setimguri"`
 	WeakEnabled      bool              `json:"weakenabled"`
+	DefaultUlimits   string            `json:"defaultulimits"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -459,6 +460,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		Profile:    profile,
 		name:       config.Name,
 		executable: config.Executable,
+		ulimits:    b.config.DefaultUlimits,
 		args:       config.Args,
 		env:        config.Env,
 	}
