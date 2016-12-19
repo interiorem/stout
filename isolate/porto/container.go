@@ -166,6 +166,9 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	if err = portoConn.SetProperty(cfg.ID, "net", pickNetwork(string(info.NetworkMode()))); err != nil {
 		return nil, err
 	}
+	if err = portoConn.SetProperty(cfg.ID, "enable_porto", "false"); err != nil {
+		return nil, err
+	}
 	if err = portoConn.SetProperty(cfg.ID, "root", volumePath); err != nil {
 		return nil, err
 	}

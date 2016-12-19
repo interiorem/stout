@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.9.2) unstable; urgency=low
+
+  * isolate(porto): new work with properties
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Mon, 19 Dec 2016 20:43:10 +0300
+
 cocaine-isolate-daemon (0.1.9.1) unstable; urgency=low
 
   * isolate(porto): add option for set ulimit
