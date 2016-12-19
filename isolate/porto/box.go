@@ -167,6 +167,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	if err != nil {
 		return nil, err
 	}
+	if rootPrefix == "/" {
+		rootPrefix = ""
+	}
 
 	ctx, onClose := context.WithCancel(ctx)
 	box := &Box{
