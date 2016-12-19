@@ -125,6 +125,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 	}(&err)
 
 	volumeDescription, err := portoConn.CreateVolume(volumePath, volumeProperties)
+	apexctx.GetLogger(ctx).WithField("container", cfg.ID).Debugf("create volume with volumeProperties: %s", volumeProperties)
 	if err != nil {
 		if !isEqualPortoError(err, portorpc.EError_VolumeAlreadyExists) {
 			apexctx.GetLogger(ctx).WithError(err).WithField("container", cfg.ID).Error("unable to create volume")
