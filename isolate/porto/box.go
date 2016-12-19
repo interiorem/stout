@@ -48,9 +48,10 @@ type portoBoxConfig struct {
 	RegistryAuth     map[string]string `json:"registryauth"`
 	DialRetries      int               `json:"dialretries"`
 	CleanupEnabled   bool              `json:"cleanupenabled"`
-	SetImgUri        bool              `json:"setimguri"`
+	SetImgURI        bool              `json:"setimguri"`
 	WeakEnabled      bool              `json:"weakenabled"`
 	DefaultUlimits   string            `json:"defaultulimits"`
+	VolumeBackend    string            `json:"volumebackend"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -61,8 +62,8 @@ func (c *portoBoxConfig) String() string {
 	return string(body)
 }
 
-func (cfg *portoBoxConfig) ContainerRootDir(name, containerID string) string {
-	return filepath.Join(cfg.Containers, name, containerID)
+func (c *portoBoxConfig) ContainerRootDir(name, containerID string) string {
+	return filepath.Join(c.Containers, name, containerID)
 }
 
 // Box operates with Porto to launch containers
@@ -80,6 +81,8 @@ type Box struct {
 
 	onClose context.CancelFunc
 }
+
+const defaultVolumeBackend = "overlay"
 
 // NewBox creates new Box
 func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
@@ -114,6 +117,10 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 
 	if config.Journal == "" {
 		return nil, fmt.Errorf("option Journal is empty or unspecified")
+	}
+
+	if config.VolumeBackend == "" {
+		config.VolumeBackend = defaultVolumeBackend
 	}
 
 	apexctx.GetLogger(ctx).WithField("dir", config.Layers).Info("create directory for Layers")
@@ -443,10 +450,8 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 // Spawn spawns new Porto container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
-	profile, err := docker.ConvertProfile(config.Opts)
-	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")
-		return nil, err
+	profile := portoProfile{
+		Profile: config.Opts,
 	}
 	start := time.Now()
 
@@ -457,12 +462,12 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	}
 
 	ei := execInfo{
-		Profile:    profile,
-		name:       config.Name,
-		executable: config.Executable,
-		ulimits:    b.config.DefaultUlimits,
-		args:       config.Args,
-		env:        config.Env,
+		portoProfile: profile,
+		name:         config.Name,
+		executable:   config.Executable,
+		ulimits:      b.config.DefaultUlimits,
+		args:         config.Args,
+		env:          config.Env,
 	}
 
 	ID := b.appGenLabel(config.Name) + "_" + uuid.New()
@@ -471,7 +476,8 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          b.appLayerName(config.Name),
 		CleanupEnabled: b.config.CleanupEnabled,
-		SetImgUri:      b.config.SetImgUri,
+		SetImgURI:      b.config.SetImgURI,
+		VolumeBackend:  b.config.VolumeBackend,
 	}
 
 	portoConn, err := portoConnect()

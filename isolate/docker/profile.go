@@ -36,6 +36,7 @@ type Profile struct {
 	Binds     []string          `json:"binds"`
 }
 
+// ConvertProfile unpacked general profile to a Docker specific
 func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
 	// Create profile with default values
 	// They can be overwritten by decode

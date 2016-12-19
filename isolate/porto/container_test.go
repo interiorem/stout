@@ -12,6 +12,7 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
+	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,18 +36,23 @@ func TestExecInfoFormatters(t *testing.T) {
 			"envA": "A",
 			"envB": "B",
 		},
-		Profile: &docker.Profile{
-			RuntimePath: "/var/run",
-			NetworkMode: "host",
-			Cwd:         "/tmp",
-			Resources: docker.Resources{
-				Memory: 4 * 1024 * 1024,
-			},
-			Tmpfs: map[string]string{
-				"/tmp/a": "size=100000",
-			},
-			Binds: []string{"/tmp:/bind:rw"},
-		},
+		// Profile: &docker.Profile{
+		// 	RuntimePath: "/var/run",
+		// 	NetworkMode: "host",
+		// 	Cwd:         "/tmp",
+		// 	Resources: docker.Resources{
+		// 		Memory: 4 * 1024 * 1024,
+		// 	},
+		// 	Tmpfs: map[string]string{
+		// 		"/tmp/a": "size=100000",
+		// 	},
+		// 	Binds: []string{"/tmp:/bind:rw"},
+		// },
+		portoProfile: portoProfile{isolate.Profile{
+			"binds":        []string{"/tmp:/bind:rw"},
+			"cwd":          "/tmp",
+			"network_mode": "host",
+		}},
 	}
 
 	assert.Equal("/var/run/cocaine.sock /run/cocaine;/tmp /bind rw", formatBinds(&info))
@@ -136,7 +142,7 @@ func TestContainer(t *testing.T) {
 	}
 
 	ei := execInfo{
-		Profile:    &profile,
+		// Profile:    &profile,
 		name:       "TestContainer",
 		executable: "echo",
 		args:       map[string]string{"--endpoint": "/var/run/cocaine.sock"},
