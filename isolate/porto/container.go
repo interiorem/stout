@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -15,8 +14,6 @@ import (
 
 	porto "github.com/yandex/porto/src/api/go"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
-
-	"github.com/noxiouz/stout/isolate/docker"
 )
 
 type container struct {
@@ -26,15 +23,15 @@ type container struct {
 	rootDir        string
 	volumePath     string
 	cleanupEnabled bool
-	SetImgUri      bool
+	SetImgURI      bool
 
 	output io.Writer
 }
 
 type execInfo struct {
-	*docker.Profile
+	portoProfile
 	name, executable, ulimits string
-	args, env        map[string]string
+	args, env                 map[string]string
 }
 
 type containerConfig struct {
@@ -42,7 +39,8 @@ type containerConfig struct {
 	ID             string
 	Layer          string
 	CleanupEnabled bool
-	SetImgUri      bool
+	SetImgURI      bool
+	VolumeBackend  string
 }
 
 func formatCommand(executable string, args map[string]string) string {
@@ -94,7 +92,7 @@ func formatBinds(info *execInfo) string {
 	buff.WriteByte(' ')
 	buff.WriteString("/run/cocaine")
 	info.args["--endpoint"] = "/run/cocaine"
-	for _, dockerBind := range info.Profile.Binds {
+	for _, dockerBind := range info.portoProfile.Binds() {
 		buff.WriteByte(';')
 		buff.WriteString(strings.Replace(dockerBind, ":", " ", -1))
 	}
@@ -106,9 +104,12 @@ func formatBinds(info *execInfo) string {
 func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig, info execInfo) (cnt *container, err error) {
 	apexctx.GetLogger(ctx).WithField("container", cfg.ID).Debugf("exec newContainer() with containerConfig: %s; execInfo: %s;", cfg, info)
 	volumeProperties := map[string]string{
-		"backend": "overlay",
+		"backend": cfg.VolumeBackend,
 		"layers":  cfg.Layer,
 		"private": "cocaine-app",
+	}
+	if err = info.applyVolumeLimits(ctx, cfg.ID, volumeProperties); err != nil {
+		return nil, err
 	}
 
 	volumePath := filepath.Join(cfg.Root, "volume")
@@ -138,8 +139,8 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		return nil, err
 	}
 
-	if cfg.SetImgUri {
-		info.env["image_uri"] = info.Registry + "/" + info.name
+	if cfg.SetImgURI {
+		info.env["image_uri"] = info.portoProfile.Registry() + "/" + info.name
 	}
 
 	if err = portoConn.SetProperty(cfg.ID, "bind", formatBinds(&info)); err != nil {
@@ -156,23 +157,22 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 			return nil, err
 		}
 	}
-	if info.Cwd != "" {
-		if err = portoConn.SetProperty(cfg.ID, "cwd", info.Cwd); err != nil {
+	if cwd := info.Cwd(); cwd != "" {
+		if err = portoConn.SetProperty(cfg.ID, "cwd", cwd); err != nil {
 			return nil, err
 		}
 	}
-	if err = portoConn.SetProperty(cfg.ID, "net", pickNetwork(string(info.NetworkMode))); err != nil {
+	if err = portoConn.SetProperty(cfg.ID, "net", pickNetwork(string(info.NetworkMode()))); err != nil {
 		return nil, err
-	}
-	if info.Resources.Memory != 0 {
-		if err = portoConn.SetProperty(cfg.ID, "memory_limit", strconv.FormatInt(info.Resources.Memory, 10)); err != nil {
-			return nil, err
-		}
 	}
 	if err = portoConn.SetProperty(cfg.ID, "root", volumePath); err != nil {
 		return nil, err
 	}
 	if err = portoConn.LinkVolume(volumePath, cfg.ID); err != nil {
+		return nil, err
+	}
+
+	if err = info.portoProfile.applyContainerLimits(ctx, portoConn, cfg.ID); err != nil {
 		return nil, err
 	}
 
@@ -183,7 +183,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig,
 		rootDir:        cfg.Root,
 		volumePath:     volumePath,
 		cleanupEnabled: cfg.CleanupEnabled,
-		SetImgUri:      cfg.SetImgUri,
+		SetImgURI:      cfg.SetImgURI,
 
 		output: ioutil.Discard,
 	}
