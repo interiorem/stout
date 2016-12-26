@@ -75,6 +75,13 @@ func (p portoProfile) applyContainerLimits(ctx context.Context, portoConn porto.
 		log := apexctx.GetLogger(ctx).WithField("container", id)
 		for limit, value := range limits {
 			strvalue := fmt.Sprintf("%s", value)
+			if limit == "bind" {
+				if actual_bind, err := portoConn.GetProperty(id, "bind"); err != nil {
+					return err
+				} else {
+					strvalue = actual_bind + ";" + strvalue
+				}
+			}
 			log.Debugf("apply %s %s", limit, strvalue)
 			if err := portoConn.SetProperty(id, limit, strvalue); err != nil {
 				return err
