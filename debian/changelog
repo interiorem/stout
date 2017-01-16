@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.9.3) unstable; urgency=low
+
+  * isolate(porto): use multilayered containers without merge
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Mon, 16 Jan 2017 17:50:51 +0300
+
 cocaine-isolate-daemon (0.1.9.2) unstable; urgency=low
 
   * isolate(porto): new work with properties
