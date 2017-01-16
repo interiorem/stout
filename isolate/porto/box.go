@@ -340,12 +340,12 @@ func (b *Box) appGenLabel(appname string) string {
 	return appname
 }
 
-func (b *Box) appLayerName(appname string) string {
-	if b.config.WeakEnabled {
-		return "_weak_" + b.appGenLabel(appname) + "_" + b.journal.UUID
-	}
-	return b.appGenLabel(appname) + "_" + b.journal.UUID
-}
+// func (b *Box) appLayerName(appname string) string {
+// 	if b.config.WeakEnabled {
+// 		return "_weak_" + b.appGenLabel(appname) + "_" + b.journal.UUID
+// 	}
+// 	return b.appGenLabel(appname) + "_" + b.journal.UUID
+// }
 
 func (b *Box) addRootNamespacePrefix(container string) string {
 	return filepath.Join(b.rootPrefix, container)
@@ -401,13 +401,6 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 
-	layerName := b.appLayerName(name)
-	digest := tagDescriptor.Digest.String()
-	if b.journal.In(layerName, digest) {
-		apexctx.GetLogger(ctx).WithField("name", name).Infof("layer %s has been found in the cache", digest)
-		return nil
-	}
-
 	manifests, err := repo.Manifests(ctx)
 	if err != nil {
 		return err
@@ -418,10 +411,6 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return err
 	}
 
-	if err = portoConn.RemoveLayer(layerName); err != nil && !isEqualPortoError(err, portorpc.EError_LayerNotFound) {
-		return err
-	}
-	apexctx.GetLogger(ctx).WithField("name", name).Infof("create a layer %s in Porto with merge", layerName)
 	var order layersOrder
 	switch manifest.(type) {
 	case schema1.SignedManifest, *schema1.SignedManifest:
@@ -432,21 +421,29 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 		return fmt.Errorf("unknown manifest type %T", manifest)
 	}
 
+	layers := make([]string, 0)
+
 	for _, descriptor := range order(manifest.References()) {
+		// TODO: Add support for __weak__ layers
+		layerName := descriptor.Digest.String()
+		// TODO: insert check of the layer existance here
+		// ListLayers is too heavy IMHO
+		// if the layer presents we can skip it
 		blobPath, err := b.blobRepo.Get(ctx, repo, descriptor.Digest)
 		if err != nil {
 			return err
 		}
-
-		entry := apexctx.GetLogger(ctx).WithField("layer", layerName).Trace("ImportLayer with merge")
-		err = portoConn.ImportLayer(layerName, blobPath, true)
-		entry.Stop(&err)
-		if err != nil {
+		entry := apexctx.GetLogger(ctx).WithField("layer", layerName).Trace("Try to import layer")
+		portoLayerName := strings.Replace(layerName, ":", "_", -1)
+		err = portoConn.ImportLayer(portoLayerName, blobPath, false)
+		if err != nil && !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
+			entry.Stop(&err)
 			return err
 		}
+		layers = append(layers, portoLayerName)
 	}
-	b.journal.Insert(layerName, digest)
-	// NOTE: Not so fast, but it's important to debug
+	b.journal.InsertManifestLayers(name, strings.Join(layers, ";"))
+	// NOTE: Not so fast, but it's important for debug
 	journalContent.Set(b.journal.String())
 	return nil
 }
@@ -464,6 +461,13 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		return nil, syscall.EAGAIN
 	}
 
+	layers := b.journal.GetManifestLayers(config.Name)
+	if layers == "" {
+		err := fmt.Errorf("no layers in the journal for the app")
+		apexctx.GetLogger(ctx).WithFields(log.Fields{"name": config.Name, "error": err}).Error("unable to start container")
+		return nil, err
+	}
+
 	ei := execInfo{
 		portoProfile: profile,
 		name:         config.Name,
@@ -477,7 +481,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	cfg := containerConfig{
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
-		Layer:          b.appLayerName(config.Name),
+		Layer:          layers,
 		CleanupEnabled: b.config.CleanupEnabled,
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,

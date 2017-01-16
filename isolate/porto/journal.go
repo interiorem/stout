@@ -10,17 +10,20 @@ import (
 )
 
 type layersMap map[string]string
+type manifests map[string]string
 
 type journal struct {
-	mu     sync.RWMutex
-	UUID   string    `json:"uuid"`
-	Layers layersMap `json:"layers"`
+	mu        sync.RWMutex
+	UUID      string    `json:"uuid"`
+	Layers    layersMap `json:"layers"`
+	Manifests manifests `json:"manifests"`
 }
 
 func newJournal() *journal {
 	j := &journal{
-		UUID:   uuid.New(),
-		Layers: make(layersMap),
+		UUID:      uuid.New(),
+		Layers:    make(layersMap),
+		Manifests: make(manifests),
 	}
 	return j
 }
@@ -39,6 +42,22 @@ func (j *journal) Load(r io.Reader) error {
 		return err
 	}
 	return nil
+}
+
+func (j *journal) InsertManifestLayers(manifest string, layers string) {
+	j.mu.Lock()
+	j.Manifests[manifest] = layers
+	j.mu.Unlock()
+}
+
+func (j *journal) GetManifestLayers(manifests string) string {
+	j.mu.RLock()
+	layers, ok := j.Manifests[manifests]
+	j.mu.RUnlock()
+	if !ok {
+		return ""
+	}
+	return layers
 }
 
 func (j *journal) Insert(layer string, digest string) *journal {
