@@ -1,6 +1,8 @@
 use Ubic::Service::SimpleDaemon;
 my $service = Ubic::Service::SimpleDaemon->new(
     name => 'cocaine-isolate-daemon',
+    daemon_user => 'root',
+    daemon_group => 'root',
     auto_start => 1,
     ubic_log => '/var/log/ubic/cocaine-isolate-daemon/ubic.log',
     stdout => '/var/log/ubic/cocaine-isolate-daemon/stdout.log',
