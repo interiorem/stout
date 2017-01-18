@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.1.9.4) unstable; urgency=low
+
+  * isolate(porto): hotfix for rewriting default binds in port isolation
+  * ubic: now run service as root
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 18 Jan 2017 19:55:08 +0300
+
 cocaine-isolate-daemon (0.1.9.3) unstable; urgency=low
 
   * isolate(porto): use multilayered containers without merge
