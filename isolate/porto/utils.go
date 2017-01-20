@@ -148,7 +148,7 @@ func portoConnect() (porto.API, error) {
 
 type layersOrder func(references []distribution.Descriptor) []distribution.Descriptor
 
-var layerOrderV1 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
+var layerOrderV2 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
 	return func(slice []distribution.Descriptor) []distribution.Descriptor {
 		size := len(slice) - 1
 		for i := 0; i < len(slice)/2; i++ {
@@ -158,6 +158,6 @@ var layerOrderV1 layersOrder = func(references []distribution.Descriptor) []dist
 	}(references)
 }
 
-var layerOrderV2 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
+var layerOrderV1 layersOrder = func(references []distribution.Descriptor) []distribution.Descriptor {
 	return references
 }
