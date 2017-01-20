@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.1.9.5) unstable; urgency=low
+
+  * isolate(porto): fix layers ordering
+
+ -- Anton Tyurin <noxiouz@yandex.ru>  Fri, 20 Jan 2017 20:29:48 +0300
+
 cocaine-isolate-daemon (0.1.9.4) unstable; urgency=low
 
   * isolate(porto): hotfix for rewriting default binds in port isolation
