@@ -92,10 +92,9 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	go func() {
 		pr, err := suite.Box.Spawn(ctx, config, wr)
 		c.Assert(err, check.IsNil)
-		defer pr.Kill()
-		defer wr.CloseWithError(io.EOF)
-		// TODO: add synchronized writer
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
+		pr.Kill()
+		wr.CloseWithError(io.EOF)
 	}()
 
 	br := bufio.NewReader(rd)
