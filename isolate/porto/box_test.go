@@ -97,9 +97,9 @@ COPY worker.sh /usr/bin/worker.sh
 func portoBoxConstructor(c *C) (isolate.Box, error) {
 	buildTestImage(c)
 	cfg := isolate.BoxConfig{
-		"layers":     "/var/tmp/layers",
-		"containers": "/var/tmp/containers",
-		"journal":    "/var/tmp/portojournal.jrnl",
+		"layers":     "/tmp/layers",
+		"containers": "/tmp/containers",
+		"journal":    "/tmp/portojournal.jrnl",
 	}
 
 	b, err := NewBox(apexctx.Background(), cfg)

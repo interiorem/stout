@@ -90,11 +90,11 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 
 	rd, wr := io.Pipe()
 	go func() {
+		defer wr.CloseWithError(io.EOF)
 		pr, err := suite.Box.Spawn(ctx, config, wr)
 		c.Assert(err, check.IsNil)
 		time.Sleep(10 * time.Second)
 		pr.Kill()
-		wr.CloseWithError(io.EOF)
 	}()
 
 	br := bufio.NewReader(rd)

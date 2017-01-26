@@ -1,6 +1,8 @@
 package porto
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"io"
 	"io/ioutil"
 	"os"
@@ -13,7 +15,6 @@ import (
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
@@ -105,29 +106,34 @@ func TestContainer(t *testing.T) {
 	require.NoError(err)
 	defer os.RemoveAll(dir)
 
+	imagetar := filepath.Join(dir, "alpine.tar.gz")
+
 	resp, err := client.ImageSave(ctx, []string{"alpine"})
 	require.NoError(err)
 	defer resp.Close()
 
-	imagetar := filepath.Join(dir, "alpine.tar.gz")
-	fi, err := os.Create(imagetar)
-	require.NoError(err)
-	defer fi.Close()
-	_, err = io.Copy(fi, resp)
-	require.NoError(err)
-	fi.Close()
-	resp.Close()
+	tarReader := tar.NewReader(resp)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(err)
+		if strings.HasSuffix(hdr.Name, "layer.tar") {
+			fi, err := os.Create(imagetar)
+			require.NoError(err)
+			defer fi.Close()
+			gz := gzip.NewWriter(fi)
+			_, err = io.Copy(gz, tarReader)
+			gz.Close()
+			require.NoError(err)
+			fi.Close()
+		}
+		io.Copy(ioutil.Discard, tarReader)
+	}
 
-	var profile = docker.Profile{
-		RuntimePath: "/var/run",
-		NetworkMode: "host",
-		Cwd:         "/tmp",
-		Resources: docker.Resources{
-			Memory: 4 * 1024 * 1024,
-		},
-		Tmpfs: map[string]string{
-			"/tmp/a": "size=100000",
-		},
+	var profile = isolate.Profile{
+		"cwd": "/tmp",
 	}
 
 	portoConn, err := portoConnect()
@@ -136,22 +142,23 @@ func TestContainer(t *testing.T) {
 	}
 	defer portoConn.Close()
 
+	portoConn.Destroy("IsolateLinuxApline")
 	err = portoConn.ImportLayer("testalpine", imagetar, false)
 	if err != nil {
 		require.True(isEqualPortoError(err, portorpc.EError_LayerAlreadyExists))
 	}
 
 	ei := execInfo{
-		// Profile:    &profile,
-		name:       "TestContainer",
-		executable: "echo",
-		args:       map[string]string{"--endpoint": "/var/run/cocaine.sock"},
-		env:        map[string]string{"A": "B"},
+		portoProfile: portoProfile{profile},
+		name:         "TestContainer",
+		executable:   "echo",
+		args:         map[string]string{"--endpoint": "/var/run/cocaine.sock"},
+		env:          map[string]string{"A": "B"},
 	}
 
 	cfg := containerConfig{
 		Root:  dir,
-		ID:    "LinuxAlpine",
+		ID:    "IsolateLinuxApline",
 		Layer: "testalpine",
 	}
 
@@ -162,13 +169,14 @@ func TestContainer(t *testing.T) {
 
 	env, err := portoConn.GetProperty(cnt.containerID, "env")
 	require.NoError(err)
-	assert.Equal(t, "A:B", env)
+	assert.Equal(t, "A=B", env)
 
 	command, err := portoConn.GetProperty(cnt.containerID, "command")
 	require.NoError(err)
-	assert.Equal(t, "echo --endpoint /var/run/cocaine.sock", command)
+	// NOTE: porto can bind a single file inside container, not only a directory
+	assert.Equal(t, "echo --endpoint /run/cocaine", command)
 
 	cwd, err := portoConn.GetProperty(cnt.containerID, "cwd")
 	require.NoError(err)
-	assert.Equal(t, profile.Cwd, cwd)
+	assert.Equal(t, profile["cwd"], cwd)
 }
