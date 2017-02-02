@@ -157,12 +157,13 @@ func TestContainer(t *testing.T) {
 	}
 
 	cfg := containerConfig{
-		Root:  dir,
-		ID:    "IsolateLinuxApline",
-		Layer: "testalpine",
+		Root:     dir,
+		ID:       "IsolateLinuxApline",
+		Layer:    "testalpine",
+		execInfo: ei,
 	}
 
-	cnt, err := newContainer(ctx, portoConn, cfg, ei)
+	cnt, err := newContainer(ctx, portoConn, cfg)
 	require.NoError(err)
 	require.NoError(cnt.start(portoConn, ioutil.Discard))
 	defer cnt.Kill()
