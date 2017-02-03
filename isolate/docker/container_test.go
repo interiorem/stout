@@ -136,7 +136,7 @@ func TestImagePullFromRegistry(t *testing.T) {
 	imgs, err := client.ImageList(ctx, types.ImageListOptions{})
 	found := false
 	for _, img := range imgs {
-		if strings.Contains(img.RepoTags[0], "alpine") {
+		if len(img.RepoTags) > 0 && strings.Contains(img.RepoTags[0], "alpine") {
 			found = true
 			break
 		}

@@ -468,15 +468,6 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		return nil, err
 	}
 
-	ei := execInfo{
-		portoProfile: profile,
-		name:         config.Name,
-		executable:   config.Executable,
-		ulimits:      b.config.DefaultUlimits,
-		args:         config.Args,
-		env:          config.Env,
-	}
-
 	ID := b.appGenLabel(config.Name) + "_" + uuid.New()
 	cfg := containerConfig{
 		Root:           filepath.Join(b.config.Containers, ID),
@@ -485,6 +476,14 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		CleanupEnabled: b.config.CleanupEnabled,
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,
+		execInfo: execInfo{
+			portoProfile: profile,
+			name:         config.Name,
+			executable:   config.Executable,
+			ulimits:      b.config.DefaultUlimits,
+			args:         config.Args,
+			env:          config.Env,
+		},
 	}
 
 	portoConn, err := portoConnect()
@@ -503,7 +502,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	apexctx.GetLogger(ctx).WithFields(log.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 
 	containersCreatedCounter.Inc(1)
-	pr, err := newContainer(ctx, portoConn, cfg, ei)
+	pr, err := newContainer(ctx, portoConn, cfg)
 	if err != nil {
 		containersErroredCounter.Inc(1)
 		return nil, err
