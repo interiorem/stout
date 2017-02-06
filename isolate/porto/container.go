@@ -22,8 +22,9 @@ type container struct {
 	cleanupEnabled bool
 	SetImgURI      bool
 
-	volume Volume
-	output io.Writer
+	volume       Volume
+	extraVolumes []Volume
+	output       io.Writer
 }
 
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
@@ -35,7 +36,13 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 		return nil, err
 	}
 
-	if err = cfg.CreateContainer(ctx, portoConn, volume); err != nil {
+	extravolumes, err := cfg.CreateExtraVolumes(ctx, portoConn, volume)
+	if err != nil {
+		log.WithError(err).Error("extra volumes construction failed")
+		return nil, err
+	}
+
+	if err = cfg.CreateContainer(ctx, portoConn, volume, extravolumes); err != nil {
 		volume.Destroy(ctx, portoConn)
 		return nil, err
 	}
@@ -48,8 +55,9 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 		cleanupEnabled: cfg.CleanupEnabled,
 		SetImgURI:      cfg.SetImgURI,
 
-		volume: volume,
-		output: ioutil.Discard,
+		volume:       volume,
+		extraVolumes: extravolumes,
+		output:       ioutil.Discard,
 	}
 	return cnt, nil
 }
@@ -112,6 +120,14 @@ func (c *container) Cleanup(portoConn porto.API) {
 		log.WithError(err).Warn("root volume has not been destroyed")
 	} else {
 		log.Debug("root volume successfully destroyed")
+	}
+
+	for i, extraVolume := range c.extraVolumes {
+		if err = extraVolume.Destroy(c.ctx, portoConn); err != nil {
+			log.WithError(err).Warnf("extra volume %d has not been destroyed", i)
+		} else {
+			log.Debugf("extra volume %d successfully destroyed", i)
+		}
 	}
 	if err = portoConn.Destroy(c.containerID); err != nil {
 		log.WithError(err).Warn("Destroy error")
