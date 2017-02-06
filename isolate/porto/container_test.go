@@ -14,7 +14,6 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
-	"github.com/noxiouz/stout/isolate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
@@ -49,11 +48,11 @@ func TestExecInfoFormatters(t *testing.T) {
 		// 	},
 		// 	Binds: []string{"/tmp:/bind:rw"},
 		// },
-		portoProfile: portoProfile{isolate.Profile{
-			"binds":        []string{"/tmp:/bind:rw"},
-			"cwd":          "/tmp",
-			"network_mode": "host",
-		}},
+		Profile: &Profile{
+			Binds:       []string{"/tmp:/bind:rw"},
+			Cwd:         "/tmp",
+			NetworkMode: "host",
+		},
 	}
 
 	assert.Equal("/var/run/cocaine.sock /run/cocaine;/tmp /bind rw", formatBinds(&info))
@@ -132,10 +131,6 @@ func TestContainer(t *testing.T) {
 		io.Copy(ioutil.Discard, tarReader)
 	}
 
-	var profile = isolate.Profile{
-		"cwd": "/tmp",
-	}
-
 	portoConn, err := portoConnect()
 	if err != nil {
 		t.Fatal(err)
@@ -149,11 +144,11 @@ func TestContainer(t *testing.T) {
 	}
 
 	ei := execInfo{
-		portoProfile: portoProfile{profile},
-		name:         "TestContainer",
-		executable:   "echo",
-		args:         map[string]string{"--endpoint": "/var/run/cocaine.sock"},
-		env:          map[string]string{"A": "B"},
+		Profile:    &Profile{Cwd: "/tmp"},
+		name:       "TestContainer",
+		executable: "echo",
+		args:       map[string]string{"--endpoint": "/var/run/cocaine.sock"},
+		env:        map[string]string{"A": "B"},
 	}
 
 	cfg := containerConfig{
@@ -179,5 +174,5 @@ func TestContainer(t *testing.T) {
 
 	cwd, err := portoConn.GetProperty(cnt.containerID, "cwd")
 	require.NoError(err)
-	assert.Equal(t, profile["cwd"], cwd)
+	assert.Equal(t, ei.Profile.Cwd, cwd)
 }

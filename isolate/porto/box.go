@@ -450,8 +450,10 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 // Spawn spawns new Porto container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
-	profile := portoProfile{
-		Profile: config.Opts,
+	profile, err := ConvertProfile(config.Opts)
+	if err != nil {
+		apexctx.GetLogger(ctx).WithError(err).Error("unable to decode profile")
+		return nil, err
 	}
 	start := time.Now()
 
@@ -477,12 +479,12 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,
 		execInfo: execInfo{
-			portoProfile: profile,
-			name:         config.Name,
-			executable:   config.Executable,
-			ulimits:      b.config.DefaultUlimits,
-			args:         config.Args,
-			env:          config.Env,
+			Profile:    profile,
+			name:       config.Name,
+			executable: config.Executable,
+			ulimits:    b.config.DefaultUlimits,
+			args:       config.Args,
+			env:        config.Env,
 		},
 	}
 

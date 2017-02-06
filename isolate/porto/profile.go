@@ -1,55 +1,48 @@
 package porto
 
-import "github.com/noxiouz/stout/isolate"
+import (
+	"github.com/mitchellh/mapstructure"
 
-type portoProfile struct {
-	isolate.Profile
+	"github.com/noxiouz/stout/isolate"
+)
+
+const (
+	defaultRuntimePath = "/var/run/cocaine"
+)
+
+type volumeProfile struct {
+	Target     string            `json:"target"`
+	Properties map[string]string `json:"properties"`
 }
 
-func (p portoProfile) Binds() []string {
-	binds, ok := p.Profile["binds"]
-	if !ok {
-		return nil
+type Profile struct {
+	Registry   string `json:"registry"`
+	Repository string `json:"repository"`
+
+	NetworkMode string `json:"network_mode"`
+	Cwd         string `json:"cwd"`
+
+	Binds []string `json:"binds"`
+
+	Container    map[string]string `json:"container"`
+	Volume       map[string]string `jsonL:"volume"`
+	ExtraVolumes []volumeProfile   `json:"extravolumes"`
+}
+
+// ConvertProfile unpacked general profile to a Docker specific
+func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
+	var profile = &Profile{}
+
+	config := mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           profile,
+		TagName:          "json",
 	}
 
-	switch binds := binds.(type) {
-	case []string:
-		return binds
-	case [][]byte:
-		bs := make([]string, 0, len(binds))
-		for _, b := range binds {
-			bs = append(bs, string(b))
-		}
-		return bs
-	default:
-		return nil
-	}
-}
-
-func (p portoProfile) Registry() string {
-	return getStringValue(p.Profile, "registry")
-}
-
-func (p portoProfile) Cwd() string {
-	return getStringValue(p.Profile, "cwd")
-}
-
-func (p portoProfile) NetworkMode() string {
-	return getStringValue(p.Profile, "network_mode")
-}
-
-func getStringValue(mp map[string]interface{}, key string) string {
-	value, ok := mp[key]
-	if !ok {
-		return ""
+	decoder, err := mapstructure.NewDecoder(&config)
+	if err != nil {
+		return nil, err
 	}
 
-	switch value := value.(type) {
-	case string:
-		return value
-	case []byte:
-		return string(value)
-	default:
-		return ""
-	}
+	return profile, decoder.Decode(rawprofile)
 }

@@ -1,7 +1,6 @@
 package porto
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,7 +58,7 @@ func (v *rootVolume) Destroy(ctx context.Context, portoConn porto.API) error {
 }
 
 type execInfo struct {
-	portoProfile
+	*Profile
 	name, executable, ulimits string
 	args, env                 map[string]string
 }
@@ -83,20 +82,9 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 	}
 
 	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
-	limits, ok := c.execInfo.Profile["volume"]
-	if !ok {
-		log.Info("no volume limits")
-	} else {
-		switch limits := limits.(type) {
-		case map[string]interface{}:
-			for limit, value := range limits {
-				strvalue := fmt.Sprintf("%s", value)
-				log.Debugf("apply volume limit %s %s", limit, strvalue)
-				properties[limit] = strvalue
-			}
-		default:
-			return nil, fmt.Errorf("invalid volume limits type: %T", limits)
-		}
+	for limit, value := range c.Profile.Volume {
+		log.Debugf("apply volume limit %s %s", limit, value)
+		properties[limit] = value
 	}
 
 	path := filepath.Join(c.Root, "volume")
@@ -122,6 +110,11 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 	return volume, nil
 }
 
+func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn porto.API, root Volume) ([]Volume, error) {
+
+	return nil, nil
+}
+
 func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.API, root Volume) (err error) {
 	if err = portoConn.Create(c.ID); err != nil {
 		return err
@@ -134,7 +127,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	}()
 
 	if c.SetImgURI {
-		c.execInfo.env["image_uri"] = c.portoProfile.Registry() + "/" + c.name
+		c.execInfo.env["image_uri"] = c.Profile.Registry + "/" + c.name
 	}
 
 	// As User can define arbitrary properties in `container` section,
@@ -147,14 +140,12 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 		properties["ulimit"] = c.ulimits
 	}
 
-	if cwd := c.Cwd(); cwd != "" {
-		properties["cwd"] = cwd
+	if c.Cwd != "" {
+		properties["cwd"] = c.Cwd
 	}
 
-	if opts, ok := c.portoProfile.Profile["container"].(map[string]interface{}); ok {
-		for k, v := range opts {
-			properties[k] = fmt.Sprintf("%s", v)
-		}
+	for property, value := range c.Profile.Container {
+		properties[property] = value
 	}
 
 	// Options with merge policy: binds, env
@@ -174,7 +165,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	properties["command"] = formatCommand(c.executable, c.args)
 	properties["root"] = root.Path()
 	properties["enable_porto"] = "false"
-	properties["net"] = pickNetwork(string(c.NetworkMode()))
+	properties["net"] = pickNetwork(c.NetworkMode)
 
 	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
 	for property, value := range properties {
@@ -241,7 +232,7 @@ func formatBinds(info *execInfo) string {
 	buff.WriteByte(' ')
 	buff.WriteString("/run/cocaine")
 	info.args["--endpoint"] = "/run/cocaine"
-	for _, dockerBind := range info.portoProfile.Binds() {
+	for _, dockerBind := range info.Profile.Binds {
 		buff.WriteByte(';')
 		buff.WriteString(strings.Replace(dockerBind, ":", " ", -2))
 	}
