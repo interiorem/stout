@@ -144,7 +144,24 @@ func TestContainer(t *testing.T) {
 	}
 
 	ei := execInfo{
-		Profile:    &Profile{Cwd: "/tmp"},
+		Profile: &Profile{
+			Cwd: "/tmp",
+			ExtraVolumes: []volumeProfile{
+				{
+					Target: "/tmpfs",
+					Properties: map[string]string{
+						"backend":     "tmpfs",
+						"space_limit": "10000",
+					},
+				}, {
+					Target: "/bind",
+					Properties: map[string]string{
+						"backend": "bind",
+						"storage": dir,
+					},
+				},
+			},
+		},
 		name:       "TestContainer",
 		executable: "echo",
 		args:       map[string]string{"--endpoint": "/var/run/cocaine.sock"},
@@ -159,9 +176,39 @@ func TestContainer(t *testing.T) {
 	}
 
 	cnt, err := newContainer(ctx, portoConn, cfg)
+	cnt.cleanupEnabled = true
 	require.NoError(err)
 	require.NoError(cnt.start(portoConn, ioutil.Discard))
+
+	if cnt.cleanupEnabled {
+		defer func() {
+			for _, vol := range ei.Profile.ExtraVolumes {
+				if storage := vol.Properties["storage"]; storage != "" {
+					_, err = os.Stat(storage)
+					require.True(os.IsNotExist(err), "extra volume %s was not cleaned up", vol.Target)
+				}
+			}
+
+			_, err = os.Stat(filepath.Join(cfg.Root, "volume"))
+			require.True(os.IsNotExist(err), "root volume was not cleaned up")
+		}()
+	}
 	defer cnt.Kill()
+
+	for _, vol := range ei.Profile.ExtraVolumes {
+		// Test that tmpfs has been created
+		expectedVolPath := filepath.Join(dir, "volume", vol.Target)
+		targetDirStat, serr := os.Stat(expectedVolPath)
+		require.NoError(serr)
+		require.True(targetDirStat.IsDir())
+		if storage := vol.Properties["storage"]; storage != "" {
+			// containerid is appended to storage
+			require.True(strings.HasSuffix(storage, cnt.containerID))
+			storageDirStat, zerr := os.Stat(storage)
+			require.NoError(zerr)
+			require.True(storageDirStat.IsDir())
+		}
+	}
 
 	env, err := portoConn.GetProperty(cnt.containerID, "env")
 	require.NoError(err)
