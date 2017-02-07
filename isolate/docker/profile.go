@@ -2,9 +2,8 @@ package docker
 
 import (
 	"github.com/docker/engine-api/types/container"
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/noxiouz/stout/isolate"
+	"github.com/tinylib/msgp/msgp"
 )
 
 const (
@@ -12,49 +11,38 @@ const (
 	defatultNetworkMode = container.NetworkMode("bridge")
 )
 
+//go:generate msgp -o profile_decodable.go
+
 type Resources struct {
-	Memory     int64  `json:"memory"`
-	CPUShares  int64  `json:"CpuShares"`
-	CPUPeriod  int64  `json:"CpuPeriod"` // CPU CFS (Completely Fair Scheduler) period
-	CPUQuota   int64  `json:"CpuQuota"`  // CPU CFS (Completely Fair Scheduler) quota
-	CpusetCpus string `json:"CpusetCpus"`
-	CpusetMems string `json:"CpusetMems"`
+	Memory     msgp.Number `msg:"memory"`
+	CPUShares  msgp.Number `msg:"CpuShares"`
+	CPUPeriod  msgp.Number `msg:"CpuPeriod"` // CPU CFS (Completely Fair Scheduler) period
+	CPUQuota   msgp.Number `msg:"CpuQuota"`  // CPU CFS (Completely Fair Scheduler) quota
+	CpusetCpus string      `msg:"CpusetCpus"`
+	CpusetMems string      `msg:"CpusetMems"`
 }
 
 // Profile describes a Cocaine profile for Docker isolation type
 type Profile struct {
-	Registry   string `json:"registry"`
-	Repository string `json:"repository"`
-	Endpoint   string `json:"endpoint"`
+	Registry   string `msg:"registry"`
+	Repository string `msg:"repository"`
+	Endpoint   string `msg:"endpoint"`
 
-	NetworkMode container.NetworkMode `json:"network_mode"`
-	RuntimePath string                `json:"runtime-path"`
-	Cwd         string                `json:"cwd"`
+	NetworkMode string `msg:"network_mode"`
+	RuntimePath string `msg:"runtime-path"`
+	Cwd         string `msg:"cwd"`
 
-	Resources `json:"resources"`
-	Tmpfs     map[string]string `json:"tmpfs"`
-	Binds     []string          `json:"binds"`
+	Resources `msg:"resources"`
+	Tmpfs     map[string]string `msg:"tmpfs"`
+	Binds     []string          `msg:"binds"`
 }
 
-// ConvertProfile unpacked general profile to a Docker specific
-func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
-	// Create profile with default values
-	// They can be overwritten by decode
-	var profile = &Profile{
-		NetworkMode: container.NetworkMode("bridge"),
+func decodeProfile(raw isolate.RawProfile) (*Profile, error) {
+	profile := Profile{
+		NetworkMode: "bridge",
 		RuntimePath: defaultRuntimePath,
 	}
 
-	config := mapstructure.DecoderConfig{
-		WeaklyTypedInput: true,
-		Result:           profile,
-		TagName:          "json",
-	}
-
-	decoder, err := mapstructure.NewDecoder(&config)
-	if err != nil {
-		return nil, err
-	}
-
-	return profile, decoder.Decode(rawprofile)
+	err := raw.DecodeTo(&profile)
+	return &profile, err
 }

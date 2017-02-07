@@ -34,6 +34,13 @@ func NewRawProfile(i interface{}) (RawProfile, error) {
 	return &p, err
 }
 
+func NewRawProfileFromBytes(b []byte) RawProfile {
+	p := &cocaineProfile{
+		buff: b,
+	}
+	return p
+}
+
 func newCocaineProfile() *cocaineProfile {
 	buff := profilesPool.Get().([]byte)
 	buff = buff[:0]
