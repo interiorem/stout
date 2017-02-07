@@ -146,7 +146,7 @@ func TestContainer(t *testing.T) {
 	ei := execInfo{
 		Profile: &Profile{
 			Cwd: "/tmp",
-			ExtraVolumes: []volumeProfile{
+			ExtraVolumes: []VolumeProfile{
 				{
 					Target: "/tmpfs",
 					Properties: map[string]string{

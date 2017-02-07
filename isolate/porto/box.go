@@ -18,15 +18,10 @@ import (
 	"github.com/apex/log"
 	apexctx "github.com/m0sth8/context"
 	"github.com/mitchellh/mapstructure"
+	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/semaphore"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
-
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/docker"
-	"github.com/noxiouz/stout/pkg/semaphore"
-
-	porto "github.com/yandex/porto/src/api/go"
-	portorpc "github.com/yandex/porto/src/api/go/rpc"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
@@ -34,6 +29,8 @@ import (
 	"github.com/docker/distribution/registry/client"
 	"github.com/docker/distribution/registry/client/transport"
 	engineref "github.com/docker/engine-api/types/reference"
+	porto "github.com/yandex/porto/src/api/go"
+	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
 
 type portoBoxConfig struct {
@@ -352,10 +349,11 @@ func (b *Box) addRootNamespacePrefix(container string) string {
 }
 
 // Spool downloades Docker images from Distribution, builds base layer for Porto container
-func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
+func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
 	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spool").Stop(&err)
-	profile, err := docker.ConvertProfile(opts)
-	if err != nil {
+	var profile = new(Profile)
+
+	if err = opts.DecodeTo(profile); err != nil {
 		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
 		return err
 	}
@@ -450,7 +448,8 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err
 
 // Spawn spawns new Porto container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
-	profile, err := ConvertProfile(config.Opts)
+	var profile = new(Profile)
+	err := config.Opts.DecodeTo(profile)
 	if err != nil {
 		apexctx.GetLogger(ctx).WithError(err).Error("unable to decode profile")
 		return nil, err
