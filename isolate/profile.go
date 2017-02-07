@@ -27,6 +27,13 @@ type RawProfile interface {
 	DecodeTo(v msgp.Decodable) error
 }
 
+func NewRawProfile(i interface{}) (RawProfile, error) {
+	var err error
+	p := cocaineProfile{}
+	p.buff, err = msgp.AppendIntf(p.buff, i)
+	return &p, err
+}
+
 func newCocaineProfile() *cocaineProfile {
 	buff := profilesPool.Get().([]byte)
 	buff = buff[:0]

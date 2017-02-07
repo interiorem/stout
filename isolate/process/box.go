@@ -2,7 +2,6 @@ package process
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -172,9 +171,14 @@ func (b *Box) wait() {
 // Spawn spawns a new process
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (proc isolate.Process, err error) {
 	spoolPath := b.spoolPath
-	if val, ok := config.Opts["spool"]; ok {
-		spoolPath = fmt.Sprintf("%s", val)
+	var profile Profile
+	if err = config.Opts.DecodeTo(&profile); err != nil {
+		return nil, err
 	}
+	if profile.Spool != "" {
+		spoolPath = profile.Spool
+	}
+
 	workDir := filepath.Join(spoolPath, config.Name)
 
 	var execPath = config.Executable
@@ -240,11 +244,16 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 }
 
 // Spool spools code of an app from Cocaine Storage service
-func (b *Box) Spool(ctx context.Context, name string, opts isolate.Profile) (err error) {
+func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
 	spoolPath := b.spoolPath
-	if val, ok := opts["spool"]; ok {
-		spoolPath = fmt.Sprintf("%s", val)
+	var profile Profile
+	if err = opts.DecodeTo(&profile); err != nil {
+		return err
 	}
+	if profile.Spool != "" {
+		spoolPath = profile.Spool
+	}
+
 	defer apexctx.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
