@@ -24,12 +24,20 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 func init() {
-	opts := isolate.Profile{
-		"Registry": "http://localhost:5000",
-		"cwd":      "/usr/bin",
+	f := func(c *C) isolate.RawProfile {
+		opts := map[string]string{
+			"registry": "http://localhost:5000",
+			"cwd":      "/usr/bin",
+		}
+
+		r, err := isolate.NewRawProfile(opts)
+		if err != nil {
+			c.Fatalf("unable to create raw profile %v", err)
+		}
+		return r
 	}
 
-	testsuite.RegisterSuite(portoBoxConstructor, opts, func() string {
+	testsuite.RegisterSuite(portoBoxConstructor, f, func() string {
 		if os.Getenv("TRAVIS") == "true" {
 			return "Skip Porto tests under Travis CI"
 		}

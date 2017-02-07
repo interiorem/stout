@@ -26,12 +26,19 @@ func init() {
 	if endpoint = os.Getenv("DOCKER_HOST"); endpoint == "" {
 		endpoint = client.DefaultDockerHost
 	}
-	opts := isolate.Profile{
-		"endpoint": endpoint,
-		"cwd":      "/usr/bin",
+
+	f := func(c *C) isolate.RawProfile {
+		r, err := isolate.NewRawProfile(map[string]string{
+			"endpoint": endpoint,
+			"cwd":      "/usr/bin",
+		})
+		if err != nil {
+			c.Fatalf("unable to create raw profile %v", err)
+		}
+		return r
 	}
 
-	testsuite.RegisterSuite(dockerBoxConstructor, opts, testsuite.NeverSkip)
+	testsuite.RegisterSuite(dockerBoxConstructor, f, testsuite.NeverSkip)
 }
 
 func buildTestImage(c *C, endpoint string) {

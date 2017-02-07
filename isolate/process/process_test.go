@@ -20,8 +20,33 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 func init() {
-	opts := make(isolate.Profile)
-	testsuite.RegisterSuite(processBoxConstructorWithMockedStorage, opts, testsuite.NeverSkip)
+	f := func(c *C) isolate.RawProfile {
+		opts, err := isolate.NewRawProfile(&Profile{})
+		if err != nil {
+			c.Fatalf("can not create raw profile %v", err)
+		}
+		return opts
+	}
+	testsuite.RegisterSuite(processBoxConstructorWithMockedStorage, f, testsuite.NeverSkip)
+}
+
+func TestProfileDecodeTo(t *testing.T) {
+	mp := map[string]interface{}{
+		"spool": "somespool",
+	}
+	opts, err := isolate.NewRawProfile(mp)
+	if err != nil {
+		t.Fatalf("unable to encode test profile as JSON %v", err)
+	}
+
+	var profile = new(Profile)
+	if err = opts.DecodeTo(profile); err != nil {
+		t.Fatalf("DecodeTo failed %v", err)
+	}
+
+	if profile.Spool != mp["spool"] {
+		t.Fatalf("Spool is expected to be %s, not %s ", mp["spool"], profile.Spool)
+	}
 }
 
 type mockCodeStorage struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/noxiouz/stout/isolate"
+	"github.com/tinylib/msgp/msgp"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,12 +42,15 @@ func TestContainer(t *testing.T) {
 		resp.Close()
 	}
 
+	const memLimitInt64 = 4 * 1024 * 1024
+	var memoryLimit msgp.Number
+	memoryLimit.AsInt(4 * 1024 * 1024)
 	var profile = Profile{
 		RuntimePath: "/var/run",
 		NetworkMode: "host",
 		Cwd:         "/tmp",
 		Resources: Resources{
-			Memory: 4 * 1024 * 1024,
+			Memory: memoryLimit,
 		},
 		Tmpfs: map[string]string{
 			"/tmp/a": "size=100000",
@@ -76,7 +80,7 @@ func TestContainer(t *testing.T) {
 
 	assert.Equal("/var/run:/var/run", inspect.HostConfig.Binds[0])
 	assert.Equal("/tmp:/bind:rw", inspect.HostConfig.Binds[1])
-	assert.Equal(profile.Resources.Memory, inspect.HostConfig.Memory, "invalid memory limit")
+	assert.Equal(int64(memLimitInt64), inspect.HostConfig.Memory, "invalid memory limit")
 
 	container.Kill()
 	_, err = client.ContainerInspect(ctx, container.containerID)
@@ -124,8 +128,11 @@ func TestImagePullFromRegistry(t *testing.T) {
 		config: &dockerBoxConfig{},
 	}
 
-	var profile = isolate.Profile{
+	profile, err := isolate.NewRawProfile(map[string]string{
 		"registry": "docker.io",
+	})
+	if err != nil {
+		t.Fatalf("unable to create new raw profile %v", err)
 	}
 
 	t.Logf("Clean up docker.io/alpine:latest if it exists")
@@ -143,6 +150,13 @@ func TestImagePullFromRegistry(t *testing.T) {
 	}
 	assert.NoError(err)
 	assert.True(found)
+
+	profile, err = isolate.NewRawProfile(map[string]string{
+		"registry": "docker.io",
+	})
+	if err != nil {
+		t.Fatalf("unable to create new raw profile %v", err)
+	}
 	t.Logf("Spool an already spooled image")
 	err = box.Spool(ctx, "alpine", profile)
 	assert.NoError(err)

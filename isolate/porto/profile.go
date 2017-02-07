@@ -1,48 +1,26 @@
 package porto
 
-import (
-	"github.com/mitchellh/mapstructure"
-
-	"github.com/noxiouz/stout/isolate"
-)
-
 const (
 	defaultRuntimePath = "/var/run/cocaine"
 )
 
-type volumeProfile struct {
-	Target     string            `json:"target"`
-	Properties map[string]string `json:"properties"`
+//go:generate msgp -o profile_decodable.go
+
+type VolumeProfile struct {
+	Target     string            `msg:"target"`
+	Properties map[string]string `msg:"properties"`
 }
 
 type Profile struct {
-	Registry   string `json:"registry"`
-	Repository string `json:"repository"`
+	Registry   string `msg:"registry"`
+	Repository string `msg:"repository"`
 
-	NetworkMode string `json:"network_mode"`
-	Cwd         string `json:"cwd"`
+	NetworkMode string `msg:"network_mode"`
+	Cwd         string `msg:"cwd"`
 
-	Binds []string `json:"binds"`
+	Binds []string `msg:"binds"`
 
-	Container    map[string]string `json:"container"`
-	Volume       map[string]string `jsonL:"volume"`
-	ExtraVolumes []volumeProfile   `json:"extravolumes"`
-}
-
-// ConvertProfile unpacked general profile to a Docker specific
-func ConvertProfile(rawprofile isolate.Profile) (*Profile, error) {
-	var profile = &Profile{}
-
-	config := mapstructure.DecoderConfig{
-		WeaklyTypedInput: true,
-		Result:           profile,
-		TagName:          "json",
-	}
-
-	decoder, err := mapstructure.NewDecoder(&config)
-	if err != nil {
-		return nil, err
-	}
-
-	return profile, decoder.Decode(rawprofile)
+	Container    map[string]string `msg:"container"`
+	Volume       map[string]string `msg:"volume"`
+	ExtraVolumes []VolumeProfile   `msg:"extravolumes"`
 }

@@ -86,18 +86,22 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Labels:     map[string]string{isolateDockerLabel: name},
 	}
 
+	memorylimit, _ := profile.Resources.Memory.Int()
+	cpuShares, _ := profile.Resources.CPUShares.Int()
+	cpuPeriod, _ := profile.Resources.CPUPeriod.Int()
+	cpuQuota, _ := profile.Resources.CPUQuota.Int()
 	apexctx.GetLogger(ctx).Info("applying Resource limits")
 	var resources = container.Resources{
-		Memory:     profile.Resources.Memory,
-		CPUShares:  profile.Resources.CPUShares,
-		CPUPeriod:  profile.Resources.CPUPeriod,
-		CPUQuota:   profile.Resources.CPUQuota,
+		Memory:     memorylimit,
+		CPUShares:  cpuShares,
+		CPUPeriod:  cpuPeriod,
+		CPUQuota:   cpuQuota,
 		CpusetCpus: profile.Resources.CpusetCpus,
 		CpusetMems: profile.Resources.CpusetMems,
 	}
 
 	hostConfig := container.HostConfig{
-		NetworkMode: profile.NetworkMode,
+		NetworkMode: container.NetworkMode(profile.NetworkMode),
 		Binds:       binds,
 		Resources:   resources,
 	}
