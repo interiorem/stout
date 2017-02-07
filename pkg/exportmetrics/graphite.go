@@ -3,6 +3,7 @@ package exportmetrics
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"net"
@@ -11,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
-
-	apexctx "github.com/m0sth8/context"
 	"github.com/rcrowley/go-metrics"
+	"github.com/uber-go/zap"
+
+	"github.com/noxiouz/stout/pkg/log"
 )
 
 const defaultPrefix = "{{hostname}}"
@@ -128,7 +129,7 @@ func (g *GraphiteExporter) Send(ctx context.Context, r metrics.Registry) error {
 		case metrics.Healthcheck:
 			// pass
 		default:
-			apexctx.GetLogger(ctx).Warnf("Graphite: skip metric `%s` of unknown type %T", name, value)
+			log.G(ctx).Warn("Graphite: skip metric of unknown type", zap.String("metric", name))
 		}
 		w.Flush()
 	})

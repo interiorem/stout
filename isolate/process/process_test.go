@@ -11,7 +11,7 @@ import (
 	"github.com/noxiouz/stout/isolate/testsuite"
 
 	apexctx "github.com/m0sth8/context"
-	"golang.org/x/net/context"
+	"context"
 
 	. "gopkg.in/check.v1"
 )

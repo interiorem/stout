@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"golang.org/x/net/context"
+	"context"
 
 	"github.com/noxiouz/stout/isolate"
 )

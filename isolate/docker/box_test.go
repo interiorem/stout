@@ -3,6 +3,7 @@ package docker
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"testing"
@@ -12,9 +13,7 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
-	"golang.org/x/net/context"
 
-	apexctx "github.com/m0sth8/context"
 	. "gopkg.in/check.v1"
 )
 

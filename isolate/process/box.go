@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -12,13 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
-	"golang.org/x/net/context"
-
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
-	"github.com/apex/log"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -161,7 +160,7 @@ func (b *Box) wait() {
 			return
 		default:
 			if err != nil {
-				apexctx.GetLogger(b.ctx).WithError(err).Error("Wait4 error")
+				log.G(b.ctx).Error("Wait4 error", zap.Error(err))
 			}
 			return
 		}
@@ -197,9 +196,15 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		packedArgs = append(packedArgs, k, v)
 	}
 
-	defer apexctx.GetLogger(ctx).WithFields(
-		log.Fields{"name": config.Name, "executable": config.Executable,
-			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
+	defer func() {
+		flog := log.G(ctx).With(zap.String("name", config.Name), zap.String("executable", config.Executable),
+			zap.String("workDir", workDir), zap.String("execPath", execPath))
+		if err != nil {
+			flog.Error("processBox.Spawn failed", zap.Error(err))
+			return
+		}
+		flog.Info("processBox.Spawn successfully finished")
+	}()
 
 	// Update statistics
 	start := time.Now()
@@ -254,9 +259,9 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		spoolPath = profile.Spool
 	}
 
-	defer apexctx.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
+		log.G(ctx).Error("processBox.Spool: unable to fetch an archive", zap.String("name", name), zap.Error(err))
 		return err
 	}
 
@@ -264,7 +269,12 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		return nil
 	}
 
-	return unpackArchive(ctx, data, filepath.Join(spoolPath, name))
+	if err = unpackArchive(ctx, data, filepath.Join(spoolPath, name)); err != nil {
+		log.G(ctx).Error("processBox.Spool: unable to unpack the archive", zap.String("name", name), zap.String("spoolpath", spoolPath), zap.Error(err))
+		return err
+	}
+
+	return nil
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {

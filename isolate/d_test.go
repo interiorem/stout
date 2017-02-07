@@ -10,7 +10,7 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
-	"golang.org/x/net/context"
+	"context"
 
 	. "gopkg.in/check.v1"
 )

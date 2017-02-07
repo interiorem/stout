@@ -1,14 +1,14 @@
 package process
 
 import (
+	"context"
 	"fmt"
 	"sync"
-
-	"golang.org/x/net/context"
+	"time"
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
-
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
+	"github.com/uber-go/zap"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -18,9 +18,17 @@ type cocaineCodeStorage struct {
 	locator []string
 }
 
-func (st *cocaineCodeStorage) createStorage(ctx context.Context) (service *cocaine.Service, err error) {
-	defer apexctx.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
-	return cocaine.NewService(ctx, "storage", st.locator)
+func (st *cocaineCodeStorage) createStorage(ctx context.Context) (*cocaine.Service, error) {
+	start := time.Now()
+	log.G(ctx).Info("connecting to 'storage' service", zap.Object("locator", st.locator))
+	storage, err := cocaine.NewService(ctx, "storage", st.locator)
+	if err != nil {
+		log.G(ctx).Info("failed to connect to 'storage' service", zap.Error(err), zap.Duration("duration", time.Now().Sub(start)), zap.Object("locator", st.locator))
+		return nil, err
+	}
+
+	log.G(ctx).Info("connected to 'storage' service successfully", zap.Duration("duration", time.Now().Sub(start)))
+	return storage, nil
 }
 
 func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data []byte, err error) {
@@ -29,7 +37,11 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 		return nil, err
 	}
 	defer storage.Close()
-	defer apexctx.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
+	defer func() {
+		if err != nil {
+			log.G(ctx).Error("failed to read code from storage", zap.Error(err), zap.String("app", appname))
+		}
+	}()
 
 	channel, err := storage.Call(ctx, "read", "apps", appname)
 	if err != nil {
@@ -62,7 +74,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 	}
 
 	if len(rest) != 0 {
-		apexctx.GetLogger(ctx).WithField("app", appname).Warnf("Some left unpacked: %d", len(rest))
+		log.G(ctx).Warn("some data left unpacked", zap.String("app", appname), zap.Int("size", len(rest)))
 	}
 	return data, err
 }

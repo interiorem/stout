@@ -1,12 +1,11 @@
 package isolate
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/tinylib/msgp/msgp"
-
-	apexctx "github.com/m0sth8/context"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -36,7 +35,7 @@ func (s *spoolCancelationDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher
 	switch id {
 	case spoolCancel:
 		// Skip empty array
-		apexctx.GetLogger(s.ctx).Debug("Spool.Cancel()")
+		log.G(s.ctx).Debug("Spool.Cancel()")
 		r.Skip()
 		// TODO: cancel only if I'm spooling
 		s.cancel()

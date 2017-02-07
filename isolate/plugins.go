@@ -3,7 +3,7 @@ package isolate
 import (
 	"fmt"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 // BoxConstructor is a type of a Box constructor

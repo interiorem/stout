@@ -1,13 +1,13 @@
 package process
 
 import (
+	"context"
 	"io"
 	"os/exec"
 	"syscall"
 
-	"golang.org/x/net/context"
-
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
+	"github.com/uber-go/zap"
 )
 
 type process struct {
@@ -41,11 +41,11 @@ func newProcess(ctx context.Context, executable string, args, env []string, work
 	go io.Copy(output, stdOutRd)
 
 	if err = pr.cmd.Start(); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Errorf("unable to start executable %s", pr.cmd.Path)
+		log.G(ctx).Error("unable to start executable", zap.String("executable", pr.cmd.Path), zap.Error(err))
 		return nil, err
 	}
 
-	apexctx.GetLogger(ctx).WithField("pid", pr.cmd.Process.Pid).Info("executable has been launched")
+	log.G(ctx).Info("executable has been launched", zap.Int("pid", pr.cmd.Process.Pid))
 	return &pr, nil
 }
 

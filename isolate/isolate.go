@@ -3,7 +3,7 @@ package isolate
 import (
 	"io"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 type SpawnConfig struct {

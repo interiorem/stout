@@ -1,6 +1,7 @@
 package porto
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -10,9 +11,8 @@ import (
 
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/digest"
-
-	apexctx "github.com/m0sth8/context"
-	"golang.org/x/net/context"
+	"github.com/noxiouz/stout/pkg/log"
+	"github.com/uber-go/zap"
 )
 
 type asyncSpoolResult struct {
@@ -52,11 +52,11 @@ func NewBlobRepository(ctx context.Context, cfg BlobRepositoryConfig) (BlobRepos
 }
 
 func (r *blobRepo) Get(ctx context.Context, repository distribution.Repository, dgst digest.Digest) (string, error) {
-	apexctx.GetLogger(ctx).WithField("digest", dgst).Info("get a blob from Repository")
+	log.G(ctx).Info("get a blob from Repository", zap.Stringer("digest", dgst))
 	path := filepath.Join(r.BlobRepositoryConfig.SpoolPath, dgst.String())
 	_, err := os.Lstat(path)
 	if err == nil {
-		apexctx.GetLogger(ctx).WithField("digest", dgst).Info("the blob has already downloaded")
+		log.G(ctx).Info("the blob has already downloaded", zap.Stringer("digest", dgst))
 		return path, nil
 	}
 	if !os.IsNotExist(err) {
@@ -84,7 +84,7 @@ func (r *blobRepo) download(ctx context.Context, repository distribution.Reposit
 	}
 	r.mu.Unlock()
 
-	apexctx.GetLogger(ctx).WithField("digest", dgst).Info("the blob downloading is in progress. Waiting")
+	log.G(ctx).Info("the blob downloading is in progress. Waiting", zap.Stringer("digest", dgst))
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -95,7 +95,7 @@ func (r *blobRepo) download(ctx context.Context, repository distribution.Reposit
 
 // fetch downloads the blob to a tempfile, renames it to the expected name
 func (r *blobRepo) fetch(ctx context.Context, repository distribution.Repository, dgst digest.Digest) (path string, err error) {
-	defer apexctx.GetLogger(ctx).WithField("digest", dgst).Trace("fetch the blob").Stop(&err)
+	log.G(ctx).Info("fetch the blob", zap.Stringer("digest", dgst))
 	tempFilePath := filepath.Join(r.SpoolPath, fmt.Sprintf("%s-%d", dgst.String(), rand.Int63()))
 	f, err := os.Create(tempFilePath)
 	if err != nil {

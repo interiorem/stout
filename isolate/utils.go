@@ -3,7 +3,7 @@ package isolate
 import (
 	"sync"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 var logDiscard sync.Once

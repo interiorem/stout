@@ -1,6 +1,7 @@
 package isolate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,9 +9,10 @@ import (
 	"sync"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
 	"github.com/tinylib/msgp/msgp"
-	"golang.org/x/net/context"
+	"github.com/uber-go/zap"
+
+	"github.com/noxiouz/stout/pkg/log"
 )
 
 type sessions struct {
@@ -67,7 +69,7 @@ func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
 
 func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*ConnectionHandler, error) {
 	connID := getID(ctx)
-	ctx = apexctx.WithLogger(ctx, apexctx.GetLogger(ctx).WithField("conn.id", connID))
+	ctx = log.WithLogger(ctx, log.G(ctx).With(zap.String("conn.id", connID)))
 
 	return &ConnectionHandler{
 		ctx:            ctx,
@@ -115,12 +117,12 @@ func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel uint6
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer func() {
 		conn.Close()
-		apexctx.GetLogger(h.ctx).Errorf("Connection has been closed")
+		log.G(h.ctx).Error("Connection has been closed")
 	}()
 
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
-	logger := apexctx.GetLogger(h.ctx)
+	logger := log.G(h.ctx)
 
 	r := msgp.NewReader(conn)
 LOOP:
@@ -130,10 +132,10 @@ LOOP:
 			if err == io.EOF {
 				return
 			}
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("next(): unable to read message")
+			log.G(h.ctx).Error("next(): unable to read message", zap.Error(err))
 			return
 		}
-		logger.Infof("channel %d, number %d", channel, c)
+		logger.Info(fmt.Sprintf("channel %d, number %d", channel, c))
 
 		dispatcher, ok := h.sessions.Get(channel)
 		if !ok {
@@ -141,7 +143,7 @@ LOOP:
 				// dispatcher was detached from ResponseStream.OnClose
 				// This message must be `close` message.
 				// `channel`, `number` are parsed, skip `args` and probably `headers`
-				logger.Infof("dispatcher for channel %d was detached", channel)
+				logger.Info("dispatcher was detached", zap.Uint64("channel", channel))
 				r.Skip()
 				if hasHeaders {
 					r.Skip()
@@ -151,7 +153,7 @@ LOOP:
 
 			h.highestChannel = channel
 
-			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
+			ctx = log.WithLogger(ctx, logger.With(zap.String("channel", fmt.Sprintf("%s.%d", h.connID, channel))))
 			rs := newResponseStream(ctx, conn, channel)
 			rs.OnClose(func(ctx context.Context) {
 				h.sessions.Detach(channel)
@@ -167,11 +169,11 @@ LOOP:
 
 		if err != nil {
 			if err == ErrInvalidArgsNum {
-				logger.WithError(err).Errorf("channel %d, number %d", channel, c)
+				logger.Error("Exit from Handle", zap.Error(err), zap.Uint64("channel", channel), zap.Uint64("number", c))
 				return
 			}
 
-			logger.WithError(err).Errorf("Handle returned an error")
+			logger.Error("Handle returned an error", zap.Error(err))
 			h.sessions.Detach(channel)
 			continue LOOP
 		}
@@ -225,7 +227,7 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 	defer r.Unlock()
 
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
+		log.G(r.ctx).Error("responseStream.Write", zap.Error(errStreamIsClosed))
 		return errStreamIsClosed
 	}
 
@@ -241,7 +243,7 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 	p = msgp.AppendStringFromBytes(p, data)
 
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Write")
+		log.G(r.ctx).Error("responseStream.Write", zap.Error(err))
 		return err
 	}
 	return nil
@@ -251,7 +253,7 @@ func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg
 	r.Lock()
 	defer r.Unlock()
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Error")
+		log.G(r.ctx).Error("responseStream.Error", zap.Error(errStreamIsClosed))
 		return errStreamIsClosed
 	}
 	defer r.close(ctx)
@@ -276,7 +278,7 @@ func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg
 	p = msgp.AppendString(p, msg)
 
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		log.G(r.ctx).Error("responseStream.Error", zap.Error(err))
 		return err
 	}
 	return nil
@@ -286,7 +288,7 @@ func (r *responseStream) Close(ctx context.Context, num uint64) error {
 	r.Lock()
 	defer r.Unlock()
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Close")
+		log.G(r.ctx).Error("responseStream.Close", zap.Error(errStreamIsClosed))
 		return errStreamIsClosed
 	}
 	defer r.close(ctx)
@@ -301,7 +303,7 @@ func (r *responseStream) Close(ctx context.Context, num uint64) error {
 
 	p = msgp.AppendArrayHeader(p, 0)
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		log.G(r.ctx).Error("responseStream.Error", zap.Error(err))
 		return err
 	}
 	return nil

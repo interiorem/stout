@@ -3,6 +3,7 @@ package porto
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -17,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
-	"golang.org/x/net/context"
 )
 
 func TestExecInfoFormatters(t *testing.T) {

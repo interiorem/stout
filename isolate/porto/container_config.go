@@ -1,14 +1,16 @@
 package porto
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/uber-go/zap"
 	porto "github.com/yandex/porto/src/api/go"
-	"golang.org/x/net/context"
+
+	"github.com/noxiouz/stout/pkg/log"
 )
 
 type Volume interface {
@@ -38,22 +40,22 @@ func (v *portoVolume) Path() string {
 }
 
 func (v *portoVolume) Destroy(ctx context.Context, portoConn porto.API) error {
-	log := apexctx.GetLogger(ctx).WithField("container", v.cID)
+	lg := log.G(ctx).With(zap.String("container", v.cID))
 	var err error
 	if v.linked {
 		if err = portoConn.UnlinkVolume(v.path, v.cID); err != nil {
-			log.WithError(err).Error("unlinking failed")
+			lg.Error("unlinking failed", zap.Error(err))
 		} else {
-			log.Debugf("volume %s successfully unlinked", v.path)
+			lg.Debug("volume successfully unlinked", zap.String("path", v.path))
 		}
 		if err = portoConn.UnlinkVolume(v.path, "self"); err != nil {
-			log.WithError(err).Error("unlinking from 'self' failed")
+			lg.Error("unlinking from 'self' failed", zap.Error(err))
 		} else {
-			log.Debugf("volume %s successfully unlinked", v.path)
+			lg.Debug("volume successfully unlinked from 'self'", zap.String("path", v.path))
 		}
 	}
 	if err = os.RemoveAll(v.path); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("container", v.cID).Error("remove root volume failed")
+		lg.Error("remove root volume failed", zap.Error(err))
 	}
 	return err
 }
@@ -69,7 +71,7 @@ func (s *storageVolume) Destroy(ctx context.Context, portoConn porto.API) error 
 
 	if s.storagepath != "" {
 		if zerr := os.RemoveAll(s.storagepath); zerr != nil {
-			apexctx.GetLogger(ctx).WithError(zerr).WithField("container", s.portoVolume.cID).Error("remove root volume failed")
+			log.G(ctx).Error("remove root volume failed", zap.String("container", s.portoVolume.cID), zap.Error(zerr))
 		}
 	}
 
@@ -100,9 +102,11 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 		"private": "cocaine-app",
 	}
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	lg := log.G(ctx).With(zap.String("container", c.ID))
 	for limit, value := range c.Profile.Volume {
-		log.Debugf("apply volume limit %s %s", limit, value)
+		if cm := lg.Check(zap.DebugLevel, "apply volumelimit"); cm.OK() {
+			cm.Write(zap.String("limit", limit), zap.String("value", value))
+		}
 		properties[limit] = value
 	}
 
@@ -111,7 +115,7 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 		return nil, err
 	}
 
-	log.Debugf("create porto root volume at %s with volumeProperties: %s", path, properties)
+	lg.Debug("create porto root volume", zap.String("path", path), zap.Object("properties", properties))
 	volume := &portoVolume{
 		cID:        c.ID,
 		path:       path,
@@ -120,11 +124,11 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 
 	description, err := portoConn.CreateVolume(path, properties)
 	if err != nil {
-		log.WithError(err).Error("unable to create volume")
+		lg.Error("unable to create volume", zap.Error(err))
 		volume.Destroy(ctx, portoConn)
 		return nil, err
 	}
-	log.Debugf("porto volume has been created successfully %v", description)
+	lg.Debug("porto volume has been created successfully", zap.Object("description", description))
 	return volume, nil
 }
 
@@ -133,15 +137,15 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		return nil, nil
 	}
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	lg := log.G(ctx).With(zap.String("container", c.ID))
 	volumes := make([]Volume, 0, len(c.Profile.ExtraVolumes))
 
 	cleanUpOnError := func() {
 		for _, vol := range volumes {
 			if err := vol.Destroy(ctx, portoConn); err != nil {
-				log.WithError(err).Error("unable to clean up extra volume")
+				lg.Error("unable to clean up extra volume", zap.Error(err))
 			} else {
-				log.Info("volume has been cleaned up")
+				lg.Info("volume has been cleaned up")
 			}
 		}
 	}
@@ -153,9 +157,9 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		}
 
 		path := filepath.Join(root.Path(), volumeprofile.Target)
-		log.Debugf("create porto root volume at %s with volumeProperties: %s", path, volumeprofile.Properties)
+		lg.Debug("create extra porto volume", zap.String("path", path), zap.Object("properties", volumeprofile.Properties))
 		if err := os.MkdirAll(path, 0775); err != nil {
-			log.WithError(err).Error("unable to create target directory")
+			lg.Error("unable to create target directory", zap.Error(err))
 			cleanUpOnError()
 			return nil, err
 		}
@@ -196,10 +200,10 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		description, err := portoConn.CreateVolume(path, volumeprofile.Properties)
 		if err != nil {
 			cleanUpOnError()
-			log.WithError(err).Error("unable to create extra volume")
+			lg.Error("unable to create extra volume", zap.Error(err))
 			return nil, err
 		}
-		log.Debugf("extra volume has been created %v", description)
+		lg.Debug("extra volume has been created", zap.Object("description", description))
 	}
 
 	return volumes, nil
@@ -257,11 +261,14 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	properties["enable_porto"] = "false"
 	properties["net"] = pickNetwork(c.NetworkMode)
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	lg := log.G(ctx).With(zap.String("container", c.ID))
 	for property, value := range properties {
-		log.Debugf("Set property %s %s", property, value)
+		if cm := lg.Check(zap.DebugLevel, "set property"); cm.OK() {
+			cm.Write(zap.String("propery", property), zap.String("value", value))
+		}
+
 		if err = portoConn.SetProperty(c.ID, property, value); err != nil {
-			log.WithError(err).Errorf("SetProperty %s %s failed", property, value)
+			lg.Error("set property failed", zap.String("property", property), zap.String("value", value), zap.Error(err))
 			return err
 		}
 	}

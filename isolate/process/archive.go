@@ -5,13 +5,14 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	apexctx "github.com/m0sth8/context"
-	"golang.org/x/net/context"
+	"github.com/noxiouz/stout/pkg/log"
+	"github.com/uber-go/zap"
 )
 
 type archiveConstructor func(io.Reader) (io.ReadCloser, error)
@@ -34,16 +35,19 @@ var constructors = []archiveConstructor{
 	fallbackTarReader,
 }
 
-func unpackArchive(ctx context.Context, data []byte, target string) (err error) {
-	log := apexctx.GetLogger(ctx).WithField("target", target)
-	defer log.Trace("unpacking an archive").Stop(&err)
+func unpackArchive(ctx context.Context, data []byte, target string) error {
+	lg := log.G(ctx).With(zap.String("target", target))
+	lg.Info("unpacking an archive")
+
+	var err error
 
 	if err = os.RemoveAll(target); err != nil {
+		lg.Error("unale to clean spool directory", zap.Error(err))
 		return err
 	}
 
 	if err = os.Mkdir(target, 0755); err != nil {
-		log.Error("unable to create spool directory")
+		lg.Error("unable to create spool directory", zap.Error(err))
 		return err
 	}
 
@@ -72,7 +76,7 @@ UNPACK:
 		info := hdr.FileInfo()
 
 		if info.IsDir() {
-			log.Debugf("unpackArchive: unpack directory %s (size %d) to %s", hdr.Name, hdr.Size, path)
+			lg.Debug("unpackArchive: unpack directory", zap.String("name", hdr.Name), zap.Int64("size", hdr.Size), zap.String("path", path))
 			if err = os.MkdirAll(path, info.Mode()); err != nil {
 				return err
 			}
@@ -92,17 +96,19 @@ UNPACK:
 			}
 		}
 
-		log.Debugf("unpackArchive: unpack %s (size %d) to %s", hdr.Name, hdr.Size, path)
+		lg.Debug("unpackArchive: unpack file", zap.String("name", hdr.Name), zap.Int64("size", hdr.Size), zap.String("path", path))
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 		if err != nil {
 			return err
 		}
+
 		nn, err := io.Copy(file, tr)
-		log.Debugf("unpackArchive: extracted (%d/%d) bytes of %s: %v", nn, hdr.Size, path, err)
 		file.Close()
 		if err != nil {
+			lg.Debug("unpacking failed", zap.String("path", path), zap.Int64("bytes", nn), zap.Error(err))
 			return err
 		}
+		lg.Debug("file was unpacked successfully", zap.String("path", path), zap.Int64("bytes", nn))
 	}
 	return nil
 }

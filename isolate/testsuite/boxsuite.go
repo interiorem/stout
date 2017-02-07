@@ -8,7 +8,7 @@ import (
 
 	"github.com/noxiouz/stout/isolate"
 
-	"golang.org/x/net/context"
+	"context"
 	check "gopkg.in/check.v1"
 )
 

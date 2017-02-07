@@ -3,20 +3,18 @@ package porto
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
 	"runtime"
 	"testing"
 
-	"golang.org/x/net/context"
-
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/testsuite"
 
-	apexctx "github.com/m0sth8/context"
 	. "gopkg.in/check.v1"
 )
 
@@ -110,7 +108,7 @@ func portoBoxConstructor(c *C) (isolate.Box, error) {
 		"journal":    "/tmp/portojournal.jrnl",
 	}
 
-	b, err := NewBox(apexctx.Background(), cfg)
+	b, err := NewBox(context.Background(), cfg)
 	c.Assert(err, IsNil)
 	return b, err
 }
