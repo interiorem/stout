@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/noxiouz/stout",
 	"GoVersion": "go1.6",
-	"GodepVersion": "v65",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
@@ -374,8 +374,8 @@
 		},
 		{
 			"ImportPath": "github.com/tinylib/msgp/msgp",
-			"Comment": "v1.0-beta-10-g05e600e",
-			"Rev": "05e600edf28f1b907005ddf6b0488fe68b819971"
+			"Comment": "v1.0-1-g362bfb3",
+			"Rev": "362bfb3384d53ae4d5dd745983a4d70b6d23628c"
 		},
 		{
 			"ImportPath": "github.com/vbatts/tar-split/archive/tar",
