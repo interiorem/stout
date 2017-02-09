@@ -71,18 +71,22 @@ func (r *blobRepo) download(ctx context.Context, repository distribution.Reposit
 	r.mu.Lock()
 	downloading, ok := r.inProgress[dgst]
 	r.inProgress[dgst] = append(downloading, ch)
+	r.mu.Unlock()
 	if !ok {
 		go func() {
+			apexctx.GetLogger(ctx).WithField("digest", dgst).Info("fetching blob")
 			path, err := r.fetch(ctx, repository, dgst)
 			res := asyncSpoolResult{path: path, err: err}
 			r.mu.Lock()
+			apexctx.GetLogger(ctx).WithField("digest", dgst).Debug("push notifications")
 			for _, ch := range r.inProgress[dgst] {
 				ch <- res
 			}
+			apexctx.GetLogger(ctx).WithField("digest", dgst).Debug("clean notifications store")
+			delete(r.inProgress, dgst)
 			r.mu.Unlock()
 		}()
 	}
-	r.mu.Unlock()
 
 	apexctx.GetLogger(ctx).WithField("digest", dgst).Info("the blob downloading is in progress. Waiting")
 	select {
