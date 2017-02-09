@@ -68,7 +68,7 @@ func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 			if z.Tmpfs == nil && zajw > 0 {
 				z.Tmpfs = make(map[string]string, zajw)
 			} else if len(z.Tmpfs) > 0 {
-				for key, _ := range z.Tmpfs {
+				for key := range z.Tmpfs {
 					delete(z.Tmpfs, key)
 				}
 			}
@@ -320,7 +320,7 @@ func (z *Profile) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if z.Tmpfs == nil && zcua > 0 {
 				z.Tmpfs = make(map[string]string, zcua)
 			} else if len(z.Tmpfs) > 0 {
-				for key, _ := range z.Tmpfs {
+				for key := range z.Tmpfs {
 					delete(z.Tmpfs, key)
 				}
 			}

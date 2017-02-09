@@ -70,7 +70,7 @@ func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 			if z.Container == nil && zxhx > 0 {
 				z.Container = make(map[string]string, zxhx)
 			} else if len(z.Container) > 0 {
-				for key, _ := range z.Container {
+				for key := range z.Container {
 					delete(z.Container, key)
 				}
 			}
@@ -97,7 +97,7 @@ func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 			if z.Volume == nil && zlqf > 0 {
 				z.Volume = make(map[string]string, zlqf)
 			} else if len(z.Volume) > 0 {
-				for key, _ := range z.Volume {
+				for key := range z.Volume {
 					delete(z.Volume, key)
 				}
 			}
@@ -362,7 +362,7 @@ func (z *Profile) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if z.Container == nil && zcxo > 0 {
 				z.Container = make(map[string]string, zcxo)
 			} else if len(z.Container) > 0 {
-				for key, _ := range z.Container {
+				for key := range z.Container {
 					delete(z.Container, key)
 				}
 			}
@@ -389,7 +389,7 @@ func (z *Profile) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if z.Volume == nil && zeff > 0 {
 				z.Volume = make(map[string]string, zeff)
 			} else if len(z.Volume) > 0 {
-				for key, _ := range z.Volume {
+				for key := range z.Volume {
 					delete(z.Volume, key)
 				}
 			}
@@ -492,7 +492,7 @@ func (z *VolumeProfile) DecodeMsg(dc *msgp.Reader) (err error) {
 			if z.Properties == nil && zsnv > 0 {
 				z.Properties = make(map[string]string, zsnv)
 			} else if len(z.Properties) > 0 {
-				for key, _ := range z.Properties {
+				for key := range z.Properties {
 					delete(z.Properties, key)
 				}
 			}
@@ -601,7 +601,7 @@ func (z *VolumeProfile) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			if z.Properties == nil && zema > 0 {
 				z.Properties = make(map[string]string, zema)
 			} else if len(z.Properties) > 0 {
-				for key, _ := range z.Properties {
+				for key := range z.Properties {
 					delete(z.Properties, key)
 				}
 			}
