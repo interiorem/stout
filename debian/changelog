@@ -1,3 +1,11 @@
+cocaine-isolate-daemon (0.1.9.6) unstable; urgency=low
+
+  * Refactoring
+  * isolate(porto): fix race when get same layers download request
+  * isolate(porto): new feature, - multiply volumes for worker via app profile
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Fri, 10 Feb 2017 12:47:18 +0300
+
 cocaine-isolate-daemon (0.1.9.5) unstable; urgency=low
 
   * isolate(porto): fix layers ordering
