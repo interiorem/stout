@@ -10,7 +10,7 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/testsuite"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"
@@ -106,5 +106,5 @@ func processBoxConstructorWithMockedStorage(c *C) (isolate.Box, error) {
 	}
 	defer func() { createCodeStorage = old }()
 
-	return NewBox(apexctx.Background(), isolate.BoxConfig{"spool": c.MkDir()})
+	return NewBox(context.Background(), isolate.BoxConfig{"spool": c.MkDir()})
 }

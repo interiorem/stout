@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -128,7 +128,7 @@ func (g *GraphiteExporter) Send(ctx context.Context, r metrics.Registry) error {
 		case metrics.Healthcheck:
 			// pass
 		default:
-			apexctx.GetLogger(ctx).Warnf("Graphite: skip metric `%s` of unknown type %T", name, value)
+			log.G(ctx).Warnf("Graphite: skip metric `%s` of unknown type %T", name, value)
 		}
 		w.Flush()
 	})

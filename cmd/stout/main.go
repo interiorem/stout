@@ -16,8 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/apex/log"
-	apexctx "github.com/m0sth8/context"
+	apexlog "github.com/apex/log"
 	"github.com/rcrowley/go-metrics"
 	"golang.org/x/net/context"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/noxiouz/stout/pkg/config"
 	"github.com/noxiouz/stout/pkg/exportmetrics"
 	"github.com/noxiouz/stout/pkg/fds"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/logutils"
 	"github.com/noxiouz/stout/version"
 
@@ -97,7 +97,7 @@ func collect(ctx context.Context) {
 	goroutines.Update(int64(runtime.NumGoroutine()))
 	count, err := fds.GetOpenFds()
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Error("get open fd count")
+		log.G(ctx).WithError(err).Error("get open fd count")
 		return
 	}
 
@@ -110,12 +110,12 @@ func collect(ctx context.Context) {
 func checkLimits(ctx context.Context) {
 	var l syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &l); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Error("get RLIMIT_NOFILE")
+		log.G(ctx).WithError(err).Error("get RLIMIT_NOFILE")
 		return
 	}
 
 	if l.Cur < desiredRlimit {
-		apexctx.GetLogger(ctx).Warnf("RLIMIT_NOFILE %d is less that desired %d", l.Cur, desiredRlimit)
+		log.G(ctx).Warnf("RLIMIT_NOFILE %d is less that desired %d", l.Cur, desiredRlimit)
 	}
 }
 
@@ -162,12 +162,12 @@ func main() {
 	}
 	defer output.Close()
 
-	logger := &log.Logger{
-		Level:   log.Level(config.Logger.Level),
+	logger := &apexlog.Logger{
+		Level:   apexlog.Level(config.Logger.Level),
 		Handler: logutils.NewLogHandler(output),
 	}
 
-	ctx := apexctx.WithLogger(apexctx.Background(), log.NewEntry(logger))
+	ctx := log.WithLogger(context.Background(), apexlog.NewEntry(logger))
 	ctx, cancelFunc := context.WithCancel(ctx)
 	defer cancelFunc()
 
@@ -222,7 +222,7 @@ func main() {
 		if _, ok := boxTypes[cfg.Type]; ok {
 			logger.WithField("box", name).WithField("type", cfg.Type).Fatal("dublicated box type")
 		}
-		boxCtx := apexctx.WithLogger(ctx, logger.WithField("box", name))
+		boxCtx := log.WithLogger(ctx, logger.WithField("box", name))
 		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args)
 		if err != nil {
 			logger.WithError(err).WithField("box", name).WithField("type", cfg.Type).Fatal("unable to create box")
@@ -262,7 +262,7 @@ func main() {
 
 				// TODO: more optimal way
 				connID := fmt.Sprintf("%.4x", md5.Sum([]byte(fmt.Sprintf("%s.%d", conn.RemoteAddr().String(), time.Now().Unix()))))
-				lnLogger.WithFields(log.Fields{"remote.addr": conn.RemoteAddr(), "conn.id": connID}).Info("accepted new connection")
+				lnLogger.WithFields(apexlog.Fields{"remote.addr": conn.RemoteAddr(), "conn.id": connID}).Info("accepted new connection")
 
 				connHandler, err := isolate.NewConnectionHandler(context.WithValue(ctx, "conn.id", connID))
 				if err != nil {

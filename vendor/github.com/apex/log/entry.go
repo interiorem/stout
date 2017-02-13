@@ -3,11 +3,15 @@ package log
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
 // assert interface compliance.
 var _ Interface = (*Entry)(nil)
+
+// Now returns the current time.
+var Now = time.Now
 
 // Entry represents a single log entry.
 type Entry struct {
@@ -29,9 +33,12 @@ func NewEntry(log *Logger) *Entry {
 
 // WithFields returns a new entry with `fields` set.
 func (e *Entry) WithFields(fields Fielder) *Entry {
+	f := []Fields{}
+	f = append(f, e.fields...)
+	f = append(f, fields.Fields())
 	return &Entry{
 		Logger: e.Logger,
-		fields: append(e.fields, fields.Fields()),
+		fields: f,
 	}
 }
 
@@ -42,7 +49,24 @@ func (e *Entry) WithField(key string, value interface{}) *Entry {
 
 // WithError returns a new entry with the "error" set to `err`.
 func (e *Entry) WithError(err error) *Entry {
-	return e.WithField("error", err.Error())
+	ctx := e.WithField("error", err.Error())
+
+	if s, ok := err.(stackTracer); ok {
+		frame := s.StackTrace()[0]
+
+		name := fmt.Sprintf("%n", frame)
+		file := fmt.Sprintf("%+s", frame)
+		line := fmt.Sprintf("%d", frame)
+
+		parts := strings.Split(file, "\n\t")
+		if len(parts) > 1 {
+			file = parts[1]
+		}
+
+		ctx = ctx.WithField("source", fmt.Sprintf("%s: %s:%s", name, file, line))
+	}
+
+	return ctx
 }
 
 // Debug level message.
@@ -136,6 +160,6 @@ func (e *Entry) finalize(level Level, msg string) *Entry {
 		Fields:    e.mergedFields(),
 		Level:     level,
 		Message:   msg,
-		Timestamp: time.Now(),
+		Timestamp: Now(),
 	}
 }

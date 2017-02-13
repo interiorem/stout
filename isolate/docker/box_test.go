@@ -14,7 +14,7 @@ import (
 	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	. "gopkg.in/check.v1"
 )
 
@@ -103,7 +103,7 @@ func dockerBoxConstructor(c *C) (isolate.Box, error) {
 	}
 
 	buildTestImage(c, endpoint)
-	b, err := NewBox(apexctx.Background(), isolate.BoxConfig{
+	b, err := NewBox(context.Background(), isolate.BoxConfig{
 		"endpoint": endpoint,
 	})
 	c.Assert(err, IsNil)

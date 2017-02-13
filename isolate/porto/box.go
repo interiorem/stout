@@ -15,13 +15,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/apex/log"
-	apexctx "github.com/m0sth8/context"
+	apexlog "github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/semaphore"
 	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
+
+	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/log"
+	"github.com/noxiouz/stout/pkg/semaphore"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
@@ -85,7 +86,7 @@ const defaultVolumeBackend = "overlay"
 
 // NewBox creates new Box
 func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
-	apexctx.GetLogger(ctx).Warn("Porto Box is unstable")
+	log.G(ctx).Warn("Porto Box is unstable")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
 		DialRetries:      10,
@@ -122,12 +123,12 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		config.VolumeBackend = defaultVolumeBackend
 	}
 
-	apexctx.GetLogger(ctx).WithField("dir", config.Layers).Info("create directory for Layers")
+	log.G(ctx).WithField("dir", config.Layers).Info("create directory for Layers")
 	if err = os.MkdirAll(config.Layers, 0755); err != nil {
 		return nil, err
 	}
 
-	apexctx.GetLogger(ctx).WithField("dir", config.Containers).Info("create directory for Containers")
+	log.G(ctx).WithField("dir", config.Containers).Info("create directory for Containers")
 	if err = os.MkdirAll(config.Containers, 0755); err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 					return conn, err
 				}
 				sleepTime := time.Duration(rand.Int63n(500)) * time.Millisecond
-				apexctx.GetLogger(ctx).WithError(err).Errorf("dial error to %s %s. Sleep %v", network, addr, sleepTime)
+				log.G(ctx).WithError(err).Errorf("dial error to %s %s. Sleep %v", network, addr, sleepTime)
 				time.Sleep(sleepTime)
 			}
 			return nil, fmt.Errorf("no retries available")
@@ -222,7 +223,7 @@ func (b *Box) dumpJournalEvery(ctx context.Context, every time.Duration) {
 }
 
 func (b *Box) dumpJournal(ctx context.Context) (err error) {
-	defer apexctx.GetLogger(ctx).Trace("dump journal").Stop(&err)
+	defer log.G(ctx).Trace("dump journal").Stop(&err)
 	tempfile, err := ioutil.TempFile(filepath.Dir(b.config.Journal), "portojournalbak")
 	if err != nil {
 		return err
@@ -244,7 +245,7 @@ func (b *Box) dumpJournal(ctx context.Context) (err error) {
 func (b *Box) loadJournal(ctx context.Context) error {
 	f, err := os.Open(b.config.Journal)
 	if err != nil {
-		apexctx.GetLogger(ctx).Warnf("unable to open Journal file: %v", err)
+		log.G(ctx).Warnf("unable to open Journal file: %v", err)
 		if os.IsNotExist(err) {
 			return nil
 		}
@@ -253,7 +254,7 @@ func (b *Box) loadJournal(ctx context.Context) error {
 	defer f.Close()
 
 	if err = b.journal.Load(f); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Error("unable to load Journal")
+		log.G(ctx).WithError(err).Error("unable to load Journal")
 		return err
 	}
 
@@ -261,7 +262,7 @@ func (b *Box) loadJournal(ctx context.Context) error {
 }
 
 func (b *Box) waitLoop(ctx context.Context) {
-	apexctx.GetLogger(ctx).Info("start waitLoop")
+	log.G(ctx).Info("start waitLoop")
 	var (
 		portoConn porto.API
 		err       error
@@ -285,17 +286,17 @@ func (b *Box) waitLoop(ctx context.Context) {
 
 LOOP:
 	for {
-		apexctx.GetLogger(ctx).Info("next iteration of waitLoop")
+		log.G(ctx).Info("next iteration of waitLoop")
 		if closed(portoConn) {
 			return
 		}
 		// Connect to Porto if we have not connected yet.
 		// In case of error: wait either a fixed timeout or closing of Box
 		if portoConn == nil {
-			apexctx.GetLogger(ctx).Info("waitLoop: connect to Portod")
+			log.G(ctx).Info("waitLoop: connect to Portod")
 			portoConn, err = portoConnect()
 			if err != nil {
-				apexctx.GetLogger(ctx).WithError(err).Warn("unable to connect to Portod")
+				log.G(ctx).WithError(err).Warn("unable to connect to Portod")
 				select {
 				case <-time.After(time.Second):
 					continue LOOP
@@ -315,7 +316,7 @@ LOOP:
 		}
 
 		if containerName != "" {
-			apexctx.GetLogger(ctx).Infof("Wait reports %s to be dead", containerName)
+			log.G(ctx).Infof("Wait reports %s to be dead", containerName)
 			b.muContainers.Lock()
 			container, ok := b.containers[containerName]
 			if ok {
@@ -325,11 +326,11 @@ LOOP:
 			b.muContainers.Unlock()
 			if ok {
 				if err = container.Kill(); err != nil {
-					apexctx.GetLogger(ctx).WithError(err).Errorf("Killing %s error", containerName)
+					log.G(ctx).WithError(err).Errorf("Killing %s error", containerName)
 				}
 			}
 
-			apexctx.GetLogger(ctx).Infof("%d containers are being tracked now", rest)
+			log.G(ctx).Infof("%d containers are being tracked now", rest)
 		}
 	}
 }
@@ -352,28 +353,28 @@ func (b *Box) addRootNamespacePrefix(container string) string {
 
 // Spool downloades Docker images from Distribution, builds base layer for Porto container
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
-	defer apexctx.GetLogger(ctx).WithField("name", name).Trace("spool").Stop(&err)
+	defer log.G(ctx).WithField("name", name).Trace("spool").Stop(&err)
 	var profile = new(Profile)
 
 	if err = opts.DecodeTo(profile); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
+		log.G(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
 		return err
 	}
 
 	if profile.Registry == "" {
-		apexctx.GetLogger(ctx).WithField("name", name).Error("Registry must be non empty")
+		log.G(ctx).WithField("name", name).Error("Registry must be non empty")
 		return fmt.Errorf("Registry must be non empty")
 	}
 
 	portoConn, err := portoConnect()
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Error("Porto connection error")
+		log.G(ctx).WithError(err).WithField("name", name).Error("Porto connection error")
 		return err
 	}
 
 	named, err := reference.ParseNamed(filepath.Join(profile.Repository, profile.Repository, name))
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("name", name).Error("name is invalid")
+		log.G(ctx).WithError(err).WithField("name", name).Error("name is invalid")
 		return err
 	}
 
@@ -390,7 +391,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	if !strings.HasPrefix(registry, "http") {
 		registry = "https://" + registry
 	}
-	apexctx.GetLogger(ctx).Debugf("Image URI generated at spawn with data: %s and %s", registry, named)
+	log.G(ctx).Debugf("Image URI generated at spawn with data: %s and %s", registry, named)
 	repo, err := client.NewRepository(ctx, named, registry, tr)
 	if err != nil {
 		return err
@@ -433,7 +434,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		if err != nil {
 			return err
 		}
-		entry := apexctx.GetLogger(ctx).WithField("layer", layerName).Trace("Try to import layer")
+		entry := log.G(ctx).WithField("layer", layerName).Trace("Try to import layer")
 		portoLayerName := strings.Replace(layerName, ":", "_", -1)
 		err = portoConn.ImportLayer(portoLayerName, blobPath, false)
 		if err != nil && !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
@@ -453,7 +454,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	var profile = new(Profile)
 	err := config.Opts.DecodeTo(profile)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Error("unable to decode profile")
+		log.G(ctx).WithError(err).Error("unable to decode profile")
 		return nil, err
 	}
 	start := time.Now()
@@ -467,7 +468,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	layers := b.journal.GetManifestLayers(config.Name)
 	if layers == "" {
 		err := fmt.Errorf("no layers in the journal for the app")
-		apexctx.GetLogger(ctx).WithFields(log.Fields{"name": config.Name, "error": err}).Error("unable to start container")
+		log.G(ctx).WithFields(apexlog.Fields{"name": config.Name, "error": err}).Error("unable to start container")
 		return nil, err
 	}
 
@@ -502,7 +503,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	}
 	defer b.spawnSM.Release()
 
-	apexctx.GetLogger(ctx).WithFields(log.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
+	log.G(ctx).WithFields(apexlog.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 
 	containersCreatedCounter.Inc(1)
 	pr, err := newContainer(ctx, portoConn, cfg)

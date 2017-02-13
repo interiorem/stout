@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
+
 	porto "github.com/yandex/porto/src/api/go"
 	"golang.org/x/net/context"
 )
@@ -38,22 +39,22 @@ func (v *portoVolume) Path() string {
 }
 
 func (v *portoVolume) Destroy(ctx context.Context, portoConn porto.API) error {
-	log := apexctx.GetLogger(ctx).WithField("container", v.cID)
+	lg := log.G(ctx).WithField("container", v.cID)
 	var err error
 	if v.linked {
 		if err = portoConn.UnlinkVolume(v.path, v.cID); err != nil {
-			log.WithError(err).Error("unlinking failed")
+			lg.WithError(err).Error("unlinking failed")
 		} else {
-			log.Debugf("volume %s successfully unlinked", v.path)
+			lg.Debugf("volume %s successfully unlinked", v.path)
 		}
 		if err = portoConn.UnlinkVolume(v.path, "self"); err != nil {
-			log.WithError(err).Error("unlinking from 'self' failed")
+			lg.WithError(err).Error("unlinking from 'self' failed")
 		} else {
-			log.Debugf("volume %s successfully unlinked", v.path)
+			lg.Debugf("volume %s successfully unlinked", v.path)
 		}
 	}
 	if err = os.RemoveAll(v.path); err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("container", v.cID).Error("remove root volume failed")
+		lg.WithError(err).WithField("container", v.cID).Error("remove root volume failed")
 	}
 	return err
 }
@@ -69,7 +70,7 @@ func (s *storageVolume) Destroy(ctx context.Context, portoConn porto.API) error 
 
 	if s.storagepath != "" {
 		if zerr := os.RemoveAll(s.storagepath); zerr != nil {
-			apexctx.GetLogger(ctx).WithError(zerr).WithField("container", s.portoVolume.cID).Error("remove root volume failed")
+			log.G(ctx).WithError(zerr).WithField("container", s.portoVolume.cID).Error("remove root volume failed")
 		}
 	}
 
@@ -100,9 +101,9 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 		"private": "cocaine-app",
 	}
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	logger := log.G(ctx).WithField("container", c.ID)
 	for limit, value := range c.Profile.Volume {
-		log.Debugf("apply volume limit %s %s", limit, value)
+		logger.Debugf("apply volume limit %s %s", limit, value)
 		properties[limit] = value
 	}
 
@@ -111,7 +112,7 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 		return nil, err
 	}
 
-	log.Debugf("create porto root volume at %s with volumeProperties: %s", path, properties)
+	logger.Debugf("create porto root volume at %s with volumeProperties: %s", path, properties)
 	volume := &portoVolume{
 		cID:        c.ID,
 		path:       path,
@@ -120,11 +121,11 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 
 	description, err := portoConn.CreateVolume(path, properties)
 	if err != nil {
-		log.WithError(err).Error("unable to create volume")
+		logger.WithError(err).Error("unable to create volume")
 		volume.Destroy(ctx, portoConn)
 		return nil, err
 	}
-	log.Debugf("porto volume has been created successfully %v", description)
+	logger.Debugf("porto volume has been created successfully %v", description)
 	return volume, nil
 }
 
@@ -133,15 +134,15 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		return nil, nil
 	}
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	logger := log.G(ctx).WithField("container", c.ID)
 	volumes := make([]Volume, 0, len(c.Profile.ExtraVolumes))
 
 	cleanUpOnError := func() {
 		for _, vol := range volumes {
 			if err := vol.Destroy(ctx, portoConn); err != nil {
-				log.WithError(err).Error("unable to clean up extra volume")
+				logger.WithError(err).Error("unable to clean up extra volume")
 			} else {
-				log.Info("volume has been cleaned up")
+				logger.Info("volume has been cleaned up")
 			}
 		}
 	}
@@ -153,9 +154,9 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		}
 
 		path := filepath.Join(root.Path(), volumeprofile.Target)
-		log.Debugf("create porto root volume at %s with volumeProperties: %s", path, volumeprofile.Properties)
+		logger.Debugf("create porto root volume at %s with volumeProperties: %s", path, volumeprofile.Properties)
 		if err := os.MkdirAll(path, 0775); err != nil {
-			log.WithError(err).Error("unable to create target directory")
+			logger.WithError(err).Error("unable to create target directory")
 			cleanUpOnError()
 			return nil, err
 		}
@@ -196,10 +197,10 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 		description, err := portoConn.CreateVolume(path, volumeprofile.Properties)
 		if err != nil {
 			cleanUpOnError()
-			log.WithError(err).Error("unable to create extra volume")
+			logger.WithError(err).Error("unable to create extra volume")
 			return nil, err
 		}
-		log.Debugf("extra volume has been created %v", description)
+		logger.Debugf("extra volume has been created %v", description)
 	}
 
 	return volumes, nil
@@ -257,11 +258,11 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	properties["enable_porto"] = "false"
 	properties["net"] = pickNetwork(c.NetworkMode)
 
-	log := apexctx.GetLogger(ctx).WithField("container", c.ID)
+	logger := log.G(ctx).WithField("container", c.ID)
 	for property, value := range properties {
-		log.Debugf("Set property %s %s", property, value)
+		logger.Debugf("Set property %s %s", property, value)
 		if err = portoConn.SetProperty(c.ID, property, value); err != nil {
-			log.WithError(err).Errorf("SetProperty %s %s failed", property, value)
+			logger.WithError(err).Errorf("SetProperty %s %s failed", property, value)
 			return err
 		}
 	}

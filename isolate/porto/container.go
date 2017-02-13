@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 
 	porto "github.com/yandex/porto/src/api/go"
@@ -30,16 +30,16 @@ type container struct {
 
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
 func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig) (cnt *container, err error) {
-	log := apexctx.GetLogger(ctx).WithField("container", cfg.ID)
+	logger := log.G(ctx).WithField("container", cfg.ID)
 	volume, err := cfg.CreateRootVolume(ctx, portoConn)
 	if err != nil {
-		log.WithError(err).Error("root volume construction failed")
+		logger.WithError(err).Error("root volume construction failed")
 		return nil, err
 	}
 
 	extravolumes, err := cfg.CreateExtraVolumes(ctx, portoConn, volume)
 	if err != nil {
-		log.WithError(err).Error("extra volumes construction failed")
+		logger.WithError(err).Error("extra volumes construction failed")
 		return nil, err
 	}
 
@@ -65,13 +65,13 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 }
 
 func (c *container) start(portoConn porto.API, output io.Writer) (err error) {
-	defer apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Trace("start container").Stop(&err)
+	defer log.G(c.ctx).WithField("id", c.containerID).Trace("start container").Stop(&err)
 	c.output = output
 	return portoConn.Start(c.containerID)
 }
 
 func (c *container) Kill() (err error) {
-	defer apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Trace("Kill container").Stop(&err)
+	defer log.G(c.ctx).WithField("id", c.containerID).Trace("Kill container").Stop(&err)
 	containersKilledCounter.Inc(1)
 	portoConn, err := portoConnect()
 	if err != nil {
@@ -84,18 +84,18 @@ func (c *container) Kill() (err error) {
 	// Wait seems redundant as we sent SIGKILL
 	value, err := portoConn.GetData(c.containerID, "stdout")
 	if err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stdout")
+		log.G(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stdout")
 	}
 	// TODO: add StringWriter interface to an output
 	c.output.Write([]byte(value))
-	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stdout have been sent", len(value))
+	log.G(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stdout have been sent", len(value))
 
 	value, err = portoConn.GetData(c.containerID, "stderr")
 	if err != nil {
-		apexctx.GetLogger(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stderr")
+		log.G(c.ctx).WithField("id", c.containerID).WithError(err).Warn("unable to get stderr")
 	}
 	c.output.Write([]byte(value))
-	apexctx.GetLogger(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
+	log.G(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
 
 	if err = portoConn.Kill(c.containerID, syscall.SIGKILL); err != nil {
 		if !isEqualPortoError(err, portorpc.EError_InvalidState) {
@@ -115,30 +115,30 @@ func (c *container) Cleanup(portoConn porto.API) {
 	if !c.cleanupEnabled {
 		return
 	}
-	log := apexctx.GetLogger(c.ctx).WithField("id", c.containerID)
+	logger := log.G(c.ctx).WithField("id", c.containerID)
 
 	var err error
 	if err = c.volume.Destroy(c.ctx, portoConn); err != nil {
-		log.WithError(err).Warn("root volume has not been destroyed")
+		logger.WithError(err).Warn("root volume has not been destroyed")
 	} else {
-		log.Debug("root volume successfully destroyed")
+		logger.Debug("root volume successfully destroyed")
 	}
 
 	for i, extraVolume := range c.extraVolumes {
 		if err = extraVolume.Destroy(c.ctx, portoConn); err != nil {
-			log.WithError(err).Warnf("extra volume %d has not been destroyed", i)
+			logger.WithError(err).Warnf("extra volume %d has not been destroyed", i)
 		} else {
-			log.Debugf("extra volume %d successfully destroyed", i)
+			logger.Debugf("extra volume %d successfully destroyed", i)
 		}
 	}
 	if err = portoConn.Destroy(c.containerID); err != nil {
-		log.WithError(err).Warn("Destroy error")
+		logger.WithError(err).Warn("Destroy error")
 	} else {
-		log.Debugf("Destroyed")
+		logger.Debugf("Destroyed")
 	}
 	if err = os.RemoveAll(c.rootDir); err != nil {
-		log.WithError(err).Warnf("Remove dirs %s", c.rootDir)
+		logger.WithError(err).Warnf("Remove dirs %s", c.rootDir)
 	} else {
-		log.Debugf("Remove dirs %s successfully", c.rootDir)
+		logger.Debugf("Remove dirs %s successfully", c.rootDir)
 	}
 }

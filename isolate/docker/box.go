@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 
-	"github.com/apex/log"
+	apexlog "github.com/apex/log"
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
 	"github.com/docker/engine-api/types/filters"
@@ -129,7 +129,7 @@ func (b *Box) watchEvents() {
 		Time   int64  `json:"time"`
 	}
 
-	logger := apexctx.GetLogger(b.ctx)
+	logger := log.G(b.ctx)
 
 	for {
 		eventsOptions := types.EventsOptions{
@@ -201,7 +201,7 @@ func (b *Box) Close() error {
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
 	profile, err := decodeProfile(config.Opts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")
+		log.G(ctx).WithError(err).WithFields(apexlog.Fields{"name": config.Name}).Info("unable to convert raw profile to Docker specific profile")
 		return nil, err
 	}
 	start := time.Now()
@@ -255,18 +255,18 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
 	profile, err := decodeProfile(opts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithFields(log.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
+		log.G(ctx).WithError(err).WithFields(apexlog.Fields{"name": name}).Info("unbale to convert raw profile to Docker specific profile")
 		return err
 	}
 
 	if profile.Registry == "" {
-		apexctx.GetLogger(ctx).WithField("name", name).Info("local image will be used")
+		log.G(ctx).WithField("name", name).Info("local image will be used")
 		return nil
 	}
 
 	ref := filepath.Join(profile.Registry, profile.Repository, name)
 
-	defer apexctx.GetLogger(ctx).WithField("ref", ref).Trace("spooling an image").Stop(&err)
+	defer log.G(ctx).WithField("ref", ref).Trace("spooling an image").Stop(&err)
 	pullOpts := types.ImagePullOptions{
 		All: false,
 	}
@@ -277,7 +277,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 
 	body, err := b.client.ImagePull(ctx, ref, pullOpts)
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).WithField("ref", ref).Error("unable to pull an image")
+		log.G(ctx).WithError(err).WithField("ref", ref).Error("unable to pull an image")
 		return err
 	}
 	defer body.Close()
@@ -297,7 +297,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 // {"Status": "OK"}\n{"Status": "OK"}
 // {"Status": "OK"}{"Error": "error"}
 func decodeImagePull(ctx context.Context, r io.Reader) error {
-	logger := apexctx.GetLogger(ctx)
+	logger := log.G(ctx)
 	more := true
 
 	rd := bufio.NewReader(r)

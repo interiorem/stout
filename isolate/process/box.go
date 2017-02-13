@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
-	"github.com/apex/log"
+	apexlog "github.com/apex/log"
 )
 
 const (
@@ -166,7 +166,7 @@ func (b *Box) wait() {
 			return
 		default:
 			if err != nil {
-				apexctx.GetLogger(b.ctx).WithError(err).Error("Wait4 error")
+				log.G(b.ctx).WithError(err).Error("Wait4 error")
 			}
 			return
 		}
@@ -202,8 +202,8 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		packedArgs = append(packedArgs, k, v)
 	}
 
-	defer apexctx.GetLogger(ctx).WithFields(
-		log.Fields{"name": config.Name, "executable": config.Executable,
+	defer log.G(ctx).WithFields(
+		apexlog.Fields{"name": config.Name, "executable": config.Executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
 	// Update statistics
@@ -262,7 +262,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		spoolPath = profile.Spool
 	}
 
-	defer apexctx.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
+	defer log.G(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err
