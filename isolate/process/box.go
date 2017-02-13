@@ -38,6 +38,11 @@ type codeStorage interface {
 	Spool(ctx context.Context, appname string) ([]byte, error)
 }
 
+type workerInfo struct {
+	*exec.Cmd
+	uuid string
+}
+
 type Box struct {
 	ctx          context.Context
 	cancellation context.CancelFunc
@@ -46,7 +51,7 @@ type Box struct {
 	storage   codeStorage
 
 	mu       sync.Mutex
-	children map[int]*exec.Cmd
+	children map[int]workerInfo
 	wg       sync.WaitGroup
 
 	spawnSm semaphore.Semaphore
@@ -71,7 +76,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		spoolPath: spoolPath,
 		storage:   createCodeStorage(locator),
 
-		children: make(map[int]*exec.Cmd),
+		children: make(map[int]workerInfo),
 		// NOTE: configurable
 		spawnSm: semaphore.New(10),
 	}
@@ -234,7 +239,10 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		procsErroredCounter.Inc(1)
 		return nil, err
 	}
-	b.children[pr.cmd.Process.Pid] = pr.cmd
+	b.children[pr.cmd.Process.Pid] = workerInfo{
+		Cmd:  pr.cmd,
+		uuid: "",
+	}
 	b.mu.Unlock()
 
 	totalSpawnTimer.UpdateSince(start)
@@ -265,6 +273,23 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	}
 
 	return unpackArchive(ctx, data, filepath.Join(spoolPath, name))
+}
+
+func (b *Box) Inspect(ctx context.Context, worker string) ([]byte, error) {
+	b.mu.Lock()
+	for pid, pr := range b.children {
+		if pr.uuid == worker {
+			b.mu.Unlock()
+			data, err := json.Marshal(struct {
+				PID int `json:"pid"`
+			}{
+				PID: pid,
+			})
+			return data, err
+		}
+	}
+	b.mu.Unlock()
+	return []byte("{}"), nil
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {

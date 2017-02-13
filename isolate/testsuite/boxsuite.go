@@ -95,6 +95,9 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 	go func() {
 		defer wr.CloseWithError(io.EOF)
 		pr, err := suite.Box.Spawn(ctx, config, wr)
+		data, err := suite.Box.Inspect(ctx, "some_uuid")
+		c.Check(err, check.IsNil)
+		c.Check(data, check.Not(check.HasLen), 0)
 		c.Assert(err, check.IsNil)
 		time.Sleep(10 * time.Second)
 		pr.Kill()

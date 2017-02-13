@@ -238,6 +238,19 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	return pr, nil
 }
 
+func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
+	b.muContainers.Lock()
+	for cid, container := range b.containers {
+		if container.uuid == workeruuid {
+			b.muContainers.Unlock()
+			_, data, err := b.client.ContainerInspectWithRaw(ctx, cid, false)
+			return data, err
+		}
+	}
+	b.muContainers.Unlock()
+	return []byte("{}"), nil
+}
+
 // Spool spools an image with a tag latest
 func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
 	profile, err := decodeProfile(opts)

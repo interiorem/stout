@@ -44,6 +44,8 @@ type process struct {
 	containerID string
 
 	removed uint32
+
+	uuid string
 }
 
 func newContainer(ctx context.Context, client *client.Client, profile *Profile, name, executable string, args, env map[string]string) (pr *process, err error) {
@@ -65,6 +67,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
 	binds = append(binds, profile.Binds...)
 
+	workeruuid := args["--uuid"]
 	// update args["--endpoint"] according to the container's point of view
 	args["--endpoint"] = filepath.Join(profile.RuntimePath, filepath.Base(args["--endpoint"]))
 
@@ -135,6 +138,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		cancellation: cancel,
 		client:       client,
 		containerID:  resp.ID,
+		uuid:         workeruuid,
 	}
 
 	return pr, nil

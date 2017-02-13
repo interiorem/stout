@@ -17,6 +17,7 @@ import (
 type container struct {
 	ctx context.Context
 
+	uuid           string
 	containerID    string
 	rootDir        string
 	cleanupEnabled bool
@@ -50,6 +51,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 	cnt = &container{
 		ctx: ctx,
 
+		uuid:           cfg.args["--uuid"],
 		containerID:    cfg.ID,
 		rootDir:        cfg.Root,
 		cleanupEnabled: cfg.CleanupEnabled,

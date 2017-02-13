@@ -20,6 +20,7 @@ type (
 	Box interface {
 		Spool(ctx context.Context, name string, opts RawProfile) error
 		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
+		Inspect(ctx context.Context, workerid string) ([]byte, error)
 		Close() error
 	}
 

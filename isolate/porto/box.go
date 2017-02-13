@@ -77,6 +77,8 @@ type Box struct {
 	rootPrefix string
 
 	onClose context.CancelFunc
+
+	containerPropertiesAndData []string
 }
 
 const defaultVolumeBackend = "overlay"
@@ -521,6 +523,29 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	isolate.NotifyAboutStart(output)
 	totalSpawnTimer.UpdateSince(start)
 	return pr, nil
+}
+
+func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
+	b.muContainers.Lock()
+	for cid, pr := range b.containers {
+		if pr.uuid == workeruuid {
+			b.muContainers.Unlock()
+
+			portoConn, err := portoConnect()
+			if err != nil {
+				return nil, err
+			}
+			list := getPListAndDlist(portoConn)
+			result, err := portoConn.Get([]string{cid}, list)
+			if err != nil {
+				return nil, err
+			}
+
+			return json.Marshal(portoData(result[cid]))
+		}
+	}
+	b.muContainers.Unlock()
+	return []byte(""), nil
 }
 
 // Close releases all resources such as idle connections from http.Transport
