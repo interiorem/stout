@@ -61,11 +61,11 @@ type ConnectionHandler struct {
 }
 
 // NewConnectionHandler creates new ConnectionHandler
-func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
+func NewConnectionHandler(ctx context.Context) *ConnectionHandler {
 	return newConnectionHandler(ctx, newInitialDispatch)
 }
 
-func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*ConnectionHandler, error) {
+func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) *ConnectionHandler {
 	connID := getID(ctx)
 	ctx = log.WithLogger(ctx, log.G(ctx).WithField("conn.id", connID))
 
@@ -77,7 +77,7 @@ func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*Connect
 		newDispatcher: newDisp,
 
 		connID: connID,
-	}, nil
+	}
 }
 
 func getID(ctx context.Context) string {
