@@ -16,7 +16,6 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/testsuite"
 
-	"github.com/noxiouz/stout/pkg/log"
 	. "gopkg.in/check.v1"
 )
 

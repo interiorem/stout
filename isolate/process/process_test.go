@@ -10,7 +10,6 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/testsuite"
 
-	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 
 	. "gopkg.in/check.v1"

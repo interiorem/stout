@@ -14,7 +14,6 @@ import (
 	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/pkg/log"
 	. "gopkg.in/check.v1"
 )
 
