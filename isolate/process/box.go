@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
-	"github.com/apex/log"
+	apexlog "github.com/apex/log"
 )
 
 const (
@@ -38,6 +38,11 @@ type codeStorage interface {
 	Spool(ctx context.Context, appname string) ([]byte, error)
 }
 
+type workerInfo struct {
+	*exec.Cmd
+	uuid string
+}
+
 type Box struct {
 	ctx          context.Context
 	cancellation context.CancelFunc
@@ -46,7 +51,7 @@ type Box struct {
 	storage   codeStorage
 
 	mu       sync.Mutex
-	children map[int]*exec.Cmd
+	children map[int]workerInfo
 	wg       sync.WaitGroup
 
 	spawnSm semaphore.Semaphore
@@ -71,7 +76,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		spoolPath: spoolPath,
 		storage:   createCodeStorage(locator),
 
-		children: make(map[int]*exec.Cmd),
+		children: make(map[int]workerInfo),
 		// NOTE: configurable
 		spawnSm: semaphore.New(10),
 	}
@@ -161,7 +166,7 @@ func (b *Box) wait() {
 			return
 		default:
 			if err != nil {
-				apexctx.GetLogger(b.ctx).WithError(err).Error("Wait4 error")
+				log.G(b.ctx).WithError(err).Error("Wait4 error")
 			}
 			return
 		}
@@ -197,8 +202,8 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		packedArgs = append(packedArgs, k, v)
 	}
 
-	defer apexctx.GetLogger(ctx).WithFields(
-		log.Fields{"name": config.Name, "executable": config.Executable,
+	defer log.G(ctx).WithFields(
+		apexlog.Fields{"name": config.Name, "executable": config.Executable,
 			"workDir": workDir, "execPath": execPath}).Trace("processBox.Spawn").Stop(&err)
 
 	// Update statistics
@@ -234,7 +239,10 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		procsErroredCounter.Inc(1)
 		return nil, err
 	}
-	b.children[pr.cmd.Process.Pid] = pr.cmd
+	b.children[pr.cmd.Process.Pid] = workerInfo{
+		Cmd:  pr.cmd,
+		uuid: "",
+	}
 	b.mu.Unlock()
 
 	totalSpawnTimer.UpdateSince(start)
@@ -254,7 +262,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		spoolPath = profile.Spool
 	}
 
-	defer apexctx.GetLogger(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
+	defer log.G(ctx).WithField("name", name).WithField("spoolpath", spoolPath).Trace("processBox.Spool").Stop(&err)
 	data, err := b.fetch(ctx, name)
 	if err != nil {
 		return err
@@ -265,6 +273,23 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	}
 
 	return unpackArchive(ctx, data, filepath.Join(spoolPath, name))
+}
+
+func (b *Box) Inspect(ctx context.Context, worker string) ([]byte, error) {
+	b.mu.Lock()
+	for pid, pr := range b.children {
+		if pr.uuid == worker {
+			b.mu.Unlock()
+			data, err := json.Marshal(struct {
+				PID int `json:"pid"`
+			}{
+				PID: pid,
+			})
+			return data, err
+		}
+	}
+	b.mu.Unlock()
+	return []byte("{}"), nil
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {

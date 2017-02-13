@@ -2,7 +2,9 @@ package porto
 
 import (
 	"bytes"
+	"encoding/json"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,14 +15,12 @@ import (
 )
 
 var (
-	propLock            sync.Mutex
-	containerProperties atomic.Value
-	containerData       atomic.Value
+	propLock                   sync.Mutex
+	containerPropertiesAndData atomic.Value
 )
 
 func init() {
-	containerData.Store([]string{})
-	containerProperties.Store([]string{})
+	containerPropertiesAndData.Store([]string{})
 }
 
 func isEqualPortoError(err error, expectedErrno portorpc.EError) bool {
@@ -46,6 +46,83 @@ func newBuff() *bytes.Buffer {
 	return buff
 }
 
+type portoData map[string]porto.TPortoGetResponse
+
+var _ json.Marshaler = portoData{}
+
+func (d portoData) MarshalJSON() ([]byte, error) {
+	buff := new(bytes.Buffer)
+	if d == nil {
+		buff.WriteString("null")
+		return buff.Bytes(), nil
+	}
+
+	keys := containerPropertiesAndData.Load().([]string)
+	if len(keys) == 0 {
+		keys = make([]string, 0, len(d))
+		for k := range d {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+	}
+
+	buff.WriteByte('{')
+	for i, name := range keys {
+		// NOTE: it's unlikely that name is absent in the map
+		// but zero value is valid empty string with 0 error code
+		v := d[name]
+		if i > 0 {
+			buff.WriteByte(',')
+		}
+
+		buff.WriteByte('"')
+		buff.WriteString(name)
+		buff.WriteByte('"')
+		buff.WriteByte(':')
+		buff.WriteByte('"')
+		if v.Error == 0 {
+			buff.WriteString(v.Value)
+		} else {
+			buff.WriteString(v.ErrorMsg)
+		}
+		buff.WriteByte('"')
+	}
+	buff.WriteByte('}')
+	return buff.Bytes(), nil
+}
+
+func getPListAndDlist(portoConn porto.API) (list []string) {
+	list = containerPropertiesAndData.Load().([]string)
+	if len(list) == 0 {
+		func() {
+			propLock.Lock()
+			defer propLock.Unlock()
+
+			portoProps, err := portoConn.Plist()
+			if err != nil {
+				return
+			}
+			for _, property := range portoProps {
+				list = append(list, property.Name)
+			}
+
+			portoData, err := portoConn.Dlist()
+			if err != nil {
+				return
+			}
+			for _, dataItem := range portoData {
+				if name := dataItem.Name; name != "stdout" && name != "stderr" {
+					list = append(list, name)
+				}
+			}
+			sort.Strings(list)
+			containerPropertiesAndData.Store(list)
+		}()
+	}
+
+	return list
+}
+
 type containerFootprint struct {
 	portoConn   porto.API
 	containerID string
@@ -55,72 +132,20 @@ func (c containerFootprint) String() string {
 	buff := newBuff()
 	defer buffPool.Put(buff)
 
-	properties := containerProperties.Load().([]string)
-	if len(properties) == 0 {
-		func() {
-			propLock.Lock()
-			defer propLock.Unlock()
-			if len(containerProperties.Load().([]string)) != 0 {
-				return
-			}
-			portoProps, err := c.portoConn.Plist()
-			if err != nil {
-				return
-			}
-			properties = make([]string, 0, len(portoProps))
-			for _, property := range portoProps {
-				properties = append(properties, property.Name)
-			}
-			containerProperties.Store(properties)
-		}()
+	list := getPListAndDlist(c.portoConn)
+	data, err := c.portoConn.Get([]string{c.containerID}, list)
+	if err != nil {
+		return err.Error()
 	}
 
-	data := containerData.Load().([]string)
-	if len(data) == 0 {
-		func() {
-			propLock.Lock()
-			defer propLock.Unlock()
-			if len(containerData.Load().([]string)) != 0 {
-				return
-			}
-			portoData, err := c.portoConn.Dlist()
-			if err != nil {
-				return
-			}
-			data = make([]string, 0, len(portoData))
-			for _, dataItem := range portoData {
-				data = append(data, dataItem.Name)
-			}
-			containerData.Store(data)
-		}()
-	}
-
-	for _, property := range properties {
-		value, err := c.portoConn.GetProperty(c.containerID, property)
+	for name, value := range data[c.containerID] {
 		buff.WriteByte(' ')
-		buff.WriteString(property)
+		buff.WriteString(name)
 		buff.WriteByte('=')
 		if err != nil {
 			buff.WriteString(err.Error())
 		} else {
-			buff.WriteString(value)
-		}
-		buff.WriteByte('\n')
-	}
-
-	for _, dt := range data {
-		if dt == "stderr" || dt == "stdout" {
-			continue
-		}
-
-		value, err := c.portoConn.GetData(c.containerID, dt)
-		buff.WriteByte(' ')
-		buff.WriteString(dt)
-		buff.WriteByte('=')
-		if err != nil {
-			buff.WriteString(err.Error())
-		} else {
-			buff.WriteString(value)
+			buff.WriteString(value.Value)
 		}
 		buff.WriteByte('\n')
 	}

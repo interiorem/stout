@@ -64,6 +64,10 @@ func (b *testBox) Spawn(ctx context.Context, config SpawnConfig, wr io.Writer) (
 	return spawnTestProcess(ctx, wr), nil
 }
 
+func (b *testBox) Inspect(ctx context.Context, workerid string) ([]byte, error) {
+	return []byte("{}"), nil
+}
+
 func (b *testBox) Close() error {
 	return nil
 }

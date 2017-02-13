@@ -8,7 +8,7 @@ import (
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -19,7 +19,7 @@ type cocaineCodeStorage struct {
 }
 
 func (st *cocaineCodeStorage) createStorage(ctx context.Context) (service *cocaine.Service, err error) {
-	defer apexctx.GetLogger(ctx).Trace("connect to 'storage' service").Stop(&err)
+	defer log.G(ctx).Trace("connect to 'storage' service").Stop(&err)
 	return cocaine.NewService(ctx, "storage", st.locator)
 }
 
@@ -29,7 +29,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 		return nil, err
 	}
 	defer storage.Close()
-	defer apexctx.GetLogger(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
+	defer log.G(ctx).WithField("app", appname).Trace("read code from storage").Stop(&err)
 
 	channel, err := storage.Call(ctx, "read", "apps", appname)
 	if err != nil {
@@ -62,7 +62,7 @@ func (st *cocaineCodeStorage) Spool(ctx context.Context, appname string) (data [
 	}
 
 	if len(rest) != 0 {
-		apexctx.GetLogger(ctx).WithField("app", appname).Warnf("Some left unpacked: %d", len(rest))
+		log.G(ctx).WithField("app", appname).Warnf("Some left unpacked: %d", len(rest))
 	}
 	return data, err
 }

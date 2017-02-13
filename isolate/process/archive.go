@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 )
 
@@ -35,15 +35,15 @@ var constructors = []archiveConstructor{
 }
 
 func unpackArchive(ctx context.Context, data []byte, target string) (err error) {
-	log := apexctx.GetLogger(ctx).WithField("target", target)
-	defer log.Trace("unpacking an archive").Stop(&err)
+	logger := log.G(ctx).WithField("target", target)
+	defer logger.Trace("unpacking an archive").Stop(&err)
 
 	if err = os.RemoveAll(target); err != nil {
 		return err
 	}
 
 	if err = os.Mkdir(target, 0755); err != nil {
-		log.Error("unable to create spool directory")
+		logger.Error("unable to create spool directory")
 		return err
 	}
 
@@ -72,7 +72,7 @@ UNPACK:
 		info := hdr.FileInfo()
 
 		if info.IsDir() {
-			log.Debugf("unpackArchive: unpack directory %s (size %d) to %s", hdr.Name, hdr.Size, path)
+			logger.Debugf("unpackArchive: unpack directory %s (size %d) to %s", hdr.Name, hdr.Size, path)
 			if err = os.MkdirAll(path, info.Mode()); err != nil {
 				return err
 			}
@@ -92,13 +92,13 @@ UNPACK:
 			}
 		}
 
-		log.Debugf("unpackArchive: unpack %s (size %d) to %s", hdr.Name, hdr.Size, path)
+		logger.Debugf("unpackArchive: unpack %s (size %d) to %s", hdr.Name, hdr.Size, path)
 		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
 		if err != nil {
 			return err
 		}
 		nn, err := io.Copy(file, tr)
-		log.Debugf("unpackArchive: extracted (%d/%d) bytes of %s: %v", nn, hdr.Size, path, err)
+		logger.Debugf("unpackArchive: extracted (%d/%d) bytes of %s: %v", nn, hdr.Size, path, err)
 		file.Close()
 		if err != nil {
 			return err

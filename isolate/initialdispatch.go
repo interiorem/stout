@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -163,7 +163,7 @@ func (d *initialDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher, error) 
 func (d *initialDispatch) onSpool(opts *cocaineProfile, name string) (Dispatcher, error) {
 	isolateType, err := opts.Type()
 	if err != nil {
-		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to detect isolate type from a profile")
+		log.G(d.ctx).WithError(err).Error("unable to detect isolate type from a profile")
 		err := fmt.Errorf("corrupted profile: %v", opts)
 		d.stream.Error(d.ctx, replySpoolError, errBadProfile, err.Error())
 		return nil, err
@@ -171,7 +171,7 @@ func (d *initialDispatch) onSpool(opts *cocaineProfile, name string) (Dispatcher
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
+		log.G(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
 		d.stream.Error(d.ctx, replySpoolError, errUnknownIsolate, err.Error())
 		return nil, err
@@ -194,7 +194,7 @@ func (d *initialDispatch) onSpool(opts *cocaineProfile, name string) (Dispatcher
 func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string, args, env map[string]string) (Dispatcher, error) {
 	isolateType, err := opts.Type()
 	if err != nil {
-		apexctx.GetLogger(d.ctx).WithError(err).Error("unable to detect isolate type from a profile")
+		log.G(d.ctx).WithError(err).Error("unable to detect isolate type from a profile")
 		err := fmt.Errorf("corrupted profile: %v", opts)
 		d.stream.Error(d.ctx, replySpawnError, errBadProfile, err.Error())
 		return nil, err
@@ -202,13 +202,13 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 
 	box, ok := getBoxes(d.ctx)[isolateType]
 	if !ok {
-		apexctx.GetLogger(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
+		log.G(d.ctx).WithField("isolatetype", isolateType).Error("requested isolate type is not available")
 		err := fmt.Errorf("isolate type %s is not available", isolateType)
 		d.stream.Error(d.ctx, replySpawnError, errUnknownIsolate, err.Error())
 		return nil, err
 	}
 
-	apexctx.GetLogger(d.ctx).Debugf("onSpawn() Profile Dump: %s", opts)
+	log.G(d.ctx).Debugf("onSpawn() Profile Dump: %s", opts)
 
 	prCh := make(chan Process)
 	flagKilled := uint32(0)
@@ -240,7 +240,7 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 			case syscall.EAGAIN:
 				d.stream.Error(d.ctx, replySpawnError, errSpawnEAGAIN, err.Error())
 			default:
-				apexctx.GetLogger(d.ctx).WithError(err).Error("unable to spawn")
+				log.G(d.ctx).WithError(err).Error("unable to spawn")
 				d.stream.Error(d.ctx, replySpawnError, errSpawningFailed, err.Error())
 			}
 			return
