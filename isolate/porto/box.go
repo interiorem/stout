@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/stats"
 	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
@@ -80,12 +81,14 @@ type Box struct {
 	onClose context.CancelFunc
 
 	containerPropertiesAndData []string
+
+	collector stats.Repository
 }
 
 const defaultVolumeBackend = "overlay"
 
 // NewBox creates new Box
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, collector stats.Repository) (isolate.Box, error) {
 	log.G(ctx).Warn("Porto Box is unstable")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
@@ -182,6 +185,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		rootPrefix: rootPrefix,
 
 		blobRepo: blobRepo,
+
+		collector: collector,
 	}
 
 	body, err := json.Marshal(config)

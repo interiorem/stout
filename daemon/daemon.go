@@ -12,16 +12,19 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/stats"
 	"github.com/noxiouz/stout/pkg/config"
 	"github.com/noxiouz/stout/pkg/log"
 )
 
 type Daemon struct {
-	boxes     isolate.Boxes
-	cfg       *config.Config
-	listeners []net.Listener
+	boxes isolate.Boxes
+	cfg   *config.Config
 
 	muListeners sync.Mutex
+	listeners   []net.Listener
+
+	collector stats.Collector
 }
 
 func New(ctx context.Context, configuration *config.Config) (*Daemon, error) {
@@ -30,6 +33,7 @@ func New(ctx context.Context, configuration *config.Config) (*Daemon, error) {
 		cfg:       configuration,
 		boxes:     make(isolate.Boxes),
 		listeners: make([]net.Listener, 0),
+		collector: stats.New(),
 	}
 
 	boxTypes := map[string]struct{}{}
@@ -42,7 +46,7 @@ func New(ctx context.Context, configuration *config.Config) (*Daemon, error) {
 		boxTypes[cfg.Type] = struct{}{}
 
 		boxCtx := log.WithLogger(ctx, log.G(ctx).WithField("box", name))
-		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args)
+		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args, d.collector)
 		if err != nil {
 			log.G(ctx).WithError(err).WithField("box", name).WithField("type", cfg.Type).Error("unable to create box")
 			d.Close()
@@ -91,6 +95,12 @@ func (d *Daemon) RegisterHTTPHandlers(ctx context.Context, mux *http.ServeMux) {
 			}
 		}(name))
 	}
+
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(d.collector.Dump())
+	})
 }
 
 func (d *Daemon) Serve(ctx context.Context) error {
@@ -170,4 +180,5 @@ func (d *Daemon) closeBoxes() {
 func (d *Daemon) Close() {
 	d.closeListeners()
 	d.closeBoxes()
+	d.collector.Close()
 }

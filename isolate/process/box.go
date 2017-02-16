@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
+	"github.com/noxiouz/stout/isolate/stats"
 	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/semaphore"
 
@@ -54,10 +55,12 @@ type Box struct {
 	children map[int]workerInfo
 	wg       sync.WaitGroup
 
+	collector stats.Repository
+
 	spawnSm semaphore.Semaphore
 }
 
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, collector stats.Repository) (isolate.Box, error) {
 	spoolPath, ok := cfg["spool"].(string)
 	if !ok {
 		spoolPath = defaultSpoolPath
@@ -76,7 +79,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		spoolPath: spoolPath,
 		storage:   createCodeStorage(locator),
 
-		children: make(map[int]workerInfo),
+		children:  make(map[int]workerInfo),
+		collector: collector,
+
 		// NOTE: configurable
 		spawnSm: semaphore.New(10),
 	}
@@ -95,6 +100,11 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		defer box.wg.Done()
 		box.sigchldHandler()
 	}()
+	box.wg.Add(1)
+	go func() {
+		defer box.wg.Done()
+		box.collectStats()
+	}()
 
 	return box, nil
 }
@@ -103,6 +113,33 @@ func (b *Box) Close() error {
 	b.cancellation()
 	b.wg.Wait()
 	return nil
+}
+
+func (b *Box) collectStats() {
+	type target struct {
+		PID  int
+		UUID string
+	}
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// NOTE: preallocate and cache
+			targets := make([]target, 0)
+			b.mu.Lock()
+			for _, info := range b.children {
+				targets = append(targets, target{info.Cmd.Process.Pid, info.uuid})
+			}
+			b.mu.Unlock()
+			for _, t := range targets {
+				data := getStatistics(t.PID)
+				b.collector.Get(b.ctx, t.UUID).Update(data)
+			}
+		case <-b.ctx.Done():
+			return
+		}
+	}
 }
 
 func (b *Box) sigchldHandler() {
@@ -241,7 +278,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	}
 	b.children[pr.cmd.Process.Pid] = workerInfo{
 		Cmd:  pr.cmd,
-		uuid: "",
+		uuid: config.Args["--uuid"],
 	}
 	b.mu.Unlock()
 
