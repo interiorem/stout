@@ -1,0 +1,39 @@
+machine:
+
+  services:
+    - docker
+
+  pre:
+    - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/1.0.22/binscripts/gvm-installer)
+
+  post:
+    - gvm install go1.7.1 --prefer-binary --name=stable
+    - docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
+  environment:
+    CHECKOUT: /home/ubuntu/$CIRCLE_PROJECT_REPONAME
+    BASE_STABLE: ../../../$HOME/.gvm/pkgsets/stable/global/$BASE_DIR
+
+dependencies:
+  pre:
+    - >
+      gvm use stable &&
+      mkdir -p "$(dirname $BASE_STABLE)/src/github.com/noxiouz" &&
+      cp -R "$CHECKOUT" "$BASE_STABLE/src/github.com/noxiouz"
+
+test:
+  pre:
+  # Output the go versions we are going to test
+    - gvm use stable && go version
+
+  override:
+    - gvm use stable && cd cd ${BASE_STABLE}/src/github.com/noxiouz/stout && make test:
+        pwd: ${BASE_STABLE}/src/github.com/noxiouz/stout
+
+    - gvm use stable && cd ${BASE_STABLE}/src/github.com/noxiouz/stout && make build_travis_release:
+        pwd: ${BASE_STABLE}/src/github.com/noxiouz/stout
+
+  post:
+  # Report to codecov
+    - bash <(curl -s https://codecov.io/bash):
+        pwd: $BASE_STABLE
