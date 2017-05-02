@@ -17,7 +17,6 @@ import (
 
 	apexlog "github.com/apex/log"
 	"github.com/mitchellh/mapstructure"
-	"github.com/pborman/uuid"
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
@@ -472,7 +471,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		return nil, err
 	}
 
-	ID := b.appGenLabel(config.Name) + "_" + uuid.New()
+	ID := b.appGenLabel(config.Name) + "_" + config.Args["--uuid"]
 	cfg := containerConfig{
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
