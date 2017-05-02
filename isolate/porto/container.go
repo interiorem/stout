@@ -39,6 +39,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 
 	extravolumes, err := cfg.CreateExtraVolumes(ctx, portoConn, volume)
 	if err != nil {
+		volume.Destroy(ctx, portoConn)
 		logger.WithError(err).Error("extra volumes construction failed")
 		return nil, err
 	}
