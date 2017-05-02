@@ -1,21 +1,83 @@
 package isolate
 
 import (
+	"bytes"
 	"fmt"
-	"encoding/json"
+	"sync"
+
+	"github.com/tinylib/msgp/msgp"
 )
 
-type Profile map[string]interface{}
+const (
+	typeKey = "type"
+)
 
-func (p Profile) Type() string {
-	return fmt.Sprintf("%s", p["type"])
+var (
+	ErrNoTypeField    = fmt.Errorf("profile does not contain `%s` field", typeKey)
+	ErrTwiceDecodedTo = fmt.Errorf("DecodeTo is called twice")
+)
+
+var profilesPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 1024)
+	},
 }
 
-func (p Profile) String() string {
-	j, e := json.Marshal(p)
-	if e == nil {
-		return string(j)
+type RawProfile interface {
+	DecodeTo(v msgp.Decodable) error
+}
+
+func NewRawProfile(i interface{}) (RawProfile, error) {
+	var err error
+	p := cocaineProfile{}
+	p.buff, err = msgp.AppendIntf(p.buff, i)
+	return &p, err
+}
+
+func NewRawProfileFromBytes(b []byte) RawProfile {
+	p := &cocaineProfile{
+		buff: b,
 	}
-	return "nil"
+	return p
 }
 
+func newCocaineProfile() *cocaineProfile {
+	buff := profilesPool.Get().([]byte)
+	buff = buff[:0]
+	return &cocaineProfile{buff: buff}
+}
+
+type cocaineProfile struct {
+	buff []byte
+}
+
+func (p *cocaineProfile) Type() (string, error) {
+	raw := msgp.Locate(typeKey, p.buff)
+	if len(raw) == 0 {
+		return "", ErrNoTypeField
+	}
+
+	t, _, err := msgp.ReadStringBytes(raw)
+	return t, err
+}
+
+func (p *cocaineProfile) Write(b []byte) (int, error) {
+	p.buff = append(p.buff, b...)
+	return len(b), nil
+}
+
+// DecodeTo unpacks []byte to some profile. Profile must not be used after DecodeTo
+func (p *cocaineProfile) DecodeTo(v msgp.Decodable) error {
+	if p.buff != nil {
+		err := msgp.Decode(bytes.NewReader(p.buff), v)
+		profilesPool.Put(p.buff)
+		p.buff = nil
+		return err
+	}
+
+	return ErrTwiceDecodedTo
+}
+
+func (p *cocaineProfile) String() string {
+	return string(p.buff)
+}

@@ -16,7 +16,7 @@ import (
 	"github.com/docker/engine-api/types/network"
 	"github.com/docker/engine-api/types/strslice"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 )
 
@@ -29,7 +29,7 @@ const (
 
 func containerRemove(client client.APIClient, ctx context.Context, id string) {
 	var err error
-	defer apexctx.GetLogger(ctx).WithField("id", id).Trace("removing").Stop(&err)
+	defer log.G(ctx).WithField("id", id).Trace("removing").Stop(&err)
 
 	removeOpts := types.ContainerRemoveOptions{}
 	err = client.ContainerRemove(ctx, id, removeOpts)
@@ -44,10 +44,12 @@ type process struct {
 	containerID string
 
 	removed uint32
+
+	uuid string
 }
 
 func newContainer(ctx context.Context, client *client.Client, profile *Profile, name, executable string, args, env map[string]string) (pr *process, err error) {
-	defer apexctx.GetLogger(ctx).Trace("spawning container").Stop(&err)
+	defer log.G(ctx).Trace("spawning container").Stop(&err)
 
 	var image string
 	if registry := profile.Registry; registry != "" {
@@ -65,6 +67,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 	binds[0] = filepath.Dir(args["--endpoint"]) + ":" + profile.RuntimePath
 	binds = append(binds, profile.Binds...)
 
+	workeruuid := args["--uuid"]
 	// update args["--endpoint"] according to the container's point of view
 	args["--endpoint"] = filepath.Join(profile.RuntimePath, filepath.Base(args["--endpoint"]))
 
@@ -86,18 +89,22 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		Labels:     map[string]string{isolateDockerLabel: name},
 	}
 
-	apexctx.GetLogger(ctx).Info("applying Resource limits")
+	memorylimit, _ := profile.Resources.Memory.Int()
+	cpuShares, _ := profile.Resources.CPUShares.Int()
+	cpuPeriod, _ := profile.Resources.CPUPeriod.Int()
+	cpuQuota, _ := profile.Resources.CPUQuota.Int()
+	log.G(ctx).Info("applying Resource limits")
 	var resources = container.Resources{
-		Memory:     profile.Resources.Memory,
-		CPUShares:  profile.Resources.CPUShares,
-		CPUPeriod:  profile.Resources.CPUPeriod,
-		CPUQuota:   profile.Resources.CPUQuota,
+		Memory:     memorylimit,
+		CPUShares:  cpuShares,
+		CPUPeriod:  cpuPeriod,
+		CPUQuota:   cpuQuota,
 		CpusetCpus: profile.Resources.CpusetCpus,
 		CpusetMems: profile.Resources.CpusetMems,
 	}
 
 	hostConfig := container.HostConfig{
-		NetworkMode: profile.NetworkMode,
+		NetworkMode: container.NetworkMode(profile.NetworkMode),
 		Binds:       binds,
 		Resources:   resources,
 	}
@@ -107,7 +114,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		for k, v := range profile.Tmpfs {
 			fmt.Fprintf(buff, "%s: %s;", k, v)
 		}
-		apexctx.GetLogger(ctx).Infof("mounting `tmpfs` to container: %s", buff.String())
+		log.G(ctx).Infof("mounting `tmpfs` to container: %s", buff.String())
 
 		hostConfig.Tmpfs = profile.Tmpfs
 	}
@@ -117,12 +124,12 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 
 	resp, err := client.ContainerCreate(ctx, &config, &hostConfig, networkingConfig, "")
 	if err != nil {
-		apexctx.GetLogger(ctx).WithError(err).Error("unable to create a container")
+		log.G(ctx).WithError(err).Error("unable to create a container")
 		return nil, err
 	}
 
 	for _, warn := range resp.Warnings {
-		apexctx.GetLogger(ctx).Warnf("%s warning: %s", resp.ID, warn)
+		log.G(ctx).Warnf("%s warning: %s", resp.ID, warn)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -131,6 +138,7 @@ func newContainer(ctx context.Context, client *client.Client, profile *Profile, 
 		cancellation: cancel,
 		client:       client,
 		containerID:  resp.ID,
+		uuid:         workeruuid,
 	}
 
 	return pr, nil
@@ -149,7 +157,7 @@ func (p *process) startContainer(wr io.Writer) error {
 }
 
 func (p *process) Kill() (err error) {
-	defer apexctx.GetLogger(p.ctx).WithField("id", p.containerID).Trace("Sending SIGKILL").Stop(&err)
+	defer log.G(p.ctx).WithField("id", p.containerID).Trace("Sending SIGKILL").Stop(&err)
 	// release HTTP connections
 	defer p.cancellation()
 	defer p.remove()
@@ -159,7 +167,7 @@ func (p *process) Kill() (err error) {
 
 func (p *process) remove() {
 	if !atomic.CompareAndSwapUint32(&p.removed, 0, 1) {
-		apexctx.GetLogger(p.ctx).WithField("id", p.containerID).Info("already removed")
+		log.G(p.ctx).WithField("id", p.containerID).Info("already removed")
 		return
 	}
 	containerRemove(p.client, p.ctx, p.containerID)
@@ -175,7 +183,7 @@ func (p *process) collectOutput(started chan struct{}, writer io.Writer) {
 
 	hjResp, err := p.client.ContainerAttach(p.ctx, p.containerID, attachOpts)
 	if err != nil {
-		apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
+		log.G(p.ctx).WithError(err).Errorf("unable to attach to stdout/err of %s", p.containerID)
 		return
 	}
 	defer hjResp.Close()
@@ -189,13 +197,13 @@ func (p *process) collectOutput(started chan struct{}, writer io.Writer) {
 			if err == io.EOF {
 				return
 			}
-			apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
+			log.G(p.ctx).WithError(err).Errorf("unable to read header for hjResp of %s", p.containerID)
 			return
 		}
 
 		var size uint32
 		if err = binary.Read(bytes.NewReader(header[4:]), binary.BigEndian, &size); err != nil {
-			apexctx.GetLogger(p.ctx).WithError(err).Errorf("unable to decode size from header %s", p.containerID)
+			log.G(p.ctx).WithError(err).Errorf("unable to decode size from header %s", p.containerID)
 			return
 		}
 

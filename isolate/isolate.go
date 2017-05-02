@@ -7,7 +7,7 @@ import (
 )
 
 type SpawnConfig struct {
-	Opts       Profile
+	Opts       RawProfile
 	Name       string
 	Executable string
 	Args       map[string]string
@@ -18,8 +18,9 @@ type (
 	dispatcherInit func(context.Context, ResponseStream) Dispatcher
 
 	Box interface {
-		Spool(ctx context.Context, name string, opts Profile) error
+		Spool(ctx context.Context, name string, opts RawProfile) error
 		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
+		Inspect(ctx context.Context, workerid string) ([]byte, error)
 		Close() error
 	}
 

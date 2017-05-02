@@ -16,7 +16,6 @@ import (
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/isolate/testsuite"
 
-	apexctx "github.com/m0sth8/context"
 	. "gopkg.in/check.v1"
 )
 
@@ -24,12 +23,20 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 func init() {
-	opts := isolate.Profile{
-		"Registry": "http://localhost:5000",
-		"cwd":      "/usr/bin",
+	f := func(c *C) isolate.RawProfile {
+		opts := map[string]string{
+			"registry": "http://localhost:5000",
+			"cwd":      "/usr/bin",
+		}
+
+		r, err := isolate.NewRawProfile(opts)
+		if err != nil {
+			c.Fatalf("unable to create raw profile %v", err)
+		}
+		return r
 	}
 
-	testsuite.RegisterSuite(portoBoxConstructor, opts, func() string {
+	testsuite.RegisterSuite(portoBoxConstructor, f, func() string {
 		if os.Getenv("TRAVIS") == "true" {
 			return "Skip Porto tests under Travis CI"
 		}
@@ -97,12 +104,12 @@ COPY worker.sh /usr/bin/worker.sh
 func portoBoxConstructor(c *C) (isolate.Box, error) {
 	buildTestImage(c)
 	cfg := isolate.BoxConfig{
-		"layers":     "/var/tmp/layers",
-		"containers": "/var/tmp/containers",
-		"journal":    "/var/tmp/portojournal.jrnl",
+		"layers":     "/tmp/layers",
+		"containers": "/tmp/containers",
+		"journal":    "/tmp/portojournal.jrnl",
 	}
 
-	b, err := NewBox(apexctx.Background(), cfg)
+	b, err := NewBox(context.Background(), cfg)
 	c.Assert(err, IsNil)
 	return b, err
 }

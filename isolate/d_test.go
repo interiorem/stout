@@ -51,7 +51,7 @@ type testBox struct {
 	sleep time.Duration
 }
 
-func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
+func (b *testBox) Spool(ctx context.Context, name string, opts RawProfile) error {
 	select {
 	case <-ctx.Done():
 		return errors.New("canceled")
@@ -62,6 +62,10 @@ func (b *testBox) Spool(ctx context.Context, name string, opts Profile) error {
 
 func (b *testBox) Spawn(ctx context.Context, config SpawnConfig, wr io.Writer) (Process, error) {
 	return spawnTestProcess(ctx, wr), nil
+}
+
+func (b *testBox) Inspect(ctx context.Context, workerid string) ([]byte, error) {
+	return []byte("{}"), nil
 }
 
 func (b *testBox) Close() error {
@@ -144,7 +148,7 @@ func (s *initialDispatchSuite) TearDownTest(c *C) {
 
 func (s *initialDispatchSuite) TestSpool(c *C) {
 	var (
-		args = Profile{
+		args = map[string]interface{}{
 			"type": "test",
 		}
 		appName     = "application"
@@ -161,7 +165,7 @@ func (s *initialDispatchSuite) TestSpool(c *C) {
 
 func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 	var (
-		args = Profile{
+		args = map[string]interface{}{
 			"type": "testSleep",
 		}
 		appName      = "application"
@@ -179,7 +183,7 @@ func (s *initialDispatchSuite) TestSpoolCancel(c *C) {
 
 func (s *initialDispatchSuite) TestSpoolError(c *C) {
 	var (
-		args = Profile{
+		args = map[string]interface{}{
 			"type": "testError",
 		}
 		appName     = "application"
@@ -195,7 +199,7 @@ func (s *initialDispatchSuite) TestSpoolError(c *C) {
 
 func (s *initialDispatchSuite) TestSpawnAndKill(c *C) {
 	var (
-		opts = Profile{
+		opts = map[string]interface{}{
 			"type": "testSleep",
 		}
 		appName    = "application"

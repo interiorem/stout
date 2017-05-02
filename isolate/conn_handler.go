@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	apexctx "github.com/m0sth8/context"
+	"github.com/noxiouz/stout/pkg/log"
 	"github.com/tinylib/msgp/msgp"
 	"golang.org/x/net/context"
 )
@@ -61,13 +61,13 @@ type ConnectionHandler struct {
 }
 
 // NewConnectionHandler creates new ConnectionHandler
-func NewConnectionHandler(ctx context.Context) (*ConnectionHandler, error) {
+func NewConnectionHandler(ctx context.Context) *ConnectionHandler {
 	return newConnectionHandler(ctx, newInitialDispatch)
 }
 
-func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*ConnectionHandler, error) {
+func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) *ConnectionHandler {
 	connID := getID(ctx)
-	ctx = apexctx.WithLogger(ctx, apexctx.GetLogger(ctx).WithField("conn.id", connID))
+	ctx = log.WithLogger(ctx, log.G(ctx).WithField("conn.id", connID))
 
 	return &ConnectionHandler{
 		ctx:            ctx,
@@ -77,7 +77,7 @@ func newConnectionHandler(ctx context.Context, newDisp dispatcherInit) (*Connect
 		newDispatcher: newDisp,
 
 		connID: connID,
-	}, nil
+	}
 }
 
 func getID(ctx context.Context) string {
@@ -115,12 +115,12 @@ func (h *ConnectionHandler) next(r *msgp.Reader) (hasHeaders bool, channel uint6
 func (h *ConnectionHandler) HandleConn(conn io.ReadWriteCloser) {
 	defer func() {
 		conn.Close()
-		apexctx.GetLogger(h.ctx).Errorf("Connection has been closed")
+		log.G(h.ctx).Errorf("Connection has been closed")
 	}()
 
 	ctx, cancel := context.WithCancel(h.ctx)
 	defer cancel()
-	logger := apexctx.GetLogger(h.ctx)
+	logger := log.G(h.ctx)
 
 	r := msgp.NewReader(conn)
 LOOP:
@@ -130,7 +130,7 @@ LOOP:
 			if err == io.EOF {
 				return
 			}
-			apexctx.GetLogger(h.ctx).WithError(err).Errorf("next(): unable to read message")
+			log.G(h.ctx).WithError(err).Errorf("next(): unable to read message")
 			return
 		}
 		logger.Infof("channel %d, number %d", channel, c)
@@ -151,7 +151,7 @@ LOOP:
 
 			h.highestChannel = channel
 
-			ctx = apexctx.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
+			ctx = log.WithLogger(ctx, logger.WithField("channel", fmt.Sprintf("%s.%d", h.connID, channel)))
 			rs := newResponseStream(ctx, conn, channel)
 			rs.OnClose(func(ctx context.Context) {
 				h.sessions.Detach(channel)
@@ -225,7 +225,7 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 	defer r.Unlock()
 
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
+		log.G(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Write")
 		return errStreamIsClosed
 	}
 
@@ -241,7 +241,7 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 	p = msgp.AppendStringFromBytes(p, data)
 
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Error("responseStream.Write")
+		log.G(r.ctx).WithError(err).Error("responseStream.Write")
 		return err
 	}
 	return nil
@@ -251,7 +251,7 @@ func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg
 	r.Lock()
 	defer r.Unlock()
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Error")
+		log.G(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Error")
 		return errStreamIsClosed
 	}
 	defer r.close(ctx)
@@ -276,7 +276,7 @@ func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg
 	p = msgp.AppendString(p, msg)
 
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		log.G(r.ctx).WithError(err).Errorf("responseStream.Error")
 		return err
 	}
 	return nil
@@ -286,7 +286,7 @@ func (r *responseStream) Close(ctx context.Context, num uint64) error {
 	r.Lock()
 	defer r.Unlock()
 	if r.closed {
-		apexctx.GetLogger(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Close")
+		log.G(r.ctx).WithError(errStreamIsClosed).Error("responseStream.Close")
 		return errStreamIsClosed
 	}
 	defer r.close(ctx)
@@ -301,7 +301,7 @@ func (r *responseStream) Close(ctx context.Context, num uint64) error {
 
 	p = msgp.AppendArrayHeader(p, 0)
 	if _, err := r.wr.Write(p); err != nil {
-		apexctx.GetLogger(r.ctx).WithError(err).Errorf("responseStream.Error")
+		log.G(r.ctx).WithError(err).Errorf("responseStream.Error")
 		return err
 	}
 	return nil

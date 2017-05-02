@@ -13,14 +13,17 @@ import (
 )
 
 // RegisterSuite registers a new suite for a provided box
-func RegisterSuite(boxConstructor BoxConstructor, opts isolate.Profile, skipCheck SkipCheck) {
+func RegisterSuite(boxConstructor BoxConstructor, newprofile ProfileFactory, skipCheck SkipCheck) {
 	check.Suite(&BoxSuite{
 		Constructor: boxConstructor,
 		SkipCheck:   skipCheck,
-		opts:        opts,
+		newprofile:  newprofile,
 		ctx:         context.Background(),
 	})
 }
+
+// ProfileFactory returns new RawProfile for the box
+type ProfileFactory func(c *check.C) isolate.RawProfile
 
 // SkipCheck returns a reason to skip the suite
 type SkipCheck func() (reason string)
@@ -36,8 +39,8 @@ type BoxSuite struct {
 	Constructor BoxConstructor
 	SkipCheck
 	isolate.Box
-	opts isolate.Profile
-	ctx  context.Context
+	newprofile ProfileFactory
+	ctx        context.Context
 }
 
 // SetUpSuite sets up the gocheck test suite.
@@ -77,11 +80,11 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 		}
 	)
 
-	err := suite.Box.Spool(ctx, name, suite.opts)
+	err := suite.Box.Spool(ctx, name, suite.newprofile(c))
 	c.Assert(err, check.IsNil)
 
 	config := isolate.SpawnConfig{
-		Opts:       suite.opts,
+		Opts:       suite.newprofile(c),
 		Name:       name,
 		Executable: executable,
 		Args:       args,
@@ -90,12 +93,14 @@ func (suite *BoxSuite) TestSpawn(c *check.C) {
 
 	rd, wr := io.Pipe()
 	go func() {
-		pr, err := suite.Box.Spawn(ctx, config, wr)
-		c.Assert(err, check.IsNil)
-		defer pr.Kill()
 		defer wr.CloseWithError(io.EOF)
-		// TODO: add synchronized writer
-		time.Sleep(5 * time.Second)
+		pr, err := suite.Box.Spawn(ctx, config, wr)
+		data, err := suite.Box.Inspect(ctx, "some_uuid")
+		c.Check(err, check.IsNil)
+		c.Check(data, check.Not(check.HasLen), 0)
+		c.Assert(err, check.IsNil)
+		time.Sleep(10 * time.Second)
+		pr.Kill()
 	}()
 
 	br := bufio.NewReader(rd)

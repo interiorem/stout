@@ -1,6 +1,8 @@
 package porto
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"io"
 	"io/ioutil"
 	"os"
@@ -12,8 +14,6 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
@@ -48,11 +48,11 @@ func TestExecInfoFormatters(t *testing.T) {
 		// 	},
 		// 	Binds: []string{"/tmp:/bind:rw"},
 		// },
-		portoProfile: portoProfile{isolate.Profile{
-			"binds":        []string{"/tmp:/bind:rw"},
-			"cwd":          "/tmp",
-			"network_mode": "host",
-		}},
+		Profile: &Profile{
+			Binds:       []string{"/tmp:/bind:rw"},
+			Cwd:         "/tmp",
+			NetworkMode: "host",
+		},
 	}
 
 	assert.Equal("/var/run/cocaine.sock /run/cocaine;/tmp /bind rw", formatBinds(&info))
@@ -105,29 +105,30 @@ func TestContainer(t *testing.T) {
 	require.NoError(err)
 	defer os.RemoveAll(dir)
 
+	imagetar := filepath.Join(dir, "alpine.tar.gz")
+
 	resp, err := client.ImageSave(ctx, []string{"alpine"})
 	require.NoError(err)
 	defer resp.Close()
 
-	imagetar := filepath.Join(dir, "alpine.tar.gz")
-	fi, err := os.Create(imagetar)
-	require.NoError(err)
-	defer fi.Close()
-	_, err = io.Copy(fi, resp)
-	require.NoError(err)
-	fi.Close()
-	resp.Close()
-
-	var profile = docker.Profile{
-		RuntimePath: "/var/run",
-		NetworkMode: "host",
-		Cwd:         "/tmp",
-		Resources: docker.Resources{
-			Memory: 4 * 1024 * 1024,
-		},
-		Tmpfs: map[string]string{
-			"/tmp/a": "size=100000",
-		},
+	tarReader := tar.NewReader(resp)
+	for {
+		hdr, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(err)
+		if strings.HasSuffix(hdr.Name, "layer.tar") {
+			fi, err := os.Create(imagetar)
+			require.NoError(err)
+			defer fi.Close()
+			gz := gzip.NewWriter(fi)
+			_, err = io.Copy(gz, tarReader)
+			gz.Close()
+			require.NoError(err)
+			fi.Close()
+		}
+		io.Copy(ioutil.Discard, tarReader)
 	}
 
 	portoConn, err := portoConnect()
@@ -136,13 +137,31 @@ func TestContainer(t *testing.T) {
 	}
 	defer portoConn.Close()
 
+	portoConn.Destroy("IsolateLinuxApline")
 	err = portoConn.ImportLayer("testalpine", imagetar, false)
 	if err != nil {
 		require.True(isEqualPortoError(err, portorpc.EError_LayerAlreadyExists))
 	}
 
 	ei := execInfo{
-		// Profile:    &profile,
+		Profile: &Profile{
+			Cwd: "/tmp",
+			ExtraVolumes: []VolumeProfile{
+				{
+					Target: "/tmpfs",
+					Properties: map[string]string{
+						"backend":     "tmpfs",
+						"space_limit": "10000",
+					},
+				}, {
+					Target: "/bind",
+					Properties: map[string]string{
+						"backend": "bind",
+						"storage": dir,
+					},
+				},
+			},
+		},
 		name:       "TestContainer",
 		executable: "echo",
 		args:       map[string]string{"--endpoint": "/var/run/cocaine.sock"},
@@ -150,25 +169,57 @@ func TestContainer(t *testing.T) {
 	}
 
 	cfg := containerConfig{
-		Root:  dir,
-		ID:    "LinuxAlpine",
-		Layer: "testalpine",
+		Root:     dir,
+		ID:       "IsolateLinuxApline",
+		Layer:    "testalpine",
+		execInfo: ei,
 	}
 
-	cnt, err := newContainer(ctx, portoConn, cfg, ei)
+	cnt, err := newContainer(ctx, portoConn, cfg)
+	cnt.cleanupEnabled = true
 	require.NoError(err)
 	require.NoError(cnt.start(portoConn, ioutil.Discard))
+
+	if cnt.cleanupEnabled {
+		defer func() {
+			for _, vol := range ei.Profile.ExtraVolumes {
+				if storage := vol.Properties["storage"]; storage != "" {
+					_, err = os.Stat(storage)
+					require.True(os.IsNotExist(err), "extra volume %s was not cleaned up", vol.Target)
+				}
+			}
+
+			_, err = os.Stat(filepath.Join(cfg.Root, "volume"))
+			require.True(os.IsNotExist(err), "root volume was not cleaned up")
+		}()
+	}
 	defer cnt.Kill()
+
+	for _, vol := range ei.Profile.ExtraVolumes {
+		// Test that tmpfs has been created
+		expectedVolPath := filepath.Join(dir, "volume", vol.Target)
+		targetDirStat, serr := os.Stat(expectedVolPath)
+		require.NoError(serr)
+		require.True(targetDirStat.IsDir())
+		if storage := vol.Properties["storage"]; storage != "" {
+			// containerid is appended to storage
+			require.True(strings.HasSuffix(storage, cnt.containerID))
+			storageDirStat, zerr := os.Stat(storage)
+			require.NoError(zerr)
+			require.True(storageDirStat.IsDir())
+		}
+	}
 
 	env, err := portoConn.GetProperty(cnt.containerID, "env")
 	require.NoError(err)
-	assert.Equal(t, "A:B", env)
+	assert.Equal(t, "A=B", env)
 
 	command, err := portoConn.GetProperty(cnt.containerID, "command")
 	require.NoError(err)
-	assert.Equal(t, "echo --endpoint /var/run/cocaine.sock", command)
+	// NOTE: porto can bind a single file inside container, not only a directory
+	assert.Equal(t, "echo --endpoint /run/cocaine", command)
 
 	cwd, err := portoConn.GetProperty(cnt.containerID, "cwd")
 	require.NoError(err)
-	assert.Equal(t, profile.Cwd, cwd)
+	assert.Equal(t, ei.Profile.Cwd, cwd)
 }

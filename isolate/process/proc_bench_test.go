@@ -34,8 +34,12 @@ func BenchmarkSpawnSeq(b *testing.B) {
 	}
 	defer box.Close()
 
+	opts, err := isolate.NewRawProfile(&Profile{})
+	if err != nil {
+		b.Fatalf("unable to prepare profile %v", err)
+	}
 	config := isolate.SpawnConfig{
-		Opts:       isolate.Profile{},
+		Opts:       opts,
 		Name:       appName,
 		Executable: executable,
 		Args:       map[string]string{},
@@ -74,8 +78,12 @@ func BenchmarkSpawnParallel(b *testing.B) {
 	}
 	defer box.Close()
 
+	opts, err := isolate.NewRawProfile(&Profile{})
+	if err != nil {
+		b.Fatalf("unable to prepare profile %v", err)
+	}
 	config := isolate.SpawnConfig{
-		Opts:       isolate.Profile{},
+		Opts:       opts,
 		Name:       appName,
 		Executable: executable,
 		Args:       map[string]string{},

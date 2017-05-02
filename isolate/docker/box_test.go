@@ -14,7 +14,6 @@ import (
 	"github.com/docker/engine-api/types"
 	"golang.org/x/net/context"
 
-	apexctx "github.com/m0sth8/context"
 	. "gopkg.in/check.v1"
 )
 
@@ -26,12 +25,19 @@ func init() {
 	if endpoint = os.Getenv("DOCKER_HOST"); endpoint == "" {
 		endpoint = client.DefaultDockerHost
 	}
-	opts := isolate.Profile{
-		"endpoint": endpoint,
-		"cwd":      "/usr/bin",
+
+	f := func(c *C) isolate.RawProfile {
+		r, err := isolate.NewRawProfile(map[string]string{
+			"endpoint": endpoint,
+			"cwd":      "/usr/bin",
+		})
+		if err != nil {
+			c.Fatalf("unable to create raw profile %v", err)
+		}
+		return r
 	}
 
-	testsuite.RegisterSuite(dockerBoxConstructor, opts, testsuite.NeverSkip)
+	testsuite.RegisterSuite(dockerBoxConstructor, f, testsuite.NeverSkip)
 }
 
 func buildTestImage(c *C, endpoint string) {
@@ -70,13 +76,18 @@ COPY worker.sh /usr/bin/worker.sh
 		Tags: []string{"worker"},
 	}
 
+	_, err = cl.ImageRemove(context.Background(), "worker", types.ImageRemoveOptions{PruneChildren: true, Force: true})
+	if err != nil {
+		c.Logf("ImageRemove returns error: %v", err)
+	}
+
 	resp, err := cl.ImageBuild(context.Background(), buf, opts)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
+	var p = make([]byte, 1024)
 	for {
-		var p = make([]byte, 1024)
-		_, err := resp.Body.Read(p)
+		_, err = resp.Body.Read(p)
 		if err != nil {
 			c.Assert(err, Equals, io.EOF)
 			break
@@ -91,7 +102,7 @@ func dockerBoxConstructor(c *C) (isolate.Box, error) {
 	}
 
 	buildTestImage(c, endpoint)
-	b, err := NewBox(apexctx.Background(), isolate.BoxConfig{
+	b, err := NewBox(context.Background(), isolate.BoxConfig{
 		"endpoint": endpoint,
 	})
 	c.Assert(err, IsNil)
