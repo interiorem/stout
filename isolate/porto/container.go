@@ -39,6 +39,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 
 	extravolumes, err := cfg.CreateExtraVolumes(ctx, portoConn, volume)
 	if err != nil {
+		volume.Destroy(ctx, portoConn)
 		logger.WithError(err).Error("extra volumes construction failed")
 		return nil, err
 	}
@@ -96,6 +97,7 @@ func (c *container) Kill() (err error) {
 	}
 	c.output.Write([]byte(value))
 	log.G(c.ctx).WithField("id", c.containerID).Infof("%d bytes of stderr have been sent", len(value))
+	log.G(c.ctx).WithField("id", c.containerID).Debugf("Content of stderr that sented: %s", value)
 
 	if err = portoConn.Kill(c.containerID, syscall.SIGKILL); err != nil {
 		if !isEqualPortoError(err, portorpc.EError_InvalidState) {

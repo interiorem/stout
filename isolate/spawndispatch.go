@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 
 	"github.com/tinylib/msgp/msgp"
+	"github.com/noxiouz/stout/pkg/log"
 
 	"golang.org/x/net/context"
 )
@@ -64,6 +65,7 @@ func (d *spawnDispatch) asyncKill() {
 
 		if atomic.CompareAndSwapUint32(d.killed, 0, 1) {
 			killMeter.Mark(1)
+			log.G(d.ctx).Info("Get kill request from channel in spawnDispatch module.")
 			if err := pr.Kill(); err != nil {
 				d.stream.Error(d.ctx, replyKillError, errKillError, err.Error())
 				return

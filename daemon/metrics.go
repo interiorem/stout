@@ -1,7 +1,7 @@
 package daemon
 
 import (
-	"context"
+	"golang.org/x/net/context"
 	"expvar"
 	"fmt"
 	"net/http"
