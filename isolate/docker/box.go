@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/noxiouz/stout/isolate/stats"
 	"github.com/noxiouz/stout/pkg/log"
 	"golang.org/x/net/context"
 
@@ -63,7 +64,7 @@ type dockerBoxConfig struct {
 }
 
 // NewBox ...
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, collector stats.Repository) (isolate.Box, error) {
 	var config = &dockerBoxConfig{
 		DockerEndpoint:   client.DefaultDockerHost,
 		SpawnConcurrency: defaultSpawnConcurrency,
