@@ -1,3 +1,12 @@
+cocaine-isolate-daemon (0.1.9.8) unstable; urgency=low
+
+  * isolate(porto): use worker uuid for container name
+  * isolate(porto): fix volume leak at creating container when addition volume cant
+    be created
+  * isolate(porto): add more logs
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 03 May 2017 17:48:05 +0300
+
 cocaine-isolate-daemon (0.1.9.7) unstable; urgency=low
 
   * daemon: bugfix in when more than 1 listener is handled
