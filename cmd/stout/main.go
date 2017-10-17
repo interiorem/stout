@@ -17,7 +17,7 @@ import (
 	_ "github.com/noxiouz/stout/isolate/porto"
 	_ "github.com/noxiouz/stout/isolate/process"
 
-	"github.com/noxiouz/stout/pkg/config"
+	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/exportmetrics"
 	"github.com/noxiouz/stout/pkg/log"
 	"github.com/noxiouz/stout/pkg/logutils"
@@ -76,7 +76,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unable to read config: %v\n", err)
 		os.Exit(1)
 	}
-	config, err := config.Parse(data)
+	config, err := isolate.Parse(data)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config is invalid: %v\n", err)
 		os.Exit(1)

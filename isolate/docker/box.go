@@ -51,6 +51,8 @@ type Box struct {
 
 	config *dockerBoxConfig
 
+	state   isolate.GlobalState
+
 	muContainers sync.Mutex
 	containers   map[string]*process
 }
@@ -63,7 +65,7 @@ type dockerBoxConfig struct {
 }
 
 // NewBox ...
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
 	var config = &dockerBoxConfig{
 		DockerEndpoint:   client.DefaultDockerHost,
 		SpawnConcurrency: defaultSpawnConcurrency,
@@ -97,6 +99,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 		client:     client,
 		spawnSM:    semaphore.New(config.SpawnConcurrency),
 		config:     config,
+		state: gstate,
 		containers: make(map[string]*process),
 	}
 

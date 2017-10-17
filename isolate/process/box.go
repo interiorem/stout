@@ -50,6 +50,8 @@ type Box struct {
 	spoolPath string
 	storage   codeStorage
 
+	state   isolate.GlobalState
+
 	mu       sync.Mutex
 	children map[int]workerInfo
 	wg       sync.WaitGroup
@@ -57,7 +59,7 @@ type Box struct {
 	spawnSm semaphore.Semaphore
 }
 
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
 	spoolPath, ok := cfg["spool"].(string)
 	if !ok {
 		spoolPath = defaultSpoolPath
