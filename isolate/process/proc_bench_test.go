@@ -28,7 +28,7 @@ func BenchmarkSpawnSeq(b *testing.B) {
 
 	os.Mkdir(filepath.Join(spoolDir, appName), 0777)
 	ctx := context.Background()
-	box, err := NewBox(ctx, isolate.BoxConfig{"spool": spoolDir})
+	box, err := NewBox(ctx, isolate.BoxConfig{"spool": spoolDir}, *new(isolate.GlobalState))
 	if err != nil {
 		b.Fatal("NewBox: ", err)
 	}
@@ -72,7 +72,7 @@ func BenchmarkSpawnParallel(b *testing.B) {
 
 	os.Mkdir(filepath.Join(spoolDir, appName), 0777)
 	ctx := context.Background()
-	box, err := NewBox(ctx, isolate.BoxConfig{"spool": spoolDir})
+	box, err := NewBox(ctx, isolate.BoxConfig{"spool": spoolDir}, *new(isolate.GlobalState))
 	if err != nil {
 		b.Fatal("NewBox: ", err)
 	}
