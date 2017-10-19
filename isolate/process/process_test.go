@@ -105,5 +105,5 @@ func processBoxConstructorWithMockedStorage(c *C) (isolate.Box, error) {
 	}
 	defer func() { createCodeStorage = old }()
 
-	return NewBox(context.Background(), isolate.BoxConfig{"spool": c.MkDir()})
+	return NewBox(context.Background(), isolate.BoxConfig{"spool": c.MkDir()}, *new(isolate.GlobalState))
 }

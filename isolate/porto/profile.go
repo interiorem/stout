@@ -16,6 +16,8 @@ type Profile struct {
 	Repository string `msg:"repository"`
 
 	NetworkMode string `msg:"network_mode"`
+	Network map[string]string `msg:"network"`
+
 	Cwd         string `msg:"cwd"`
 
 	Binds []string `msg:"binds"`

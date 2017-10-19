@@ -12,24 +12,32 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/config"
 	"github.com/noxiouz/stout/pkg/log"
 )
 
 type Daemon struct {
 	boxes     isolate.Boxes
-	cfg       *config.Config
+	cfg       *isolate.Config
 	listeners []net.Listener
+	State     isolate.GlobalState
 
 	muListeners sync.Mutex
 }
 
-func New(ctx context.Context, configuration *config.Config) (*Daemon, error) {
+func New(ctx context.Context, configuration *isolate.Config) (*Daemon, error) {
 	checkLimits(ctx)
 	d := Daemon{
 		cfg:       configuration,
 		boxes:     make(isolate.Boxes),
 		listeners: make([]net.Listener, 0),
+		State:     isolate.GlobalState{Mtn: new(isolate.MtnState)},
+	}
+
+	if !d.State.Mtn.CfgInit(configuration) {
+		return nil, fmt.Errorf("%s ERROR: Cant do cfgInit() inside daemon.New() for MTN with configuration: %s", time.Now().UTC().Format(time.RFC3339), configuration)
+	}
+	if !d.State.Mtn.PoolInit() {
+		return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), d.State.Mtn)
 	}
 
 	boxTypes := map[string]struct{}{}
@@ -42,7 +50,7 @@ func New(ctx context.Context, configuration *config.Config) (*Daemon, error) {
 		boxTypes[cfg.Type] = struct{}{}
 
 		boxCtx := log.WithLogger(ctx, log.G(ctx).WithField("box", name))
-		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args)
+		box, err := isolate.ConstructBox(boxCtx, cfg.Type, cfg.Args, d.State)
 		if err != nil {
 			log.G(ctx).WithError(err).WithField("box", name).WithField("type", cfg.Type).Error("unable to create box")
 			d.Close()

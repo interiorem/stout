@@ -104,7 +104,8 @@ func dockerBoxConstructor(c *C) (isolate.Box, error) {
 	buildTestImage(c, endpoint)
 	b, err := NewBox(context.Background(), isolate.BoxConfig{
 		"endpoint": endpoint,
-	})
+	}, *new(isolate.GlobalState))
 	c.Assert(err, IsNil)
 	return b, err
 }
+

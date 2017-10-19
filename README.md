@@ -23,6 +23,14 @@ See configuration example:
     },
     "endpoints": ["0.0.0.0:29042"],
     "debugserver": "127.0.0.1:9000",
+    "mtn": {
+        "enable": false,
+        "allocbuffer": 4,
+        "url": "http://net.allocator.service.local/api",
+        "headers": {
+          "Authorization": "OAuth youroauthkeyfornetallocator"
+        }
+    },
     "isolate": {
         "porto": {
             "type": "porto",

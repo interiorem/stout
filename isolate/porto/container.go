@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/noxiouz/stout/pkg/log"
+	"github.com/noxiouz/stout/isolate"
 	"golang.org/x/net/context"
 
 	porto "github.com/yandex/porto/src/api/go"
@@ -17,6 +18,7 @@ import (
 type container struct {
 	ctx context.Context
 
+	State          isolate.GlobalState
 	uuid           string
 	containerID    string
 	rootDir        string
@@ -51,7 +53,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 
 	cnt = &container{
 		ctx: ctx,
-
+		State: cfg.State,
 		uuid:           cfg.args["--uuid"],
 		containerID:    cfg.ID,
 		rootDir:        cfg.Root,

@@ -109,7 +109,7 @@ func portoBoxConstructor(c *C) (isolate.Box, error) {
 		"journal":    "/tmp/portojournal.jrnl",
 	}
 
-	b, err := NewBox(context.Background(), cfg)
+	b, err := NewBox(context.Background(), cfg, *new(isolate.GlobalState))
 	c.Assert(err, IsNil)
 	return b, err
 }

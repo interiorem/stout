@@ -66,6 +66,7 @@ func (c *portoBoxConfig) ContainerRootDir(name, containerID string) string {
 // Box operates with Porto to launch containers
 type Box struct {
 	config  *portoBoxConfig
+	GlobalState   isolate.GlobalState
 	journal *journal
 
 	spawnSM      semaphore.Semaphore
@@ -84,8 +85,8 @@ type Box struct {
 const defaultVolumeBackend = "overlay"
 
 // NewBox creates new Box
-func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
-	log.G(ctx).Warn("Porto Box is unstable")
+func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
+	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 10,
 		DialRetries:      10,
@@ -173,6 +174,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig) (isolate.Box, error) {
 	ctx, onClose := context.WithCancel(ctx)
 	box := &Box{
 		config:     config,
+		GlobalState:      gstate,
 		journal:    newJournal(),
 		transport:  tr,
 		spawnSM:    semaphore.New(config.SpawnConcurrency),
@@ -445,6 +447,13 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	b.journal.InsertManifestLayers(name, strings.Join(layers, ";"))
 	// NOTE: Not so fast, but it's important for debug
 	journalContent.Set(b.journal.String())
+
+	if b.GlobalState.Mtn.Cfg.Enable {
+		err := b.GlobalState.Mtn.BindAllocs(profile.Network["netid"])
+		if err != nil {
+			return fmt.Errorf("Cant bind mtn alllocaton at spool with profile: %s, and with state: %s, and error: %s", profile, b.GlobalState.Mtn, err)
+		}
+	}
 	return nil
 }
 
@@ -476,6 +485,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          layers,
+		State:		b.GlobalState,
 		CleanupEnabled: b.config.CleanupEnabled,
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,

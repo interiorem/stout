@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/log"
 
 	porto "github.com/yandex/porto/src/api/go"
@@ -85,6 +86,7 @@ type execInfo struct {
 
 type containerConfig struct {
 	execInfo
+	State          isolate.GlobalState
 
 	Root           string
 	ID             string
@@ -256,9 +258,24 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	properties["command"] = formatCommand(c.executable, c.args)
 	properties["root"] = root.Path()
 	properties["enable_porto"] = "false"
-	properties["net"] = pickNetwork(c.NetworkMode)
 
 	logger := log.G(ctx).WithField("container", c.ID)
+	if !c.State.Mtn.Cfg.Enable {
+		properties["net"] = pickNetwork(c.NetworkMode)
+	} else {
+		if c.Network["mtn"] == "enable" {
+			alloc, err := c.State.Mtn.UseAlloc(string(c.Network["netid"]))
+			if err != nil {
+				logger.WithError(err).Errorf("get error from c.State.Mtn.UseAlloc, with netid: %s", c.Network["netid"])
+				return err
+			}
+			properties["net"] = alloc.Net
+			properties["hostname"] = alloc.Hostname
+			properties["ip"] = alloc.Ip
+		}
+	}
+
+	//logger := log.G(ctx).WithField("container", c.ID)
 	for property, value := range properties {
 		logger.Debugf("Set property %s %s", property, value)
 		if err = portoConn.SetProperty(c.ID, property, value); err != nil {
