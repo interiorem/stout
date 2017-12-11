@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.2.0.1) unstable; urgency=low
+
+  * isolate(porto): support MTN (Multi-Tenant Network)
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Sat, 21 Oct 2017 00:51:50 +0300
+
 cocaine-isolate-daemon (0.1.9.8) unstable; urgency=low
 
   * isolate(porto): use worker uuid for container name
