@@ -1,5 +1,9 @@
 use Ubic::Service::SimpleDaemon;
-my $service = Ubic::Service::SimpleDaemon->new(
+my %vars;
+if (-f "/etc/default/cocaine-isolate-daemon-ubic.conf") {
+    %vars = do '/etc/default/cocaine-isolate-daemon-ubic.conf';
+} else {
+    %vars = (
     name => 'cocaine-isolate-daemon',
     daemon_user => 'root',
     daemon_group => 'root',
@@ -9,4 +13,7 @@ my $service = Ubic::Service::SimpleDaemon->new(
     stderr => '/var/log/ubic/cocaine-isolate-daemon/stderr.log',
     bin => '/usr/bin/cocaine-isolate-daemon --config=/etc/cocaine-isolate-daemon/cocaine-isolate-daemon.conf',
     ulimit => { RLIMIT_NOFILE => 65535 },
-);
+    );
+};
+my $service = Ubic::Service::SimpleDaemon->new(%vars);
+
