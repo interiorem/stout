@@ -243,7 +243,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	}
 	b.children[pr.cmd.Process.Pid] = workerInfo{
 		Cmd:  pr.cmd,
-		uuid: "",
+		uuid: config.Args["--uuid"],
 	}
 	b.mu.Unlock()
 
@@ -292,6 +292,10 @@ func (b *Box) Inspect(ctx context.Context, worker string) ([]byte, error) {
 	}
 	b.mu.Unlock()
 	return []byte("{}"), nil
+}
+
+func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedContainerMetrics) {
+	return
 }
 
 func (b *Box) fetch(ctx context.Context, appname string) ([]byte, error) {

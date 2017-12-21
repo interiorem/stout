@@ -33,6 +33,8 @@ import (
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
 
+const expectedContainersCount = 1000
+
 type portoBoxConfig struct {
 	// Directory where volumes per app are placed
 	Layers string `json:"layers"`
@@ -80,6 +82,10 @@ type Box struct {
 	onClose context.CancelFunc
 
 	containerPropertiesAndData []string
+
+	// mappig uuid -> metrics
+	muMetrics sync.Mutex
+	containersMetrics map[string]*isolate.ContainerMetrics
 }
 
 const defaultVolumeBackend = "overlay"
@@ -183,6 +189,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		rootPrefix: rootPrefix,
 
 		blobRepo: blobRepo,
+
+		containersMetrics: make(map[string]*isolate.ContainerMetrics),
 	}
 
 	body, err := json.Marshal(config)
@@ -557,6 +565,48 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 	b.muContainers.Unlock()
 	return []byte(""), nil
 }
+
+func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedContainerMetrics) {
+	r = make([]isolate.MarkedContainerMetrics, 0, len(uuids))
+
+	mm := b.GetMetricsMapping()
+	for _, uuid := range uuids {
+		if met, ok := mm[uuid]; ok {
+			r = append(r, isolate.NewMarkedMetrics(uuid, met))
+		}
+	}
+
+	return
+}
+
+func (b *Box) getIdUuidMapping() map[string]string {
+	result := make(map[string]string, expectedContainersCount)
+
+	b.muContainers.Lock()
+	defer b.muContainers.Unlock()
+
+	for _, c := range b.containers {
+		result[c.containerID] = c.uuid
+	}
+
+	return result
+}
+
+func (b *Box) SetMetricsMapping(m map[string]*isolate.ContainerMetrics) {
+	b.muMetrics.Lock()
+	defer b.muMetrics.Unlock()
+
+	b.containersMetrics = m
+}
+
+func (b *Box) GetMetricsMapping() (m map[string]*isolate.ContainerMetrics) {
+	b.muMetrics.Lock()
+	defer b.muMetrics.Unlock()
+
+	return b.containersMetrics
+}
+
+
 
 // Close releases all resources such as idle connections from http.Transport
 func (b *Box) Close() error {
