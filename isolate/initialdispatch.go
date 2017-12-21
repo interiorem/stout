@@ -1,6 +1,7 @@
 package isolate
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"reflect"
@@ -24,13 +25,22 @@ const (
 	replySpawnWrite = 0
 	replySpawnError = 1
 	replySpawnClose = 2
+
+	containersMetrics = 2
+
+	replyMetricsOk = 0
+	replyMetricsError = 1
+	replyMetricsClose = 2
 )
+
+const expectedUuidsCount = 32
 
 var (
 	// ErrInvalidArgsNum should be returned if number of arguments is wrong
 	ErrInvalidArgsNum = errors.New("invalid arguments number")
 	_onSpoolArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpool).NumIn())
 	_onSpawnArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpawn).NumIn())
+	_onMetricsArgsNum = uint32(reflect.TypeOf(new(initialDispatch).onContainersMetrics).NumIn())
 )
 
 func checkSize(num uint32, r *msgp.Reader) error {
@@ -44,6 +54,27 @@ func checkSize(num uint32, r *msgp.Reader) error {
 	}
 
 	return nil
+}
+
+
+func readSliceString(r *msgp.Reader) (uuids []string, err error) {
+	var sz uint32
+
+	sz, err = r.ReadArrayHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := uint32(0); i < sz; i++ {
+		var u string
+		if u, err = r.ReadString(); err == nil {
+			uuids = append(uuids, u)
+		} else {
+			return nil, err
+		}
+	}
+
+	return
 }
 
 func readMapStrStr(r *msgp.Reader, mp map[string]string) (err error) {
@@ -84,6 +115,7 @@ func newInitialDispatch(ctx context.Context, stream ResponseStream) Dispatcher {
 
 func (d *initialDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher, error) {
 	var err error
+
 	switch id {
 	case spool:
 		var rawProfile = newCocaineProfile()
@@ -155,6 +187,20 @@ func (d *initialDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher, error) 
 		}
 
 		return d.onSpawn(rawProfile, name, executable, args, env)
+	case containersMetrics:
+		if err = checkSize(_onMetricsArgsNum, r); err != nil {
+			log.G(d.ctx).Errorf("wrong args count for slot %d", id)
+			return nil, err
+		}
+
+		uuids := make([]string, 0, expectedUuidsCount)
+		uuids, err = readSliceString(r)
+		if err != nil {
+			log.G(d.ctx).Errorf("wrong containersMetrics request framing: %v", err)
+			return nil, err
+		}
+
+		return d.onContainersMetrics(uuids)
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", id)
 	}
@@ -266,6 +312,63 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 	}()
 
 	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled, d.stream), nil
+}
+
+func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, error) {
+
+	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query: %b", uuidsQuery)
+
+	sendMetricsFunc := func(metrics MetricsResponse) {
+		var (
+			buf bytes.Buffer
+			err error
+		)
+
+		if d == nil {
+			log.G(d.ctx).Error("strange: dispatch is `nil`")
+			return
+		}
+
+		if err = msgp.Encode(&buf, &metrics); err != nil {
+			log.G(d.ctx).WithError(err).Error("unable to encode containers metrics response")
+			d.stream.Error(d.ctx, replyMetricsError, errMarshallingError, err.Error())
+		}
+
+		if err = d.stream.WriteMessage(d.ctx, replyMetricsOk, buf.Bytes()); err != nil {
+			log.G(d.ctx).WithError(err).Error("unable to send containers metrics")
+			d.stream.Error(d.ctx, replyMetricsError, errContainerMetricsFailed, err.Error())
+		}
+
+		log.G(d.ctx).Debug("containers metrics have been sent to runtime")
+	}
+
+	go func() {
+		//
+		// TODO:
+		//  - reduce complexity
+		//  - log execution time
+		//
+		boxes := getBoxes(d.ctx)
+		boxesSize := len(boxes)
+		metricsResponse := make(MetricsResponse, len(uuidsQuery))
+		queryResCh := make(chan []MarkedContainerMetrics)
+
+		for _, b := range boxes {
+			go func(b Box) {
+				queryResCh <- b.QueryMetrics(uuidsQuery)
+			}(b)
+		}
+
+		for i := 0; i < boxesSize; i++ {
+			for _, m := range <- queryResCh {
+				metricsResponse[m.uuid] = m.m
+			}
+		}
+
+		sendMetricsFunc(metricsResponse)
+	}()
+
+	return nil, nil
 }
 
 type OutputCollector struct {
