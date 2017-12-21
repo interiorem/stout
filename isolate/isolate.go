@@ -27,10 +27,14 @@ type (
 		Spawn(ctx context.Context, config SpawnConfig, output io.Writer) (Process, error)
 		Inspect(ctx context.Context, workerid string) ([]byte, error)
 		Close() error
+
+		QueryMetrics(uuids []string) []MarkedContainerMetrics
 	}
 
 	ResponseStream interface {
 		Write(ctx context.Context, num uint64, data []byte) error
+		// packedPayload - MassagePacked data byte stream
+		WriteMessage(ctx context.Context, num uint64, packedPayload []byte) error
 		Error(ctx context.Context, num uint64, code [2]int, msg string) error
 		Close(ctx context.Context, num uint64) error
 	}
