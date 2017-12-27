@@ -80,7 +80,7 @@ type (
 	}
 
 	MetricsPollConfig struct {
-		PollPeriod uint	`json:"period_sec"`
+		PollPeriod string 				`json:"period"`
 		Args       json.RawMessage		`json:"args"`
 	}
 )

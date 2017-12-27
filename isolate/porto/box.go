@@ -217,9 +217,11 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 	journalContent.Set(box.journal.String())
 
+	pollDuration, _ := time.ParseDuration(config.WorkersMetrics.PollPeriod)
+
 	go box.waitLoop(ctx)
 	go box.dumpJournalEvery(ctx, time.Minute)
-	go box.gatherLoopEvery(ctx, time.Duration(config.WorkersMetrics.PollPeriod) * time.Second)
+	go box.gatherLoopEvery(ctx, pollDuration)
 
 	return box, nil
 }

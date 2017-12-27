@@ -86,6 +86,7 @@ func readProcStat(pid int, startTime time.Time, now time.Time) (isolate.Containe
 
         CpuLoad: cpuload,
         Mem: memstat.VMS,
+
         // Per process net io stat is unimplemented.
         // Net: generateNetStat(netstat),
     }, nil

@@ -129,13 +129,13 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		box.sigchldHandler()
 	}()
 
-	wrkMetricsConf, ok := cfg["workersmetrics"]
-	if ok {
-		// TODO: increase box working group count?
+	// TODO: increase box working group count?
+	if wrkMetricsConf, ok := cfg["workersmetrics"]; ok {
 		if metConf, err := getMetricsPollConf(wrkMetricsConf); err != nil {
 			log.G(ctx).Infof("Failed to read `workersmetrics` field, using defaults. Err: %v", err)
 		} else {
-			go box.gatherLoopEvery(ctx, time.Duration(metConf.PollPeriod) * time.Second)
+			duration, _ := time.ParseDuration(metConf.PollPeriod)
+			go box.gatherLoopEvery(ctx, duration)
 		}
 	}
 
