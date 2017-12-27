@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"syscall"
 
@@ -316,7 +317,7 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 
 func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, error) {
 
-	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query: %b", uuidsQuery)
+	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query: %s", strings.Join(uuidsQuery, ", "))
 
 	sendMetricsFunc := func(metrics MetricsResponse) {
 		var (

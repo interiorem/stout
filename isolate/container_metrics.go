@@ -4,19 +4,20 @@ package isolate
 
 type (
 	NetStat struct {
-		RxBytes, TxBytes uint64
+		RxBytes uint64 `msg:"rx_bytes"`
+		TxBytes uint64 `msg:"tx_bytes"`
 	}
 
 	ContainerMetrics struct {
-		UptimeSec uint64
+		UptimeSec uint64 `msg:"uptime"`
+		CpuUsageSec uint64 `msg:"cpu_usage"`
 
-		CpuUsageNs uint64
-		CpuLoad float64
+		CpuLoad float64 `msg:"cpu_load"`
 
-		Mem uint64
+		Mem uint64 `msg:"mem"`
 
 		// iface -> net stat
-		Net map[string]NetStat
+		Net map[string]NetStat `msg:"net"`
 	}
 
 	MetricsResponse map[string]*ContainerMetrics
