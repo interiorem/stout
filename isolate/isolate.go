@@ -78,6 +78,11 @@ type (
 			Headers map[string]string `json:"headers,omitempty"`
 		} `json:"mtn,omitempty"`
 	}
+
+	MetricsPollConfig struct {
+		PollPeriod uint	`json:"period_sec"`
+		Args       json.RawMessage		`json:"args"`
+	}
 )
 
 func (d *JSONEncodedDuration) UnmarshalJSON(b []byte) error {
