@@ -9,7 +9,7 @@ LDFLAGS=-ldflags "-X github.com/noxiouz/stout/version.GitTag=${TAG} -X github.co
 
 
 .DEFAULT: all
-.PHONY: fmt vet test
+.PHONY: fmt vet test gen_msgp
 
 PKGS := $(shell go list ./... | grep -v ^github.com/noxiouz/stout/vendor/ | grep -v ^github.com/noxiouz/stout/version)
 
@@ -32,11 +32,14 @@ test:
 		cat profile.out >> coverage.txt; rm  profile.out; \
 	fi done; \
 
-build:
+build: gen_msgp
 	@echo "+ $@"
 	go build ${LDFLAGS} -o ${NAME} github.com/noxiouz/stout/cmd/stout
 
-build_travis_release:
+build_travis_release: gen_msgp
 	@echo "+ $@"
 	env GOOS="linux" go build ${LDFLAGS} -o ${NAME} github.com/noxiouz/stout/cmd/stout
 	env GOOS="darwin" go build ${LDFLAGS} -o ${NAME}_osx github.com/noxiouz/stout/cmd/stout
+
+gen_msgp:
+	@cd ./isolate; go generate; cd ..
