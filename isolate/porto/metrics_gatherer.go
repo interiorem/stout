@@ -1,3 +1,6 @@
+// TODO:
+//  - log timings
+//
 package porto
 
 import (
@@ -8,6 +11,7 @@ import (
     "time"
     "strconv"
     "strings"
+    "syscall"
 
     "github.com/noxiouz/stout/isolate"
     "github.com/noxiouz/stout/pkg/log"
@@ -16,6 +20,7 @@ import (
 )
 
 var (
+    pageSize = uint64(syscall.Getpagesize())
     spacesRegexp, _ = regexp.Compile("[ ]+")
     metricsNames = []string{
         "cpu_usage",
@@ -24,6 +29,10 @@ var (
         "net_tx_bytes",
         "net_rx_bytes",
     }
+)
+
+const (
+    nanosPerSecond = 1000000000
 )
 
 const (
@@ -100,9 +109,12 @@ func makeMetricsFromMap(raw rawMetrics) (m isolate.ContainerMetrics, err error) 
 
     m = isolate.NewContainerMetrics()
 
-    if err = setUintField(&m.CpuUsageNs, raw, "cpu_usage"); err != nil {
+    if err = setUintField(&m.CpuUsageSec, raw, "cpu_usage"); err != nil {
         return
     }
+
+    // Porto's `cpu_usage` is in nanoseconds, seconds in metrics are used.
+    m.CpuUsageSec /= nanosPerSecond
 
     if err = setUintField(&m.UptimeSec, raw, "time"); err != nil {
         return
@@ -111,6 +123,7 @@ func makeMetricsFromMap(raw rawMetrics) (m isolate.ContainerMetrics, err error) 
     if err = setUintField(&m.Mem, raw, "memory_usage"); err != nil {
         return
     }
+    m.Mem *= pageSize
 
 
     for _, netIf := range parseNetValues(raw["net_tx_bytes"]) {
@@ -126,7 +139,7 @@ func makeMetricsFromMap(raw rawMetrics) (m isolate.ContainerMetrics, err error) 
     }
 
     if m.UptimeSec > 0 {
-        cpu_usage_sec := float64(m.CpuUsageNs >> 10)
+        cpu_usage_sec := float64(m.CpuUsageSec)
         m.CpuLoad = cpu_usage_sec / float64(m.UptimeSec)
     }
 
@@ -154,6 +167,21 @@ func parseMetrics(ctx context.Context, props portoResponse, idToUuid map[string]
     return metrics
 }
 
+func makeIdsSlice(idToUuid map[string]string) (ids []string) {
+    ids = make([]string, 0, len(idToUuid))
+    for id, _ := range idToUuid {
+        ids = append(ids, id)
+    }
+
+    return
+}
+
+func closeApiWithLog(ctx context.Context, portoApi porto.API) {
+    if err := portoApi.Close(); err != nil {
+        log.G(ctx).WithError(err).Error("Failed to close connection to Porto service")
+    }
+}
+
 func (box *Box) gatherMetrics(ctx context.Context) {
     log.G(ctx).Debug("Initializing Porto metrics gather loop")
 
@@ -161,19 +189,12 @@ func (box *Box) gatherMetrics(ctx context.Context) {
 
     portoApi, err := portoConnect()
     if err != nil {
-        log.G(ctx).WithError(err).Error("Failed to connect to Porto service")
+        log.G(ctx).WithError(err).Error("Failed to connect to Porto service for workers metrics collection")
         return
     }
-    defer func() {
-        if err := portoApi.Close(); err != nil {
-            log.G(ctx).WithError(err).Error("Failed close connection to Porto service")
-        }
-    }()
+    defer closeApiWithLog(ctx, portoApi)
 
-    ids := make([]string, 0, len(idToUuid))
-    for id, _ := range idToUuid {
-        ids = append(ids, id)
-    }
+    ids := makeIdsSlice(idToUuid)
 
     var props portoResponse
     props, err = portoApi.Get(ids, metricsNames)
@@ -183,20 +204,26 @@ func (box *Box) gatherMetrics(ctx context.Context) {
     }
 
     metrics := parseMetrics(ctx, props, idToUuid)
-    box.SetMetricsMapping(metrics)
+    box.setMetricsMapping(metrics)
 }
 
-func (box *Box) gatherLoop(ctx context.Context, interval time.Duration) {
-    log.G(ctx).Debug("Initializing Porto metrics gather loop")
+func (box *Box) gatherLoopEvery(ctx context.Context, interval time.Duration) {
 
-    t := time.NewTicker(interval)
+    if interval == 0 {
+        log.G(ctx).Info("Porto metrics gatherer disabled (use config to setup)")
+        return
+    }
+
+    log.G(ctx).Info("Initializing Porto metrics gather loop")
+
     for {
         select {
         case <- ctx.Done():
             return
-        case <- t.C:
-            log.G(ctx).Debug("Porto metrics gather iteration")
+        case <-time.After(interval):
             box.gatherMetrics(ctx)
         }
     }
+
+    log.G(ctx).Info("Porto metrics gather loop canceled")
 }

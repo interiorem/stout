@@ -51,6 +51,8 @@ type portoBoxConfig struct {
 	WeakEnabled      bool              `json:"weakenabled"`
 	DefaultUlimits   string            `json:"defaultulimits"`
 	VolumeBackend    string            `json:"volumebackend"`
+
+	WorkersMetrics isolate.MetricsPollConfig `json:"workersmetrics"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -99,6 +101,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 		CleanupEnabled: true,
 		WeakEnabled:    false,
+
+		WorkersMetrics: isolate.MetricsPollConfig{},
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -215,6 +219,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 	go box.waitLoop(ctx)
 	go box.dumpJournalEvery(ctx, time.Minute)
+	go box.gatherLoopEvery(ctx, time.Duration(config.WorkersMetrics.PollPeriod) * time.Second)
 
 	return box, nil
 }
@@ -569,7 +574,7 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedContainerMetrics) {
 	r = make([]isolate.MarkedContainerMetrics, 0, len(uuids))
 
-	mm := b.GetMetricsMapping()
+	mm := b.getMetricsMapping()
 	for _, uuid := range uuids {
 		if met, ok := mm[uuid]; ok {
 			r = append(r, isolate.NewMarkedMetrics(uuid, met))
@@ -592,21 +597,19 @@ func (b *Box) getIdUuidMapping() map[string]string {
 	return result
 }
 
-func (b *Box) SetMetricsMapping(m map[string]*isolate.ContainerMetrics) {
+func (b *Box) setMetricsMapping(m map[string]*isolate.ContainerMetrics) {
 	b.muMetrics.Lock()
 	defer b.muMetrics.Unlock()
 
 	b.containersMetrics = m
 }
 
-func (b *Box) GetMetricsMapping() (m map[string]*isolate.ContainerMetrics) {
+func (b *Box) getMetricsMapping() (m map[string]*isolate.ContainerMetrics) {
 	b.muMetrics.Lock()
 	defer b.muMetrics.Unlock()
 
 	return b.containersMetrics
 }
-
-
 
 // Close releases all resources such as idle connections from http.Transport
 func (b *Box) Close() error {
