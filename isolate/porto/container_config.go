@@ -31,6 +31,9 @@ func (v *portoVolume) Link(ctx context.Context, portoConn porto.API) error {
 		return err
 	}
 
+	// try unlink new volume from root for protect from volume leak in some porto versions
+	portoConn.UnlinkVolume(v.path, "/")
+
 	v.linked = true
 	return nil
 }
@@ -54,6 +57,14 @@ func (v *portoVolume) Destroy(ctx context.Context, portoConn porto.API) error {
 			lg.Debugf("volume %s successfully unlinked", v.path)
 		}
 	}
+
+	// try unlink volume with linked = false from root at destroy phase
+	if unlinkErr := portoConn.UnlinkVolume(v.path, "/"); unlinkErr != nil {
+		lg.WithError(unlinkErr).Error("unlinking from '/' failed")
+	} else {
+		lg.Debugf("volume %s successfully unlinked from '/'", v.path)
+	}
+
 	if err = os.RemoveAll(v.path); err != nil {
 		lg.WithError(err).WithField("container", v.cID).Error("remove root volume failed")
 	}
