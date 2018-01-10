@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.0.2) unstable; urgency=low
+
+  * isolate(porto): fix volume leak
+  * feat: add customization ubic via /etc/default/cocaine-isolate-daemon-ubic.conf
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 10 Jan 2018 19:46:34 +0300
+
 cocaine-isolate-daemon (0.2.0.1) unstable; urgency=low
 
   * isolate(porto): support MTN (Multi-Tenant Network)
