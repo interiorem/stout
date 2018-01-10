@@ -138,7 +138,6 @@ func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.
 		volume.Destroy(ctx, portoConn)
 		return nil, err
 	}
-
 	logger.Debugf("porto volume has been created successfully %v", description)
 	return volume, nil
 }
@@ -214,7 +213,6 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 			logger.WithError(err).Error("unable to create extra volume")
 			return nil, err
 		}
-
 		logger.Debugf("extra volume has been created %v", description)
 	}
 
