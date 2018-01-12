@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -317,7 +318,9 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 
 func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, error) {
 
-	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query: %s", strings.Join(uuidsQuery, ", "))
+	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query (len %d): %s", len(uuidsQuery), strings.Join(uuidsQuery, ", "))
+
+	startTime := time.Now()
 
 	sendMetricsFunc := func(metrics MetricsResponse) {
 		var (
@@ -340,7 +343,7 @@ func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, 
 			d.stream.Error(d.ctx, replyMetricsError, errContainerMetricsFailed, err.Error())
 		}
 
-		log.G(d.ctx).Debug("containers metrics have been sent to runtime")
+		log.G(d.ctx).WithField("time", time.Since(startTime)).Debugf("Containers metrics have been sent to runtime, response length %d", len(metrics))
 	}
 
 	go func() {
