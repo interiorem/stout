@@ -11,7 +11,6 @@ import (
     "time"
     "strconv"
     "strings"
-    "syscall"
 
     "github.com/noxiouz/stout/isolate"
     "github.com/noxiouz/stout/pkg/log"
@@ -20,7 +19,6 @@ import (
 )
 
 var (
-    pageSize = uint64(syscall.Getpagesize())
     spacesRegexp, _ = regexp.Compile("[ ]+")
     metricsNames = []string{
         "cpu_usage",
@@ -49,11 +47,15 @@ type netIfStat struct {
     bytesCount uint64
 }
 
-func parseStrUIntPair(eth string) (nstat netIfStat, err error) {
+//
+// Parses string in format `w(lan) interface: bytes count`
+//
+func parseNetPair(eth string) (nstat netIfStat, err error) {
     pair := strings.Split(eth, ": ")
     if len(pair) == pairLen {
         var v uint64
-        v, err = strconv.ParseUint(pair[pairVal], 10, 64)
+        trimmedStr := strings.Trim(pair[pairVal], " ")
+        v, err = strconv.ParseUint(trimmedStr, 10, 64)
         if err != nil {
             return
         }
@@ -65,7 +67,6 @@ func parseStrUIntPair(eth string) (nstat netIfStat, err error) {
             name: name,
             bytesCount: v,
         }
-
     } else {
         err = fmt.Errorf("Failed to parse net record")
     }
@@ -76,8 +77,7 @@ func parseStrUIntPair(eth string) (nstat netIfStat, err error) {
 // TODO: check property Error/ErrorMsg fields
 func parseNetValues(val porto.TPortoGetResponse) (ifs []netIfStat) {
     for _, eth := range strings.Split(val.Value, ";") {
-        nf, err := parseStrUIntPair(eth)
-        if err == nil {
+        if nf, err := parseNetPair(eth); err == nil {
             ifs = append(ifs, nf)
         }
     }
@@ -92,8 +92,11 @@ func parseUintProp(raw rawMetrics, propName string) (v uint64, err error) {
         return 0, fmt.Errorf("no such prop in Porto: %s", propName)
     }
 
-    v, err = strconv.ParseUint(s.Value, 10, 64)
-    return
+    if len(s.Value) == 0 {
+        return v, fmt.Errorf("property is mpty string")
+    }
+
+    return strconv.ParseUint(s.Value, 10, 64)
 }
 
 func setUintField(field *uint64, raw rawMetrics, propName string) (err error) {
@@ -105,26 +108,29 @@ func setUintField(field *uint64, raw rawMetrics, propName string) (err error) {
     return
 }
 
-func makeMetricsFromMap(raw rawMetrics) (m isolate.ContainerMetrics, err error) {
-
-    m = isolate.NewContainerMetrics()
-
-    if err = setUintField(&m.CpuUsageSec, raw, "cpu_usage"); err != nil {
-        return
-    }
-
-    // Porto's `cpu_usage` is in nanoseconds, seconds in metrics are used.
-    m.CpuUsageSec /= nanosPerSecond
+func makeMetricsFromMap(raw rawMetrics) (m isolate.WorkerMetrics, err error) {
+    m = isolate.NewWorkerMetrics()
 
     if err = setUintField(&m.UptimeSec, raw, "time"); err != nil {
         return
     }
 
+    if err = setUintField(&m.CpuUsageSec, raw, "cpu_usage"); err != nil {
+        return
+    }
+
+    if m.UptimeSec > 0 {
+        m.CpuLoad = float64(m.CpuUsageSec) / float64(nanosPerSecond) / float64(m.UptimeSec)
+    }
+
+    // Porto's `cpu_usage` is in nanoseconds, seconds in metrics are used.
+    m.CpuUsageSec /= nanosPerSecond
+
     if err = setUintField(&m.Mem, raw, "memory_usage"); err != nil {
         return
     }
-    m.Mem *= pageSize
-
+    // `memory_usage` is in bytes, not in pages
+    // m.Mem *= pageSize
 
     for _, netIf := range parseNetValues(raw["net_tx_bytes"]) {
         v := m.Net[netIf.name]
@@ -138,18 +144,13 @@ func makeMetricsFromMap(raw rawMetrics) (m isolate.ContainerMetrics, err error) 
         m.Net[netIf.name] = v
     }
 
-    if m.UptimeSec > 0 {
-        cpu_usage_sec := float64(m.CpuUsageSec)
-        m.CpuLoad = cpu_usage_sec / float64(m.UptimeSec)
-    }
-
     return
 }
 
-func parseMetrics(ctx context.Context, props portoResponse, idToUuid map[string]string) map[string]*isolate.ContainerMetrics {
+func parseMetrics(ctx context.Context, props portoResponse, idToUuid map[string]string) map[string]*isolate.WorkerMetrics {
+    var parse_errors []string
 
-    metrics := make(map[string]*isolate.ContainerMetrics, len(props))
-
+    metrics := make(map[string]*isolate.WorkerMetrics, len(props))
     for id, rawMetrics := range props {
         uuid, ok := idToUuid[id]
         if !ok {
@@ -157,22 +158,25 @@ func parseMetrics(ctx context.Context, props portoResponse, idToUuid map[string]
         }
 
         if m, err := makeMetricsFromMap(rawMetrics); err != nil {
-            log.G(ctx).WithError(err).Error("Failed to parse raw metrics")
+            parse_errors = append(parse_errors, err.Error())
             continue
         } else {
             metrics[uuid] = &m
         }
+
+    }
+
+    if len(parse_errors) != 0 {
+        log.G(ctx).Errorf("Failed to parse raw metrics with error %s", strings.Join(parse_errors, ", "));
     }
 
     return metrics
 }
 
 func makeIdsSlice(idToUuid map[string]string) (ids []string) {
-    ids = make([]string, 0, len(idToUuid))
     for id, _ := range idToUuid {
         ids = append(ids, id)
     }
-
     return
 }
 
@@ -183,8 +187,6 @@ func closeApiWithLog(ctx context.Context, portoApi porto.API) {
 }
 
 func (box *Box) gatherMetrics(ctx context.Context) {
-    log.G(ctx).Debug("Initializing Porto metrics gather loop")
-
     idToUuid := box.getIdUuidMapping()
 
     portoApi, err := portoConnect()
@@ -207,14 +209,14 @@ func (box *Box) gatherMetrics(ctx context.Context) {
     box.setMetricsMapping(metrics)
 }
 
-func (box *Box) gatherLoopEvery(ctx context.Context, interval time.Duration) {
+func (box *Box) gatherMetricsEvery(ctx context.Context, interval time.Duration) {
 
     if interval == 0 {
         log.G(ctx).Info("Porto metrics gatherer disabled (use config to setup)")
         return
     }
 
-    log.G(ctx).Info("Initializing Porto metrics gather loop")
+    log.G(ctx).Infof("Initializing Porto metrics gather loop with %v duration", interval)
 
     for {
         select {

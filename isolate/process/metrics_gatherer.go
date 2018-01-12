@@ -40,8 +40,7 @@ func generateNetStat(net []gopsnet.IOCountersStat) (out map[string]isolate.NetSt
     return
 }
 
-func readProcStat(pid int, startTime time.Time, now time.Time) (isolate.ContainerMetrics, error) {
-    uptime := now.Sub(startTime).Seconds()
+func readProcStat(pid int, uptimeSeconds uint64) (isolate.WorkerMetrics, error) {
 
     var (
         process *gopsutil.Process
@@ -50,7 +49,7 @@ func readProcStat(pid int, startTime time.Time, now time.Time) (isolate.Containe
         // netstat []gopsnet.IOCountersStat
         memstat *gopsutil.MemoryInfoStat
 
-        errStub isolate.ContainerMetrics
+        errStub isolate.WorkerMetrics
         err error
     )
 
@@ -80,8 +79,8 @@ func readProcStat(pid int, startTime time.Time, now time.Time) (isolate.Containe
         return errStub, err
     }
 
-    return isolate.ContainerMetrics{
-        UptimeSec: uint64(uptime),
+    return isolate.WorkerMetrics{
+        UptimeSec: uptimeSeconds,
         // CpuUsageSec:
 
         CpuLoad: cpuload,
@@ -94,24 +93,25 @@ func readProcStat(pid int, startTime time.Time, now time.Time) (isolate.Containe
 
 func (b *Box) gatherMetrics(ctx context.Context) {
     ids := b.getIdUuidMapping()
-    metrics := make(map[string]*isolate.ContainerMetrics, len(ids))
+    metrics := make(map[string]*isolate.WorkerMetrics, len(ids))
 
     now := time.Now()
 
     for pid, taskInfo := range ids {
-        state, err := readProcStat(pid, taskInfo.startTime, now)
-        if err != nil {
+        uptimeSeconds := uint64(now.Sub(taskInfo.startTime).Seconds())
+
+        if state, err := readProcStat(pid, uptimeSeconds); err != nil {
             log.G(ctx).Errorf("Failed to read stat for process with pid %d", pid)
             continue
+        } else {
+            metrics[taskInfo.uuid] = &state
         }
-
-        metrics[taskInfo.uuid] = &state
-    }
+    } // for each taskInfo
 
     b.setMetricsMapping(metrics)
 }
 
-func (b *Box) gatherLoopEvery(ctx context.Context, interval time.Duration) {
+func (b *Box) gatherMetricsEvery(ctx context.Context, interval time.Duration) {
 
     if interval == 0 {
         log.G(ctx).Info("Process metrics gatherer disabled (use config to setup)")

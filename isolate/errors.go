@@ -20,7 +20,7 @@ const (
 	codeOutputError
 	codeKillError
 	codeSpoolCancellationError
-	codeContainerMetricsFailed
+	codeWorkerMetricsFailed
 	codeMarshallingError
 )
 
@@ -33,7 +33,7 @@ var (
 	errOutputError            = [2]int{isolateErrCategory, codeOutputError}
 	errKillError              = [2]int{isolateErrCategory, codeKillError}
 	errSpoolCancellationError = [2]int{isolateErrCategory, codeSpoolCancellationError}
-	errContainerMetricsFailed = [2]int{isolateErrCategory, codeContainerMetricsFailed}
+	errWorkerMetricsFailed    = [2]int{isolateErrCategory, codeWorkerMetricsFailed}
 	errMarshallingError       = [2]int{isolateErrCategory, codeMarshallingError}
 	errSpawnEAGAIN            = [2]int{systemCategory, codeSpawnEAGAIN}
 )

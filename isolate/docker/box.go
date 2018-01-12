@@ -254,7 +254,8 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 	return []byte("{}"), nil
 }
 
-func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedContainerMetrics) {
+func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedWorkerMetrics) {
+	// Not implemented yet
 	return
 }
 

@@ -28,7 +28,7 @@ const (
 	replySpawnError = 1
 	replySpawnClose = 2
 
-	containersMetrics = 2
+	workersMetrics = 2
 
 	replyMetricsOk = 0
 	replyMetricsError = 1
@@ -42,7 +42,7 @@ var (
 	ErrInvalidArgsNum = errors.New("invalid arguments number")
 	_onSpoolArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpool).NumIn())
 	_onSpawnArgsNum   = uint32(reflect.TypeOf(new(initialDispatch).onSpawn).NumIn())
-	_onMetricsArgsNum = uint32(reflect.TypeOf(new(initialDispatch).onContainersMetrics).NumIn())
+	_onMetricsArgsNum = uint32(reflect.TypeOf(new(initialDispatch).onWorkersMetrics).NumIn())
 )
 
 func checkSize(num uint32, r *msgp.Reader) error {
@@ -58,13 +58,12 @@ func checkSize(num uint32, r *msgp.Reader) error {
 	return nil
 }
 
-
-func readSliceString(r *msgp.Reader) (uuids []string, err error) {
+func readStringsSlice(r *msgp.Reader) (uuids []string, err error) {
 	var sz uint32
 
 	sz, err = r.ReadArrayHeader()
 	if err != nil {
-		return nil, err
+		return uuids, err
 	}
 
 	for i := uint32(0); i < sz; i++ {
@@ -72,7 +71,7 @@ func readSliceString(r *msgp.Reader) (uuids []string, err error) {
 		if u, err = r.ReadString(); err == nil {
 			uuids = append(uuids, u)
 		} else {
-			return nil, err
+			return uuids, err
 		}
 	}
 
@@ -189,20 +188,19 @@ func (d *initialDispatch) Handle(id uint64, r *msgp.Reader) (Dispatcher, error) 
 		}
 
 		return d.onSpawn(rawProfile, name, executable, args, env)
-	case containersMetrics:
+	case workersMetrics:
 		if err = checkSize(_onMetricsArgsNum, r); err != nil {
 			log.G(d.ctx).Errorf("wrong args count for slot %d", id)
 			return nil, err
 		}
 
-		uuids := make([]string, 0, expectedUuidsCount)
-		uuids, err = readSliceString(r)
-		if err != nil {
-			log.G(d.ctx).Errorf("wrong containersMetrics request framing: %v", err)
+		var uuids []string
+		if uuids, err = readStringsSlice(r); err != nil {
+			log.G(d.ctx).Errorf("wrong workersMetrics request framing: %v", err)
 			return nil, err
 		}
 
-		return d.onContainersMetrics(uuids)
+		return d.onWorkersMetrics(uuids)
 	default:
 		return nil, fmt.Errorf("unknown transition id: %d", id)
 	}
@@ -316,9 +314,9 @@ func (d *initialDispatch) onSpawn(opts *cocaineProfile, name, executable string,
 	return newSpawnDispatch(d.ctx, cancelSpawn, prCh, &flagKilled, d.stream), nil
 }
 
-func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, error) {
+func (d *initialDispatch) onWorkersMetrics(uuidsQuery []string) (Dispatcher, error) {
 
-	log.G(d.ctx).Debugf("onContainersMetrics() Uuids query (len %d): %s", len(uuidsQuery), strings.Join(uuidsQuery, ", "))
+	log.G(d.ctx).Debugf("onWorkersMetrics() Uuids query (len %d): %s", len(uuidsQuery), strings.Join(uuidsQuery, ", "))
 
 	startTime := time.Now()
 
@@ -334,13 +332,13 @@ func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, 
 		}
 
 		if err = msgp.Encode(&buf, &metrics); err != nil {
-			log.G(d.ctx).WithError(err).Error("unable to encode containers metrics response")
+			log.G(d.ctx).WithError(err).Errorf("unable to encode containers metrics response: %v", err)
 			d.stream.Error(d.ctx, replyMetricsError, errMarshallingError, err.Error())
 		}
 
 		if err = d.stream.WriteMessage(d.ctx, replyMetricsOk, buf.Bytes()); err != nil {
-			log.G(d.ctx).WithError(err).Error("unable to send containers metrics")
-			d.stream.Error(d.ctx, replyMetricsError, errContainerMetricsFailed, err.Error())
+			log.G(d.ctx).WithError(err).Errorf("unable to send containers metrics: %v", err)
+			d.stream.Error(d.ctx, replyMetricsError, errWorkerMetricsFailed, err.Error())
 		}
 
 		log.G(d.ctx).WithField("time", time.Since(startTime)).Debugf("Containers metrics have been sent to runtime, response length %d", len(metrics))
@@ -350,12 +348,13 @@ func (d *initialDispatch) onContainersMetrics(uuidsQuery []string) (Dispatcher, 
 		//
 		// TODO:
 		//  - reduce complexity
+		// DONE:
 		//  - log execution time
 		//
 		boxes := getBoxes(d.ctx)
 		boxesSize := len(boxes)
 		metricsResponse := make(MetricsResponse, len(uuidsQuery))
-		queryResCh := make(chan []MarkedContainerMetrics)
+		queryResCh := make(chan []MarkedWorkerMetrics)
 
 		for _, b := range boxes {
 			go func(b Box) {

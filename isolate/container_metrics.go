@@ -1,5 +1,5 @@
 //go:generate msgp --tests=false
-//msgp:ignore isolate.MarkedContainerMetrics
+//msgp:ignore isolate.MarkedWorkerMetrics
 package isolate
 
 type (
@@ -8,7 +8,7 @@ type (
 		TxBytes uint64 `msg:"tx_bytes"`
 	}
 
-	ContainerMetrics struct {
+	WorkerMetrics struct {
 		UptimeSec uint64 `msg:"uptime"`
 		CpuUsageSec uint64 `msg:"cpu_usage"`
 
@@ -20,19 +20,19 @@ type (
 		Net map[string]NetStat `msg:"net"`
 	}
 
-	MetricsResponse map[string]*ContainerMetrics
+	MetricsResponse map[string]*WorkerMetrics
 
-	MarkedContainerMetrics struct {
+	MarkedWorkerMetrics struct {
 		uuid string
-		m *ContainerMetrics
+		m *WorkerMetrics
 	}
 )
 
-func NewContainerMetrics() (c ContainerMetrics) {
+func NewWorkerMetrics() (c WorkerMetrics) {
 	c.Net = make(map[string]NetStat)
 	return
 }
 
-func NewMarkedMetrics(uuid string, cm *ContainerMetrics) MarkedContainerMetrics {
-	return MarkedContainerMetrics{uuid: uuid, m: cm}
+func NewMarkedMetrics(uuid string, cm *WorkerMetrics) MarkedWorkerMetrics {
+	return MarkedWorkerMetrics{uuid: uuid, m: cm}
 }

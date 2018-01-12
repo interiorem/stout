@@ -68,7 +68,7 @@ type Box struct {
 	spawnSm semaphore.Semaphore
 
 	muMetrics sync.Mutex
-	containersMetrics map[string]*isolate.ContainerMetrics
+	containersMetrics map[string]*isolate.WorkerMetrics
 }
 
 func getMetricsPollConf(cfg interface{}) (metricsConf isolate.MetricsPollConfig, err error) {
@@ -135,7 +135,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 			log.G(ctx).Infof("Failed to read `workersmetrics` field, using defaults. Err: %v", err)
 		} else {
 			duration, _ := time.ParseDuration(metConf.PollPeriod)
-			go box.gatherLoopEvery(ctx, duration)
+			go box.gatherMetricsEvery(ctx, duration)
 		}
 	}
 
@@ -336,9 +336,7 @@ func (b *Box) Inspect(ctx context.Context, worker string) ([]byte, error) {
 	return []byte("{}"), nil
 }
 
-func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedContainerMetrics) {
-	r = make([]isolate.MarkedContainerMetrics, 0, len(uuids))
-
+func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedWorkerMetrics) {
 	mm := b.getMetricsMapping()
 	for _, uuid := range uuids {
 		if met, ok := mm[uuid]; ok {
@@ -363,14 +361,14 @@ func (b *Box) getIdUuidMapping() (result map[int]taskInfo) {
 	return
 }
 
-func (b *Box) setMetricsMapping(m map[string]*isolate.ContainerMetrics) {
+func (b *Box) setMetricsMapping(m map[string]*isolate.WorkerMetrics) {
 	b.muMetrics.Lock()
 	defer b.muMetrics.Unlock()
 
 	b.containersMetrics = m
 }
 
-func (b *Box) getMetricsMapping() (m map[string]*isolate.ContainerMetrics) {
+func (b *Box) getMetricsMapping() (m map[string]*isolate.WorkerMetrics) {
 	b.muMetrics.Lock()
 	defer b.muMetrics.Unlock()
 

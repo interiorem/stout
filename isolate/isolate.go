@@ -28,12 +28,12 @@ type (
 		Inspect(ctx context.Context, workerid string) ([]byte, error)
 		Close() error
 
-		QueryMetrics(uuids []string) []MarkedContainerMetrics
+		QueryMetrics(uuids []string) []MarkedWorkerMetrics
 	}
 
 	ResponseStream interface {
 		Write(ctx context.Context, num uint64, data []byte) error
-		// packedPayload - MassagePacked data byte stream
+		// packedPayload - MessagePacked data byte stream
 		WriteMessage(ctx context.Context, num uint64, packedPayload []byte) error
 		Error(ctx context.Context, num uint64, code [2]int, msg string) error
 		Close(ctx context.Context, num uint64) error
@@ -80,8 +80,8 @@ type (
 	}
 
 	MetricsPollConfig struct {
-		PollPeriod string 				`json:"period"`
-		Args       json.RawMessage		`json:"args"`
+		PollPeriod string           `json:"period"`
+		Args       json.RawMessage  `json:"args"`
 	}
 )
 
