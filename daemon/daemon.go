@@ -33,10 +33,10 @@ func New(ctx context.Context, configuration *isolate.Config) (*Daemon, error) {
 		State:     isolate.GlobalState{Mtn: new(isolate.MtnState)},
 	}
 
-	if !d.State.Mtn.CfgInit(configuration) {
+	if !d.State.Mtn.CfgInit(ctx, configuration) {
 		return nil, fmt.Errorf("%s ERROR: Cant do cfgInit() inside daemon.New() for MTN with configuration: %s", time.Now().UTC().Format(time.RFC3339), configuration)
 	}
-	if !d.State.Mtn.PoolInit() {
+	if !d.State.Mtn.PoolInit(ctx) {
 		return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), d.State.Mtn)
 	}
 

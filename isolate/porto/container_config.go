@@ -213,7 +213,7 @@ func (c *containerConfig) CreateExtraVolumes(ctx context.Context, portoConn port
 			logger.WithError(err).Error("unable to create extra volume")
 			return nil, err
 		}
-		logger.Debugf("extra volume has been created %v", description)
+		log.G(ctx).Debugf("extra volume has been created %v", description)
 	}
 
 	return volumes, nil
@@ -275,7 +275,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 		properties["net"] = pickNetwork(c.NetworkMode)
 	} else {
 		if c.Network["mtn"] == "enable" {
-			alloc, err := c.State.Mtn.UseAlloc(string(c.Network["netid"]))
+			alloc, err := c.State.Mtn.UseAlloc(ctx, string(c.Network["netid"]))
 			if err != nil {
 				logger.WithError(err).Errorf("get error from c.State.Mtn.UseAlloc, with netid: %s", c.Network["netid"])
 				return err
