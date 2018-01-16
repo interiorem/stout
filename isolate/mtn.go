@@ -176,7 +176,7 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 	for _, a := range jresp {
 		r[a.Network] = append(r[a.Network], Allocation{a.Porto.Net, a.Porto.Hostname, a.Porto.Ip, a.Id, false})
 	}
-	log.G(logCtx).Debugf("GetAllocations() successfull ended with ContentLength size %s.", req.ContentLength)
+	log.G(logCtx).Debugf("GetAllocations() successfull ended with ContentLength size %d.", req.ContentLength)
 	return r, nil
 }
 
@@ -288,7 +288,7 @@ func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string) {
 	newAllocs := make(map[string]Allocation)
 	for cId, alloc := range newPool.Allocations {
 		if cId != id {
-			newAllocs[id] = alloc
+			newAllocs[cId] = alloc
 			continue
 		}
 		alloc.Used = false

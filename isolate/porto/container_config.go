@@ -97,14 +97,16 @@ type execInfo struct {
 
 type containerConfig struct {
 	execInfo
-	State          isolate.GlobalState
+	State           isolate.GlobalState
 
-	Root           string
-	ID             string
-	Layer          string
-	CleanupEnabled bool
-	SetImgURI      bool
-	VolumeBackend  string
+	Root            string
+	ID              string
+	Layer           string
+	CleanupEnabled  bool
+	SetImgURI       bool
+	VolumeBackend   string
+	Mtn             bool
+	MtnAllocationId string
 }
 
 func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.API) (Volume, error) {
@@ -271,6 +273,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 	properties["enable_porto"] = "false"
 
 	logger := log.G(ctx).WithField("container", c.ID)
+	c.Mtn = false
 	if !c.State.Mtn.Cfg.Enable {
 		properties["net"] = pickNetwork(c.NetworkMode)
 	} else {
@@ -283,6 +286,8 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 			properties["net"] = alloc.Net
 			properties["hostname"] = alloc.Hostname
 			properties["ip"] = alloc.Ip
+			c.Mtn = true
+			c.MtnAllocationId = alloc.Id
 		}
 	}
 
