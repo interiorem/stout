@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultSpoolPath = "/var/spool/cocaine"
+	defaultSpoolPath     = "/var/spool/cocaine"
 	expectedWorkersCount = 512
 )
 
@@ -43,12 +43,12 @@ type codeStorage interface {
 
 type workerInfo struct {
 	*exec.Cmd
-	uuid string
+	uuid      string
 	startTime time.Time
 }
 
 type taskInfo struct {
-	uuid string
+	uuid      string
 	startTime time.Time
 }
 
@@ -59,7 +59,7 @@ type Box struct {
 	spoolPath string
 	storage   codeStorage
 
-	state   isolate.GlobalState
+	state isolate.GlobalState
 
 	mu       sync.Mutex
 	children map[int]workerInfo
@@ -67,7 +67,7 @@ type Box struct {
 
 	spawnSm semaphore.Semaphore
 
-	muMetrics sync.Mutex
+	muMetrics         sync.Mutex
 	containersMetrics map[string]*isolate.WorkerMetrics
 }
 
@@ -283,8 +283,8 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		return nil, err
 	}
 	b.children[pr.cmd.Process.Pid] = workerInfo{
-		Cmd:  pr.cmd,
-		uuid: config.Args["--uuid"],
+		Cmd:       pr.cmd,
+		uuid:      config.Args["--uuid"],
 		startTime: newProcStarted,
 	}
 	b.mu.Unlock()

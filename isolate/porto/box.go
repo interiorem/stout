@@ -86,7 +86,7 @@ type Box struct {
 	containerPropertiesAndData []string
 
 	// mappig uuid -> metrics
-	muMetrics sync.Mutex
+	muMetrics         sync.Mutex
 	containersMetrics map[string]*isolate.WorkerMetrics
 }
 

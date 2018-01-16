@@ -9,7 +9,7 @@ type (
 	}
 
 	WorkerMetrics struct {
-		UptimeSec uint64 `msg:"uptime"`
+		UptimeSec   uint64 `msg:"uptime"`
 		CpuUsageSec uint64 `msg:"cpu_usage"`
 
 		CpuLoad float64 `msg:"cpu_load"`
@@ -24,7 +24,7 @@ type (
 
 	MarkedWorkerMetrics struct {
 		uuid string
-		m *WorkerMetrics
+		m    *WorkerMetrics
 	}
 )
 

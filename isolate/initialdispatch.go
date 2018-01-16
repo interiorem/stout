@@ -30,7 +30,7 @@ const (
 
 	workersMetrics = 2
 
-	replyMetricsOk = 0
+	replyMetricsOk    = 0
 	replyMetricsError = 1
 	replyMetricsClose = 2
 )
@@ -363,7 +363,7 @@ func (d *initialDispatch) onWorkersMetrics(uuidsQuery []string) (Dispatcher, err
 		}
 
 		for i := 0; i < boxesSize; i++ {
-			for _, m := range <- queryResCh {
+			for _, m := range <-queryResCh {
 				metricsResponse[m.uuid] = m.m
 			}
 		}
