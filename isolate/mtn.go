@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 	"sync"
+
+	"github.com/noxiouz/stout/pkg/log"
 )
 
 type RawAlloc struct {
@@ -77,7 +79,7 @@ type PostAllocreq struct {
 	Scheduler string `json:"scheduler"`
 }
 
-func (c *MtnState) CfgInit(cfg *Config) bool {
+func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 	c.Cfg.Enable = cfg.Mtn.Enable
 	if !c.Cfg.Enable {
 		return true
@@ -90,7 +92,7 @@ func (c *MtnState) CfgInit(cfg *Config) bool {
 	if len(cfg.Mtn.Label) == 0 {
 		fqdn, err := os.Hostname()
 		if err != nil {
-			fmt.Println("%s ERROR: Cant get hostname inside CfgInit() by calling os.Hostname(), returned: %s", time.Now().UTC().Format(time.RFC3339), err)
+			log.G(ctx).Errorf("Cant get hostname inside CfgInit() by calling os.Hostname(), returned: %s", err)
 			return false
 		}
 		c.Cfg.SchedLabel = fqdn
@@ -107,15 +109,14 @@ func (c *MtnState) CfgInit(cfg *Config) bool {
 	return true
 }
 
-func (c *MtnState) PoolInit() bool {
+func (c *MtnState) PoolInit(ctx context.Context) bool {
 	if !c.Cfg.Enable {
 		return true
 	}
 	c.Pool = make(map[string]*IdState)
-	allAllocs, err := c.GetAllocations()
+	allAllocs, err := c.GetAllocations(ctx)
 	if err != nil {
-		// TODO: maybe need use main logger at this step
-		fmt.Println("%s ERROR: Cant init pool inside PoolInit(), err: %s", time.Now().UTC().Format(time.RFC3339), err)
+		log.G(ctx).Errorf("Cant init pool inside PoolInit(), err: %s", err)
 		return false
 	}
 	for netId, allocs := range allAllocs {
@@ -131,7 +132,7 @@ func (c *MtnState) PoolInit() bool {
 	return true
 }
 
-func (c *MtnState) GetAllocations() (map[string][]Allocation, error) {
+func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocation, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
 	defer cancel()
 	req, nrErr := http.NewRequest("GET", c.Cfg.Url + "?scheduler=" + c.Cfg.SchedLabel, nil)
@@ -150,16 +151,14 @@ func (c *MtnState) GetAllocations() (map[string][]Allocation, error) {
 			rErr := decoder.Decode(&errResp)
 			if rErr != nil {
 				return nil, fmt.Errorf(
-					"%s ERROR: Cant allocate. Request error: %s. Internal error: %s. Caused: %s.",
-					time.Now().UTC().Format(time.RFC3339),
+					"Cant allocate. Request error: %s. Internal error: %s. Caused: %s.",
 					doErr,
 					errResp.Message[0],
 					errResp.Cause.Message[0],
 				)
 			}
 			return nil, fmt.Errorf(
-				"%s ERROR: Cant allocate. Request error: %s. Body parse error: %s.",
-				time.Now().UTC().Format(time.RFC3339),
+				"Cant allocate. Request error: %s. Body parse error: %s.",
 				doErr,
 				rErr,
 			)
@@ -177,10 +176,11 @@ func (c *MtnState) GetAllocations() (map[string][]Allocation, error) {
 	for _, a := range jresp {
 		r[a.Network] = append(r[a.Network], Allocation{a.Porto.Net, a.Porto.Hostname, a.Porto.Ip, a.Id, false})
 	}
+	log.G(logCtx).Debugf("GetAllocations() successfull ended with ContentLength size %d.", req.ContentLength)
 	return r, nil
 }
 
-func (c *MtnState) RequestAllocs(netid string) (map[string]Allocation, error) {
+func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]Allocation, error) {
 	r := make(map[string]Allocation)
 	ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
 	defer cancel()
@@ -212,21 +212,23 @@ func (c *MtnState) RequestAllocs(netid string) (map[string]Allocation, error) {
 		}
 		r[jresp.Id] = Allocation{jresp.Porto.Net, jresp.Porto.Hostname, jresp.Porto.Ip, jresp.Id, false}
 	}
+	log.G(ctx).Debugf("RequestAllocs() successfull ended with %s.", r)
 	return r, nil
-
 }
 
-func (c *MtnState) BindAllocs(netId string) error {
+func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	c.Lock()
+	log.G(ctx).Debugf("BindAllocs() called with netId %s.", netId)
 	defer c.Unlock()
 	if _, p := c.Pool[netId]; p {
 		c.Pool[netId].Lock()
 		defer c.Pool[netId].Unlock()
 		if (len(c.Pool[netId].Allocations) - c.Pool[netId].Reserved) > c.Cfg.Allocbuffer {
 			c.Pool[netId].Reserved += c.Cfg.Allocbuffer
+			log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
 			return nil
 		} else {
-			allocs, reqErr := c.RequestAllocs(netId)
+			allocs, reqErr := c.RequestAllocs(ctx, netId)
 			if reqErr != nil {
 				return reqErr
 			}
@@ -234,61 +236,67 @@ func (c *MtnState) BindAllocs(netId string) error {
 			for id, alloc := range allocs {
 				c.Pool[netId].Allocations[id] = alloc
 			}
+			log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
 			return nil
 		}
 	} else {
-		allocs, reqErr := c.RequestAllocs(netId)
+		allocs, reqErr := c.RequestAllocs(ctx, netId)
 		if reqErr != nil {
 			return reqErr
 		}
 		newPool := IdState{*new(sync.Mutex), c.Cfg.Allocbuffer, allocs}
 		c.Pool[netId] = &newPool
+		log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
 		return nil
 	}
 }
 
-func (c *MtnState) UseAlloc(netId string) (Allocation, error) {
+func (c *MtnState) UseAlloc(ctx context.Context, netId string) (Allocation, error) {
 	c.Lock()
 	newPool := c.Pool[netId]
-	newallocs := make(map[string]Allocation)
+	log.G(ctx).Debugf("UseAlloc() called with netId: %s; and c.Pool[netId] is: %s", netId, c.Pool[netId])
+	newAllocs := make(map[string]Allocation)
 	found := false
 	var rId string
 	for id, alloc := range newPool.Allocations {
 		if found {
-			newallocs[id] = alloc
+			newAllocs[id] = alloc
 			continue
 		}
 		if !newPool.Allocations[id].Used {
 			alloc.Used = true
-			newallocs[id] = alloc
+			newAllocs[id] = alloc
 			rId = id
 			found = true
 		}
 	}
 	if found {
-		newPool.Allocations = newallocs
+		newPool.Allocations = newAllocs
 		c.Pool[netId] = newPool
+		log.G(ctx).Debugf("UseAlloc() successfull ended for netId: %s with c.Pool[netId]: %s", netId, c.Pool[netId])
 		c.Unlock()
 		return c.Pool[netId].Allocations[rId], nil
 	}
 	c.Unlock()
-	return Allocation{}, fmt.Errorf("BUG! Cant find free alloc in %s netid!", netId)
+	return Allocation{}, fmt.Errorf("BUG! Cant find free alloc in %s netid! newAllocs map is: %s", netId, newAllocs)
 }
 
-func (c *MtnState) UnuseAlloc(netId string, id string) {
+func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string) {
 	c.Lock()
+	newPool := c.Pool[netId]
+	log.G(ctx).Debugf("UnuseAlloc() called with netId %s and id %s and c.Pool[netId]: %s.", netId, id, c.Pool[netId])
 	newAllocs := make(map[string]Allocation)
-	for cId, alloc := range c.Pool[netId].Allocations {
-		if cId == id {
-			alloc.Used = false
-			newAllocs[id] = alloc
+	for cId, alloc := range newPool.Allocations {
+		if cId != id {
+			newAllocs[cId] = alloc
+			continue
 		}
+		alloc.Used = false
+		newAllocs[id] = alloc
 	}
-	newPool := IdState{
-		Reserved: c.Pool[netId].Reserved,
-		Allocations: newAllocs,
-	}
-	c.Pool[netId] = &newPool
+	newPool.Allocations = newAllocs
+	c.Pool[netId] = newPool
+	log.G(ctx).Debugf("UnuseAlloc() ended with netId %s and id %s and c.Pool[netId]: %s.", netId, id, c.Pool[netId])
 	c.Unlock()
 }
 

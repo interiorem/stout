@@ -449,10 +449,11 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	journalContent.Set(b.journal.String())
 
 	if b.GlobalState.Mtn.Cfg.Enable {
-		err := b.GlobalState.Mtn.BindAllocs(profile.Network["netid"])
+		err := b.GlobalState.Mtn.BindAllocs(ctx, profile.Network["netid"])
 		if err != nil {
 			return fmt.Errorf("Cant bind mtn alllocaton at spool with profile: %s, and with state: %s, and error: %s", profile, b.GlobalState.Mtn, err)
 		}
+		log.G(ctx).Debugf("Successfully call b.GlobalState.Mtn.BindAllocs() at spool %s with project id %s. GlobalState.Mtn is: %s", name, profile.Network["netid"], b.GlobalState.Mtn.Pool)
 	}
 	return nil
 }

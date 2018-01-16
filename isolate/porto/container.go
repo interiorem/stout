@@ -28,6 +28,10 @@ type container struct {
 	volume       Volume
 	extraVolumes []Volume
 	output       io.Writer
+
+	mtn               bool
+	netId             string
+	mtnAllocationId   string
 }
 
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
@@ -52,17 +56,21 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 	}
 
 	cnt = &container{
-		ctx: ctx,
-		State: cfg.State,
-		uuid:           cfg.args["--uuid"],
-		containerID:    cfg.ID,
-		rootDir:        cfg.Root,
-		cleanupEnabled: cfg.CleanupEnabled,
-		SetImgURI:      cfg.SetImgURI,
+		ctx:              ctx,
+		State:            cfg.State,
+		uuid:             cfg.args["--uuid"],
+		containerID:      cfg.ID,
+		rootDir:          cfg.Root,
+		cleanupEnabled:   cfg.CleanupEnabled,
+		SetImgURI:        cfg.SetImgURI,
 
-		volume:       volume,
-		extraVolumes: extravolumes,
-		output:       ioutil.Discard,
+		volume:           volume,
+		extraVolumes:     extravolumes,
+		output:           ioutil.Discard,
+
+		mtn:              cfg.Mtn,
+		netId:            cfg.Network["netid"],
+		mtnAllocationId:  cfg.MtnAllocationId,
 	}
 	return cnt, nil
 }
@@ -81,6 +89,9 @@ func (c *container) Kill() (err error) {
 		return err
 	}
 	defer portoConn.Close()
+	if c.mtn {
+		defer c.State.Mtn.UnuseAlloc(c.ctx, c.netId, c.mtnAllocationId)
+	}
 	defer c.Cleanup(portoConn)
 
 	// After Kill the container must be in `dead` state
