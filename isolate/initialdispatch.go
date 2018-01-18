@@ -63,7 +63,7 @@ func readStringsSlice(r *msgp.Reader) (uuids []string, err error) {
 
 	sz, err = r.ReadArrayHeader()
 	if err != nil {
-		return uuids, err
+		return
 	}
 
 	for i := uint32(0); i < sz; i++ {
@@ -71,7 +71,7 @@ func readStringsSlice(r *msgp.Reader) (uuids []string, err error) {
 		if u, err = r.ReadString(); err == nil {
 			uuids = append(uuids, u)
 		} else {
-			return uuids, err
+			return
 		}
 	}
 
@@ -325,11 +325,6 @@ func (d *initialDispatch) onWorkersMetrics(uuidsQuery []string) (Dispatcher, err
 			buf bytes.Buffer
 			err error
 		)
-
-		if d == nil {
-			log.G(d.ctx).Error("strange: dispatch is `nil`")
-			return
-		}
 
 		if err = msgp.Encode(&buf, &metrics); err != nil {
 			log.G(d.ctx).WithError(err).Errorf("unable to encode containers metrics response: %v", err)
