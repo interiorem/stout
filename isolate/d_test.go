@@ -36,6 +36,10 @@ func (t *testDownstream) Write(ctx context.Context, code uint64, data []byte) er
 	return nil
 }
 
+func (t *testDownstream) WriteMessage(ctx context.Context, num uint64, packedPayload []byte) error {
+	return nil
+}
+
 func (t *testDownstream) Error(ctx context.Context, code uint64, errorcode [2]int, msg string) error {
 	t.ch <- testDownstreamItem{code, []interface{}{errorcode, msg}}
 	return nil
@@ -70,6 +74,10 @@ func (b *testBox) Inspect(ctx context.Context, workerid string) ([]byte, error) 
 
 func (b *testBox) Close() error {
 	return nil
+}
+
+func (b *testBox) QueryMetrics(uuids []string) (response []MarkedWorkerMetrics) {
+	return
 }
 
 type testProcess struct {

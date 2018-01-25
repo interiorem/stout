@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	apexlog "github.com/apex/log"
+
 	"github.com/noxiouz/stout/isolate"
 	"github.com/noxiouz/stout/pkg/log"
 
@@ -190,6 +192,7 @@ func closeApiWithLog(ctx context.Context, portoApi porto.API) {
 }
 
 func (box *Box) gatherMetrics(ctx context.Context) {
+	startTime := time.Now()
 	idToUuid := box.getIdUuidMapping()
 
 	portoApi, err := portoConnect()
@@ -210,6 +213,8 @@ func (box *Box) gatherMetrics(ctx context.Context) {
 
 	metrics := parseMetrics(ctx, props, idToUuid)
 	box.setMetricsMapping(metrics)
+
+	log.G(ctx).WithFields(apexlog.Fields{"time": time.Since(startTime), "boxes": len(ids)}).Debug("Finished metrics gather iteration")
 }
 
 func (box *Box) gatherMetricsEvery(ctx context.Context, interval time.Duration) {
