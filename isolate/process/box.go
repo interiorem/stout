@@ -44,12 +44,6 @@ type codeStorage interface {
 type workerInfo struct {
 	*exec.Cmd
 	uuid      string
-	startTime time.Time
-}
-
-type taskInfo struct {
-	uuid      string
-	startTime time.Time
 }
 
 type Box struct {
@@ -285,7 +279,6 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	b.children[pr.cmd.Process.Pid] = workerInfo{
 		Cmd:       pr.cmd,
 		uuid:      config.Args["--uuid"],
-		startTime: newProcStarted,
 	}
 	b.mu.Unlock()
 
@@ -347,15 +340,15 @@ func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedWorkerMetrics) {
 	return
 }
 
-func (b *Box) getIdUuidMapping() (result map[int]taskInfo) {
+func (b *Box) getIdUuidMapping() (result map[int]string) {
 	// TODO: is len(b.children) safe to use as `expectedWorkersCount`
-	result = make(map[int]taskInfo, expectedWorkersCount)
+	result = make(map[int]string, expectedWorkersCount)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	for pid, kid := range b.children {
-		result[pid] = taskInfo{uuid: kid.uuid, startTime: kid.startTime}
+		result[pid] = kid.uuid
 	}
 
 	return
