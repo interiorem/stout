@@ -31,6 +31,7 @@ var (
 
 const (
 	nanosPerSecond = 1000000000
+	errorsToDisplay = 4
 )
 
 const (
@@ -52,23 +53,24 @@ type netIfStat struct {
 //
 func parseNetPair(eth string) (nstat netIfStat, err error) {
 	pair := strings.Split(eth, ": ")
-	if len(pair) == pairLen {
-		var v uint64
-		trimmedStr := strings.Trim(pair[pairVal], " ")
-		v, err = strconv.ParseUint(trimmedStr, 10, 64)
-		if err != nil {
-			return
-		}
+	if len(pair) != pairLen {
+		err = fmt.Errorf("wrong fields count")
+		return
+	}
 
-		name := strings.Trim(pair[pairName], " ")
-		name = spacesRegexp.ReplaceAllString(name, "_")
+	var v uint64
+	trimmedStr := strings.Trim(pair[pairVal], " ")
+	v, err = strconv.ParseUint(trimmedStr, 10, 64)
+	if err != nil {
+		return
+	}
 
-		nstat = netIfStat{
-			name:       name,
-			bytesCount: v,
-		}
-	} else {
-		err = fmt.Errorf("Failed to parse net record")
+	name := strings.Trim(pair[pairName], " ")
+	name = spacesRegexp.ReplaceAllString(name, "_")
+
+	nstat = netIfStat{
+		name:       name,
+		bytesCount: v,
 	}
 
 	return
@@ -93,7 +95,7 @@ func parseUintProp(raw rawMetrics, propName string) (v uint64, err error) {
 	}
 
 	if len(s.Value) == 0 {
-		return v, fmt.Errorf("property is empty string")
+		return v, fmt.Errorf("property [%s] is empty string", propName)
 	}
 
 	return strconv.ParseUint(s.Value, 10, 64)
@@ -120,7 +122,7 @@ func makeMetricsFromMap(raw rawMetrics) (m isolate.WorkerMetrics, err error) {
 	}
 
 	if m.UptimeSec > 0 {
-		m.CpuLoad = float64(m.CpuUsageSec) / float64(nanosPerSecond) / float64(m.UptimeSec)
+		m.CpuLoad = float32(m.CpuUsageSec) / float32(nanosPerSecond) / float32(m.UptimeSec)
 	}
 
 	// Porto's `cpu_usage` is in nanoseconds, seconds in metrics are used.
@@ -157,17 +159,18 @@ func parseMetrics(ctx context.Context, props portoResponse, idToUuid map[string]
 			continue
 		}
 
-		if m, err := makeMetricsFromMap(rawMetrics); err != nil {
-			parse_errors = append(parse_errors, err.Error())
-			continue
-		} else {
+		if m, err := makeMetricsFromMap(rawMetrics); err == nil {
 			metrics[uuid] = &m
+		} else {
+			parse_errors = append(parse_errors, err.Error())
 		}
-
 	}
 
 	if len(parse_errors) != 0 {
-		log.G(ctx).Errorf("Failed to parse raw metrics with error %s", strings.Join(parse_errors, ", "))
+		if len(parse_errors) > errorsToDisplay {
+			parse_errors = parse_errors[:errorsToDisplay]
+		}
+		log.G(ctx).Errorf("Failed to parse raw metrics with errors: %s", strings.Join(parse_errors, ", "))
 	}
 
 	return metrics

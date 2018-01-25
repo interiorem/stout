@@ -12,7 +12,7 @@ type (
 		UptimeSec   uint64 `msg:"uptime"`
 		CpuUsageSec uint64 `msg:"cpu_usage"`
 
-		CpuLoad float64 `msg:"cpu_load"`
+		CpuLoad float32 `msg:"cpu_load"`
 
 		Mem uint64 `msg:"mem"`
 
