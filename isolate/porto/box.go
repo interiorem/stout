@@ -604,7 +604,7 @@ func (b *Box) setMetricsMapping(m map[string]*isolate.WorkerMetrics) {
 	b.containersMetrics = m
 }
 
-func (b *Box) getMetricsMapping() (m map[string]*isolate.WorkerMetrics) {
+func (b *Box) getMetricsMapping() map[string]*isolate.WorkerMetrics {
 	b.muMetrics.Lock()
 	defer b.muMetrics.Unlock()
 

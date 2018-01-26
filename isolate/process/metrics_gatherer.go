@@ -73,6 +73,7 @@ func readLines(b []byte) (text []string) {
 	return
 }
 
+// `bt` in seconds, Unix time since epoch, as usual
 func loadSysBootTime() (bt uint64, err error) {
 	var b []byte
 	if b, err = ioutil.ReadFile("/proc/stat"); err != nil {
@@ -235,20 +236,25 @@ func (b *Box) gatherMetricsEvery(ctx context.Context, interval time.Duration) {
 
 	log.G(ctx).Infof("Initializing Process metrics gather loop with %v duration", interval)
 
-	bootTime, err := loadSysBootTime()
+	bootTimeSec, err := loadSysBootTime()
 	if err != nil {
 		log.G(ctx).Errorf("Error while reading system boot time %v", err)
 		return
 	}
 
+	// Note that `ctx` would be done (cancelled) at this point,
+	// but internal logger shoud be still available.
+	defer log.G(ctx).Info("Process metrics polling has been cancelled")
+
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
-			b.gatherMetrics(ctx, bootTime)
+		case <-tick.C:
+			b.gatherMetrics(ctx, bootTimeSec)
 		}
 	}
-
-	log.G(ctx).Info("Cancelling Process metrics loop")
 }

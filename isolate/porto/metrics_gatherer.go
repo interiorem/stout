@@ -89,15 +89,18 @@ func parseNetValues(val porto.TPortoGetResponse) (ifs []netIfStat) {
 	return
 }
 
-// TODO: check property Error/ErrorMsg fields
+func isBroken(r porto.TPortoGetResponse) bool {
+	return len(r.Value) == 0 || r.Error != 0 || len(r.ErrorMsg) > 0
+}
+
 func parseUintProp(raw rawMetrics, propName string) (v uint64, err error) {
 	s, ok := raw[propName]
 	if !ok {
-		return 0, fmt.Errorf("no such prop in Porto: %s", propName)
+		return 0, fmt.Errorf("no such prop in Porto response: %s", propName)
 	}
 
-	if len(s.Value) == 0 {
-		return v, fmt.Errorf("property [%s] is empty string", propName)
+	if isBroken(s) {
+		return v, fmt.Errorf("property record [%s] is broken, val [%s], err code %d, err msg %s", propName, s.Value, s.Error, s.ErrorMsg)
 	}
 
 	return strconv.ParseUint(s.Value, 10, 64)
@@ -207,7 +210,7 @@ func (box *Box) gatherMetrics(ctx context.Context) {
 	var props portoResponse
 	props, err = portoApi.Get(ids, metricsNames)
 	if err != nil {
-		log.G(ctx).WithError(err).Error("Failed to connect to Porto service")
+		log.G(ctx).WithError(err).Error("Failed to get metrics from Porto service")
 		return
 	}
 
@@ -226,14 +229,19 @@ func (box *Box) gatherMetricsEvery(ctx context.Context, interval time.Duration) 
 
 	log.G(ctx).Infof("Initializing Porto metrics gather loop with %v duration", interval)
 
+	// Note that `ctx` would be done (cancelled) at this point,
+	// but internal logger shoud be still available.
+	defer log.G(ctx).Info("Porto metrics gather loop cancelled")
+
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-tick.C:
 			box.gatherMetrics(ctx)
 		}
 	}
-
-	log.G(ctx).Info("Porto metrics gather loop canceled")
 }
