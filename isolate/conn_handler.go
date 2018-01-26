@@ -220,7 +220,8 @@ func (r *responseStream) close(ctx context.Context) {
 	}
 }
 
-func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) error {
+// Writes messagepacked payload `as is` as a packet of Cocaine
+func (r *responseStream) WriteMessage(ctx context.Context, num uint64, packedPayload []byte) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -238,13 +239,22 @@ func (r *responseStream) Write(ctx context.Context, num uint64, data []byte) err
 	p = msgp.AppendUint64(p, num)
 
 	p = msgp.AppendArrayHeader(p, 1)
-	p = msgp.AppendStringFromBytes(p, data)
+	p = append(p, packedPayload...)
 
 	if _, err := r.wr.Write(p); err != nil {
 		log.G(r.ctx).WithError(err).Error("responseStream.Write")
 		return err
 	}
 	return nil
+}
+
+// IMHO: should be named WriteString, really.
+func (r *responseStream) Write(ctx context.Context, num uint64, str []byte) error {
+	p := msgpackBytePool.Get().([]byte)[:0]
+	defer msgpackBytePool.Put(p)
+
+	p = msgp.AppendStringFromBytes(p, str)
+	return r.WriteMessage(ctx, num, p)
 }
 
 func (r *responseStream) Error(ctx context.Context, num uint64, code [2]int, msg string) error {

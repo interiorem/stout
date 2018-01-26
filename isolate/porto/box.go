@@ -33,6 +33,8 @@ import (
 	portorpc "github.com/yandex/porto/src/api/go/rpc"
 )
 
+const expectedContainersCount = 1000
+
 type portoBoxConfig struct {
 	// Directory where volumes per app are placed
 	Layers string `json:"layers"`
@@ -49,6 +51,8 @@ type portoBoxConfig struct {
 	WeakEnabled      bool              `json:"weakenabled"`
 	DefaultUlimits   string            `json:"defaultulimits"`
 	VolumeBackend    string            `json:"volumebackend"`
+
+	WorkersMetrics isolate.MetricsPollConfig `json:"workersmetrics"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -80,6 +84,10 @@ type Box struct {
 	onClose context.CancelFunc
 
 	containerPropertiesAndData []string
+
+	// mappig uuid -> metrics
+	muMetrics         sync.Mutex
+	containersMetrics map[string]*isolate.WorkerMetrics
 }
 
 const defaultVolumeBackend = "overlay"
@@ -93,6 +101,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 		CleanupEnabled: true,
 		WeakEnabled:    false,
+
+		WorkersMetrics: isolate.MetricsPollConfig{},
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -183,6 +193,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		rootPrefix: rootPrefix,
 
 		blobRepo: blobRepo,
+
+		containersMetrics: make(map[string]*isolate.WorkerMetrics),
 	}
 
 	body, err := json.Marshal(config)
@@ -205,8 +217,11 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 	journalContent.Set(box.journal.String())
 
+	pollDuration, _ := time.ParseDuration(config.WorkersMetrics.PollPeriod)
+
 	go box.waitLoop(ctx)
 	go box.dumpJournalEvery(ctx, time.Minute)
+	go box.gatherMetricsEvery(ctx, pollDuration)
 
 	return box, nil
 }
@@ -557,6 +572,44 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 	}
 	b.muContainers.Unlock()
 	return []byte(""), nil
+}
+
+func (b *Box) QueryMetrics(uuids []string) (r []isolate.MarkedWorkerMetrics) {
+	mm := b.getMetricsMapping()
+	for _, uuid := range uuids {
+		if met, ok := mm[uuid]; ok {
+			r = append(r, isolate.NewMarkedMetrics(uuid, met))
+		}
+	}
+
+	return
+}
+
+func (b *Box) getIdUuidMapping() map[string]string {
+	result := make(map[string]string, expectedContainersCount)
+
+	b.muContainers.Lock()
+	defer b.muContainers.Unlock()
+
+	for _, c := range b.containers {
+		result[c.containerID] = c.uuid
+	}
+
+	return result
+}
+
+func (b *Box) setMetricsMapping(m map[string]*isolate.WorkerMetrics) {
+	b.muMetrics.Lock()
+	defer b.muMetrics.Unlock()
+
+	b.containersMetrics = m
+}
+
+func (b *Box) getMetricsMapping() map[string]*isolate.WorkerMetrics {
+	b.muMetrics.Lock()
+	defer b.muMetrics.Unlock()
+
+	return b.containersMetrics
 }
 
 // Close releases all resources such as idle connections from http.Transport
