@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.0.3) unstable; urgency=low
+
+  * improve logging
+  * isolate(porto): fix mtn deallocation
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 17 Jan 2018 13:31:35 +0300
+
 cocaine-isolate-daemon (0.2.0.2) unstable; urgency=low
 
   * isolate(porto): fix volume leak
