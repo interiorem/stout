@@ -91,7 +91,7 @@ func (s *storageVolume) Destroy(ctx context.Context, portoConn porto.API) error 
 
 type execInfo struct {
 	*Profile
-	name, executable, ulimits string
+	name, executable, ulimits, resolv_conf string
 	args, env                 map[string]string
 }
 
@@ -254,7 +254,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 		properties[property] = value
 	}
 
-	// Options with merge policy: binds, env
+	// Options with merge policy: binds, env. resolv_conf may be added from application profile in future.
 	if env, ok := properties["env"]; ok {
 		properties["env"] = env + ";" + formatEnv(c.env)
 	} else {
@@ -265,6 +265,10 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 		properties["bind"] = binds + ";" + formatBinds(&c.execInfo)
 	} else {
 		properties["bind"] = formatBinds(&c.execInfo)
+	}
+
+	if c.resolv_conf != "" {
+		properties["resolv_conf"] = c.resolv_conf
 	}
 
 	// Protected options: command, root, enable_porto, net (for now)
