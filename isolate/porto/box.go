@@ -41,14 +41,15 @@ type portoBoxConfig struct {
 	// Path to a journal file
 	Journal string `json:"journal"`
 
-	SpawnConcurrency uint              `json:"concurrency"`
-	RegistryAuth     map[string]string `json:"registryauth"`
-	DialRetries      int               `json:"dialretries"`
-	CleanupEnabled   bool              `json:"cleanupenabled"`
-	SetImgURI        bool              `json:"setimguri"`
-	WeakEnabled      bool              `json:"weakenabled"`
-	DefaultUlimits   string            `json:"defaultulimits"`
-	VolumeBackend    string            `json:"volumebackend"`
+	SpawnConcurrency   uint              `json:"concurrency"`
+	RegistryAuth       map[string]string `json:"registryauth"`
+	DialRetries        int               `json:"dialretries"`
+	CleanupEnabled     bool              `json:"cleanupenabled"`
+	SetImgURI          bool              `json:"setimguri"`
+	WeakEnabled        bool              `json:"weakenabled"`
+	DefaultUlimits     string            `json:"defaultulimits"`
+	VolumeBackend      string            `json:"volumebackend"`
+        DefaultResolvConf  string            `json:"defaultresolv_conf"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -491,12 +492,13 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,
 		execInfo: execInfo{
-			Profile:    profile,
-			name:       config.Name,
-			executable: config.Executable,
-			ulimits:    b.config.DefaultUlimits,
-			args:       config.Args,
-			env:        config.Env,
+			Profile:     profile,
+			name:        config.Name,
+			executable:  config.Executable,
+			ulimits:     b.config.DefaultUlimits,
+			resolv_conf: b.config.DefaultResolvConf,
+			args:        config.Args,
+			env:         config.Env,
 		},
 	}
 
