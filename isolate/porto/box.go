@@ -47,6 +47,8 @@ type portoBoxConfig struct {
 	CleanupEnabled     bool              `json:"cleanupenabled"`
 	SetImgURI          bool              `json:"setimguri"`
 	WeakEnabled        bool              `json:"weakenabled"`
+	Gc                 bool              `json:"gc"`
+	WaitLoopStepSec    uint              `json:"waitloopstepsec"`
 	DefaultUlimits     string            `json:"defaultulimits"`
 	VolumeBackend      string            `json:"volumebackend"`
         DefaultResolvConf  string            `json:"defaultresolv_conf"`
@@ -89,11 +91,13 @@ const defaultVolumeBackend = "overlay"
 func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
 	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
-		SpawnConcurrency: 10,
+		SpawnConcurrency: 5,
 		DialRetries:      10,
+		WaitLoopStepSec:  5,
 
 		CleanupEnabled: true,
 		WeakEnabled:    false,
+		Gc:             true,
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -270,10 +274,6 @@ func (b *Box) waitLoop(ctx context.Context) {
 		err       error
 	)
 
-	waitPattern := filepath.Join(b.rootPrefix, "*")
-
-	var waitTimeout = 30 * time.Second
-
 	closed := func(portoConn porto.API) bool {
 		select {
 		case <-ctx.Done():
@@ -286,9 +286,27 @@ func (b *Box) waitLoop(ctx context.Context) {
 		}
 	}
 
+	if b.config.Gc {
+		// In future we can make another loop for gc with pattern checking like:
+		// rePattern, err := regexp.Compile("^.*_[0-9a-f]{6}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+		// Now we just try clean trash one time without error handle.
+		containerNames, err := portoConn.List()
+		if err != nil {
+			log.G(ctx).Warnf("unable to list porto containers for gc: %v", err)
+		}
+		for _, name := range containerNames {
+			containerState, _ := portoConn.GetProperty(name, "state")
+			if containerState == "dead" {
+				log.G(ctx).Debugf("At gc state destroy container: %s", name)
+				portoConn.Destroy(name)
+			}
+		}
+	}
+
 LOOP:
 	for {
-		log.G(ctx).Info("next iteration of waitLoop")
+		log.G(ctx).Infof("next iteration of waitLoop will started after %d second of sleep.", b.config.WaitLoopStepSec)
+		time.Sleep(time.Duration(b.config.WaitLoopStepSec) * time.Second)
 		if closed(portoConn) {
 			return
 		}
@@ -308,31 +326,57 @@ LOOP:
 			}
 		}
 
-		// * means all containers
-		// if no containers dead for waitTimeout, name will be an empty string
-		containerName, err := portoConn.Wait([]string{waitPattern}, 30*waitTimeout)
-		if err != nil {
-			portoConn.Close()
-			portoConn = nil
-			continue LOOP
-		}
 
-		if containerName != "" {
-			log.G(ctx).Infof("Wait reports %s to be dead", containerName)
-			b.muContainers.Lock()
-			container, ok := b.containers[containerName]
-			if ok {
-				delete(b.containers, containerName)
-			}
-			rest := len(b.containers)
-			b.muContainers.Unlock()
-			if ok {
-				if err = container.Kill(); err != nil {
-					log.G(ctx).WithError(err).Errorf("Killing %s error", containerName)
+		ourContainers := []string{}
+		b.muContainers.Lock()
+		for k, _ := range b.containers {
+			ourContainers = append(ourContainers, k)
+		}
+		b.muContainers.Unlock()
+		log.G(ctx).Debugf("That containers are being tracked now: %s", ourContainers)
+
+		for _, ourContainer := range ourContainers {
+			containerState, err := portoConn.GetProperty(ourContainer, "state")
+			if err != nil {
+				e := err.(*porto.Error)
+				switch e.ErrName {
+				case "ContainerDoesNotExist":
+					b.muContainers.Lock()
+					container, ok := b.containers[ourContainer]
+					if ok {
+						delete(b.containers, ourContainer)
+					}
+					rest := len(b.containers)
+					b.muContainers.Unlock()
+					if ok {
+						log.G(ctx).WithError(err).Errorf("We take ContainerDoesNotExist exception %s for exist container %s but try kill anyway.", err, ourContainer)
+						if err = container.Kill(); err != nil {
+							log.G(ctx).WithError(err).Debugf("catch at try kill ContainerDoesNotExist %s", ourContainer)
+						}
+					}
+					log.G(ctx).Debugf("%d containers are being tracked now after remove ContainerDoesNotExist %s", rest, ourContainer)
+				default:
+					portoConn.Close()
+					portoConn = nil
+					continue LOOP
 				}
 			}
-
-			log.G(ctx).Infof("%d containers are being tracked now", rest)
+			if containerState == "dead" {
+				b.muContainers.Lock()
+				container, ok := b.containers[ourContainer]
+				if ok {
+					delete(b.containers, ourContainer)
+				}
+				rest := len(b.containers)
+				b.muContainers.Unlock()
+				log.G(ctx).Infof("%s container have status dead now.", ourContainer)
+				if ok {
+					if err = container.Kill(); err != nil {
+						log.G(ctx).WithError(err).Errorf("Killing %s error", ourContainer)
+					}
+				}
+				log.G(ctx).Infof("%d containers are being tracked now", rest)
+			}
 		}
 	}
 }
