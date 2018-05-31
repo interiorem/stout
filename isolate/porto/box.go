@@ -294,7 +294,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 		}
 	}
 
-	if b.config.Gc || portoConn != nil {
+	if b.config.Gc && portoConn != nil {
 		// In future we can make another loop for gc with pattern checking like:
 		// rePattern, err := regexp.Compile("^.*_[0-9a-f]{6}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 		// Now we just try clean trash one time without error handle.
