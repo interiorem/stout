@@ -93,7 +93,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 5,
 		DialRetries:      10,
-		WaitLoopStepSec:  5,
+		WaitLoopStepSec:  10,
 
 		CleanupEnabled: true,
 		WeakEnabled:    false,
