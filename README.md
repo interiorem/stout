@@ -39,6 +39,8 @@ See configuration example:
                 "cleanupenabled": true,
                 "setimgurl": false,
                 "weakenabled": false,
+                "gc": true,
+                "waitloopstepsec": 5,
                 "journal": "/tmp/portojournal.jrnl",
                 "containers": "/tmp",
                 "registryauth": {
