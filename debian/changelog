@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.0.4) unstable; urgency=low
+
+  * isolate(porto): add resolv_conf option for porto
+  * isolate(porto): reimplement portobox waitloop
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Mon, 04 Jun 2018 16:01:33 +0300
+
 cocaine-isolate-daemon (0.2.0.3) unstable; urgency=low
 
   * improve logging
