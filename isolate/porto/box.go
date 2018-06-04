@@ -286,15 +286,13 @@ func (b *Box) waitLoop(ctx context.Context) {
 		}
 	}
 
-	if portoConn == nil {
-		log.G(ctx).Info("waitLoop: connect to Portod before gc")
-		portoConn, err = portoConnect()
-		if err != nil {
-			log.G(ctx).WithError(err).Warn("unable to connect to Portod")
-		}
+	log.G(ctx).Info("waitLoop: connect to Portod before gc")
+	portoConn, err = portoConnect()
+	if err != nil {
+		log.G(ctx).WithError(err).Warn("unable to connect to Portod")
 	}
 
-	if b.config.Gc && portoConn != nil {
+	if b.config.Gc {
 		// In future we can make another loop for gc with pattern checking like:
 		// rePattern, err := regexp.Compile("^.*_[0-9a-f]{6}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 		// Now we just try clean trash one time without error handle.
