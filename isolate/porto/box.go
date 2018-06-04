@@ -51,7 +51,7 @@ type portoBoxConfig struct {
 	WaitLoopStepSec    uint              `json:"waitloopstepsec"`
 	DefaultUlimits     string            `json:"defaultulimits"`
 	VolumeBackend      string            `json:"volumebackend"`
-        DefaultResolvConf  string            `json:"defaultresolv_conf"`
+	DefaultResolvConf  string            `json:"defaultresolv_conf"`
 }
 
 func (c *portoBoxConfig) String() string {
