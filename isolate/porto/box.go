@@ -148,6 +148,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 			for i := 0; i <= config.DialRetries; i++ {
 				dialer := net.Dialer{
 					DualStack: true,
+					KeepAlive: 10 * time.Second,
 					Timeout:   5 * time.Second,
 				}
 				conn, err := dialer.Dial(network, addr)
@@ -160,6 +161,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 			}
 			return nil, fmt.Errorf("no retries available")
 		},
+		IdleConnTimeout:       120 * time.Second,
+		TLSHandshakeTimeout:   60 * time.Second,
+		ExpectContinueTimeout: 5 * time.Second,
 	}
 
 	portoConn, err := portoConnect()
