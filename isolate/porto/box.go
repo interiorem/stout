@@ -291,7 +291,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 	}
 
 	log.G(ctx).Info("waitLoop: connect to Portod before gc")
-	portoConn, err = portoConnect()
+	portoConn, err := portoConnect()
 	if err != nil {
 		log.G(ctx).WithError(err).Warn("unable to connect to Portod")
 	}
