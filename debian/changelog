@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.2.0.5) unstable; urgency=low
+
+  * isolate(porto): add more timeouts for http transport
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Tue, 19 Jun 2018 15:49:13 +0300
+
 cocaine-isolate-daemon (0.2.0.4) unstable; urgency=low
 
   * isolate(porto): add resolv_conf option for porto
