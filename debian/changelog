@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.0.6) unstable; urgency=low
+
+  * isolate(porto): fix try mtn alloc when spool application without mtn
+  * mtn: add check length mtn ident before try allocating
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 11 Jul 2018 21:13:10 +0300
+
 cocaine-isolate-daemon (0.2.0.5) unstable; urgency=low
 
   * isolate(porto): add more timeouts for http transport
