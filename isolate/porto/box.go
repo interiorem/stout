@@ -503,7 +503,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	// NOTE: Not so fast, but it's important for debug
 	journalContent.Set(b.journal.String())
 
-	if b.GlobalState.Mtn.Cfg.Enable {
+	if b.GlobalState.Mtn.Cfg.Enable && profile.Network["mtn"] == "enable" {
 		err := b.GlobalState.Mtn.BindAllocs(ctx, profile.Network["netid"])
 		if err != nil {
 			return fmt.Errorf("Cant bind mtn alllocaton at spool with profile: %s, and with state: %s, and error: %s", profile, b.GlobalState.Mtn, err)
