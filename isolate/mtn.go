@@ -217,6 +217,9 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 }
 
 func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
+	if len(netId) == 0 {
+		return fmt.Errorf("Len(netId) is zero.")
+	}
 	c.Lock()
 	log.G(ctx).Debugf("BindAllocs() called with netId %s.", netId)
 	defer c.Unlock()
