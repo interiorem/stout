@@ -13,6 +13,7 @@ import (
 	"github.com/noxiouz/stout/pkg/log"
 )
 
+
 type RawAlloc struct {
 	Id string `json:"id"`
 	Porto RawPorto `json:"porto"`
@@ -254,6 +255,95 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 	return r, nil
 }
 
+func (c *MtnState) DbAllocIsFree(ctx context.Context, value []byte) bool {
+	var a Allocation
+	if err := json.Unmarshal(value, &a); err != nil {
+		return false
+	}
+	if a.Used {
+		return false
+	}
+	return true
+}
+
+func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (Allocation, error) {
+	b := tx.Bucket([]byte(netId))
+        if b == nil {
+                return Allocation{}, fmt.Errorf("BUG inside GetDbAlloc()! Backet %s not exist!", netId)
+        }
+	var a Allocation
+	ccounter := false
+        e := b.ForEach(func(k, v []byte) error {
+		if ccounter {
+			return nil
+		} else {
+	                if c.DbAllocIsFree(ctx, v) {
+				if err := json.Unmarshal(v, &a); err != nil {
+					return err
+				}
+				a.Used = true
+				id := a.Id
+	                        value, err_m := json.Marshal(a)
+				if err_m != nil {
+	                                return err_m
+	                        }
+	                        err_p := b.Put([]byte(id), value)
+	                        if err_p != nil {
+	                                return err_p
+	                        }
+				ccounter = true
+				return nil
+			}
+		}
+		return nil
+	})
+	return a, e
+}
+
+func (c *MtnState) FreeDbAlloc(ctx context.Context, netId string, id string) error {
+	var a Allocation
+        tx, err_t := c.Db.Begin(true)
+        if err_t != nil {
+                log.G(ctx).Errorf("Cant start transaction inside FreeDbAlloc(), err: %s", err_t)
+                return err_t
+        }
+        defer tx.Rollback()
+	b := tx.Bucket([]byte(netId))
+        if b == nil {
+                return fmt.Errorf("BUG inside FreeDbAlloc()! Backet %s not exist!", netId)
+        }
+	v := b.Get([]byte(id))
+	if err := json.Unmarshal(v, &a); err != nil {
+		return err
+	}
+	a.Used = false
+	value, err_m := json.Marshal(a)
+	if err_m != nil {
+		return err_m
+	}
+	err_p := b.Put([]byte(id), value)
+	if err_p != nil {
+		return err_p
+	}
+	tx.Commit()
+	return nil
+}
+
+func (c *MtnState) CountFreeAllocs(ctx context.Context, tx *bolt.Tx, netId string) (int, error) {
+	b := tx.Bucket([]byte(netId))
+	if b == nil {
+		return 0, fmt.Errorf("BUG inside CountFreeAllocs()! Backet %s not exist!", netId)
+	}
+	counter := 0
+	e := b.ForEach(func(_, v []byte) error {
+		if c.DbAllocIsFree(ctx, v) {
+			counter+=1
+		}
+		return nil
+	})
+	return counter, e
+}
+
 func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	if len(netId) == 0 {
 		return fmt.Errorf("Len(netId) is zero.")
@@ -261,6 +351,43 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	c.Lock()
 	log.G(ctx).Debugf("BindAllocs() called with netId %s.", netId)
 	defer c.Unlock()
+
+	tx, err_db := c.Db.Begin(true)
+        if err_db != nil {
+                log.G(ctx).Errorf("Cant start transaction inside BindAllocs(), err: %s", err_db)
+                return err_db
+        }
+        defer tx.Rollback()
+	fcount, err_c := c.CountFreeAllocs(ctx, tx, netId)
+	if err_c != nil {
+		log.G(ctx).Errorf("Cant continue transaction inside BindAllocs(), err: %s", err_c)
+		return err_c
+	}
+	if c.Cfg.Allocbuffer > fcount {
+		allocs, reqErr := c.RequestAllocs(ctx, netId)
+		if reqErr != nil {
+			return reqErr
+		}
+		b, err_b := tx.CreateBucketIfNotExists([]byte(netId))
+		if err_b != nil {
+			return err_b
+			// return fmt.Errorf("BUG! Backet %s not exist!", netId)
+		}
+		for id, alloc := range allocs {
+			value, err_m := json.Marshal(alloc)
+			if err_m != nil {
+				return err_m
+			}
+			err_p := b.Put([]byte(id), value)
+			if err_p != nil {
+				return err_p
+			}
+		}
+	}
+	if err_m := tx.Commit(); err_m != nil {
+		return err_m
+	}
+
 	if _, p := c.Pool[netId]; p {
 		c.Pool[netId].Lock()
 		defer c.Pool[netId].Unlock()
@@ -293,6 +420,21 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 }
 
 func (c *MtnState) UseAlloc(ctx context.Context, netId string) (Allocation, error) {
+        tx, err_t := c.Db.Begin(true)
+        if err_t != nil {
+                log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", err_t)
+                return Allocation{}, err_t
+        }
+        defer tx.Rollback()
+	fcounter, err_c := c.CountFreeAllocs(ctx, tx, netId)
+	if fcounter > 0 {
+		a, e := c.GetDbAlloc(ctx, tx, netId)
+		log.G(ctx).Errorf("DEBUG inside UseAlloc(): a, e: %s, %s.", a, e)
+	} else {
+		log.G(ctx).Errorf("DEBUG inside UseAlloc(): fcounter > 0, err_c: %s", err_c)
+	}
+	tx.Commit()
+
 	c.Lock()
 	newPool := c.Pool[netId]
 	log.G(ctx).Debugf("UseAlloc() called with netId: %s; and c.Pool[netId] is: %s", netId, c.Pool[netId])
