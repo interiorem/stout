@@ -71,6 +71,7 @@ type (
 			Url string `json:"url,omitempty"`
 			Label string `json:"label,omitempty"`
 			Ident string `json:"ident,omitempty"`
+			DbPath string `json:"dbpath,omitempty"`
 			Headers map[string]string `json:"headers,omitempty"`
 		} `json:"mtn,omitempty"`
 	}

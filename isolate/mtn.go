@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 	"sync"
-
+        bolt "go.etcd.io/bbolt"
 	"github.com/noxiouz/stout/pkg/log"
 )
 
@@ -49,12 +49,14 @@ type MtnCfg struct {
 	Ident string
 	SchedLabel string
 	Headers map[string]string
+	DbPath string
 }
 
 type MtnState struct {
 	sync.Mutex
 	Cfg MtnCfg
 	Pool MtnPool
+	Db *bolt.DB
 }
 
 type MtnPool map[string]*IdState
@@ -106,6 +108,14 @@ func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 	}
 	c.Cfg.Url = cfg.Mtn.Url
 	c.Cfg.Headers = cfg.Mtn.Headers
+
+	db, err := bolt.Open(cfg.Mtn.DbPath, 0666, &bolt.Options{Timeout: 10 * time.Second})
+	if err != nil {
+		log.G(ctx).Errorf("Cant open db inside CfgInit() by calling bolt.Open(), returned: %s", err)
+		return false
+	}
+	c.Db = db
+
 	return true
 }
 
@@ -119,15 +129,43 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 		log.G(ctx).Errorf("Cant init pool inside PoolInit(), err: %s", err)
 		return false
 	}
+
+	tx, err := c.Db.Begin(true)
+	if err != nil {
+		log.G(ctx).Errorf("Cant start transaction inside PoolInit(), err: %s", err)
+		return false
+	}
+	defer tx.Rollback()
+
 	for netId, allocs := range allAllocs {
 		cState :=  IdState{
 			Reserved: 0,
 			Allocations: make(map[string]Allocation),
 		}
+
 		for _, alloc := range allocs {
+			b, err := tx.CreateBucketIfNotExists([]byte(netId))
+			if err != nil {
+				log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
+				return false
+			}
+			if b.Get([]byte(alloc.Id)) == nil {
+				if buf, err := json.Marshal(Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, false}); err != nil {
+					log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
+					return false
+				} else if err := b.Put([]byte(alloc.Id), buf); err != nil {
+					log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
+					return false
+				}
+			}
+
 			cState.Allocations[alloc.Id] = Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, false}
 		}
 		c.Pool[netId] = &cState
+	}
+	if err := tx.Commit(); err != nil {
+		log.G(ctx).Errorf("Cant commit transaction inside PoolInit(), err: %s", err)
+		return false
 	}
 	return true
 }
