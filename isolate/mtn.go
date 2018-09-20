@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"time"
-	"sync"
 	bolt "go.etcd.io/bbolt"
 	"github.com/noxiouz/stout/pkg/log"
 )
@@ -41,8 +40,6 @@ type ErrorCause struct {
 
 type RawAllocs []RawAlloc
 
-type AllocAnswer string
-
 type MtnCfg struct {
 	Enable bool
 	Allocbuffer int
@@ -54,18 +51,8 @@ type MtnCfg struct {
 }
 
 type MtnState struct {
-	sync.Mutex
 	Cfg MtnCfg
-	Pool MtnPool
 	Db *bolt.DB
-}
-
-type MtnPool map[string]*IdState
-
-type IdState struct {
-	sync.Mutex
-	Reserved int
-	Allocations map[string]Allocation
 }
 
 type Allocation struct {
@@ -115,13 +102,55 @@ func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 	} else {
 		c.Cfg.DbPath = "/run/isolate.mtn.db"
 	}
+	corruptedBackupPath := "/var/tmp/isolate.mtn.db.corrupted"
 	db, err := bolt.Open(c.Cfg.DbPath, 0666, &bolt.Options{Timeout: 10 * time.Second})
 	if err != nil {
 		log.G(ctx).Errorf("Cant open db inside CfgInit() by calling bolt.Open(), returned: %s", err)
-		return false
+		if s, err := os.Stat(c.Cfg.DbPath); os.IsNotExist(err) {
+			log.G(ctx).Errorf("DB file not exist and we cant create new. Err: %s", err)
+			return false
+		} else if err == nil {
+			fSize := s.Size()
+			if fSize > 0 {
+				if _, err := os.Stat(corruptedBackupPath); err == nil {
+					log.G(ctx).Errorf("Corrupted DB backup file exist, nothing to do there.")
+					return false
+				}
+				log.G(ctx).Errorf("DB file exist, size %d and cant be opened. Try to recreate.", fSize)
+				err := os.Rename(c.Cfg.DbPath, corruptedBackupPath)
+				if err != nil {
+					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", err)
+					return false
+				}
+			} else {
+				log.G(ctx).Errorf("DB file exist, size %d and cant be opened. Try to delete old.", fSize)
+				err := os.Remove(c.Cfg.DbPath)
+				if err != nil {
+					log.G(ctx).Errorf("Cant delete old db file, err: %s", err)
+					return false
+				}
+			}
+			db, err = bolt.Open(c.Cfg.DbPath, 0666, &bolt.Options{Timeout: 10 * time.Second})
+			if err != nil {
+				log.G(ctx).Errorf("Second try open db is failed, err: %s", err)
+				return false
+			}
+		}
+		errDb := db.Update(func(tx *bolt.Tx) error {
+			errChan := tx.Check()
+			select {
+				case errCheck := <-errChan:
+					return errCheck
+				default:
+					return nil
+			}
+		})
+		if errDb != nil {
+			log.G(ctx).Errorf("DB fail consistency checks, err: %s", errDb)
+			return false
+		}
 	}
 	c.Db = db
-
 	return true
 }
 
@@ -129,7 +158,6 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 	if !c.Cfg.Enable {
 		return true
 	}
-	//c.Pool = make(map[string]*IdState)
 	allAllocs, err := c.GetAllocations(ctx)
 	if err != nil {
 		log.G(ctx).Errorf("Cant init pool inside PoolInit(), err: %s", err)
@@ -144,11 +172,6 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 	defer tx.Rollback()
 
 	for netId, allocs := range allAllocs {
-		//cState :=  IdState{
-		//	Reserved: 0,
-		//	Allocations: make(map[string]Allocation),
-		//}
-
 		for _, alloc := range allocs {
 			b, err := tx.CreateBucketIfNotExists([]byte(netId))
 			if err != nil {
@@ -164,10 +187,7 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 					return false
 				}
 			}
-
-			//cState.Allocations[alloc.Id] = Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, false}
 		}
-		//c.Pool[netId] = &cState
 	}
 	if err := tx.Commit(); err != nil {
 		log.G(ctx).Errorf("Cant commit transaction inside PoolInit(), err: %s", err)
@@ -327,7 +347,7 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 	if gotcha {
 		return a, nil
 	}
-	return a, fmt.Errorf("BUG inside GetDbAlloc() or somewhere! Cant get allocation from DB and cant request more. Clean allocaion: %s.", a)
+	return a, fmt.Errorf("BUG inside GetDbAlloc()... or somewhere! Cant get allocation from DB and cant request more. Clean allocaion: %s.", a)
 }
 
 func (c *MtnState) FreeDbAlloc(ctx context.Context, netId string, id string) error {
@@ -381,126 +401,61 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	if len(netId) == 0 {
 		return fmt.Errorf("Len(netId) is zero.")
 	}
-	//c.Lock()
 	log.G(ctx).Debugf("BindAllocs() called with netId %s.", netId)
-	//defer c.Unlock()
 
-	tx, err_db := c.Db.Begin(true)
-	if err_db != nil {
-		log.G(ctx).Errorf("Cant start transaction inside BindAllocs(), err: %s", err_db)
-		return err_db
+	tx, errTx := c.Db.Begin(true)
+	if errTx != nil {
+		log.G(ctx).Errorf("Cant start transaction inside BindAllocs(), err: %s", errTx)
+		return errTx
 	}
 	defer tx.Rollback()
-	fcount, err_c := c.CountFreeAllocs(ctx, tx, netId)
-	if err_c != nil {
-		log.G(ctx).Errorf("Cant continue transaction inside BindAllocs(), err: %s", err_c)
-		return err_c
+	fCount, errCnt := c.CountFreeAllocs(ctx, tx, netId)
+	if errCnt != nil {
+		log.G(ctx).Errorf("Cant continue transaction inside BindAllocs(), err: %s", errCnt)
+		return errCnt
 	}
-	if c.Cfg.Allocbuffer > fcount {
-		allocs, reqErr := c.RequestAllocs(ctx, netId)
-		if reqErr != nil {
-			return reqErr
+	if c.Cfg.Allocbuffer > fCount {
+		allocs, err := c.RequestAllocs(ctx, netId)
+		if err != nil {
+			return err
 		}
-		b, err_b := tx.CreateBucketIfNotExists([]byte(netId))
-		if err_b != nil {
-			return err_b
+		b, errBk := tx.CreateBucketIfNotExists([]byte(netId))
+		if errBk != nil {
+			return errBk
 		}
 		for id, alloc := range allocs {
-			value, err_m := json.Marshal(alloc)
-			if err_m != nil {
-				return err_m
+			value, errMrsh := json.Marshal(alloc)
+			if errMrsh != nil {
+				return errMrsh
 			}
-			err_p := b.Put([]byte(id), value)
-			if err_p != nil {
-				return err_p
+			errPut := b.Put([]byte(id), value)
+			if errPut != nil {
+				return errPut
 			}
 		}
 	}
-	if err_m := tx.Commit(); err_m != nil {
-		return err_m
+	if err := tx.Commit(); err != nil {
+		return err
 	}
-
-	//if _, p := c.Pool[netId]; p {
-	//	c.Pool[netId].Lock()
-	//	defer c.Pool[netId].Unlock()
-	//	if (len(c.Pool[netId].Allocations) - c.Pool[netId].Reserved) > c.Cfg.Allocbuffer {
-	//		c.Pool[netId].Reserved += c.Cfg.Allocbuffer
-	//		log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
-	//		return nil
-	//	} else {
-	//		allocs, reqErr := c.RequestAllocs(ctx, netId)
-	//		if reqErr != nil {
-	//			return reqErr
-	//		}
-	//		c.Pool[netId].Reserved += c.Cfg.Allocbuffer
-	//		for id, alloc := range allocs {
-	//			c.Pool[netId].Allocations[id] = alloc
-	//		}
-	//		log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
-	//		return nil
-	//	}
-	//} else {
-	//	allocs, reqErr := c.RequestAllocs(ctx, netId)
-	//	if reqErr != nil {
-	//		return reqErr
-	//	}
-	//	newPool := IdState{*new(sync.Mutex), c.Cfg.Allocbuffer, allocs}
-	//	c.Pool[netId] = &newPool
-	//	log.G(ctx).Debugf("BindAllocs() ended with c.Pool[netId]: %s.", c.Pool[netId])
-	//	return nil
-	//}
 	return nil
 }
 
 func (c *MtnState) UseAlloc(ctx context.Context, netId string) (Allocation, error) {
-	tx, err_t := c.Db.Begin(true)
-	if err_t != nil {
-		log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", err_t)
-		return Allocation{}, err_t
+	tx, errTx := c.Db.Begin(true)
+	if errTx != nil {
+		log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", errTx)
+		return Allocation{}, errTx
 	}
 	defer tx.Rollback()
-	//fcounter, err_c := c.CountFreeAllocs(ctx, tx, netId)
-	//if fcounter > 0 {
 	a, e := c.GetDbAlloc(ctx, tx, netId)
 	log.G(ctx).Debugf("UseAlloc(): a, e: %s, %s.", a, e)
 	if e != nil {
 		return Allocation{}, e
 	}
-	//} else {
-	//	log.G(ctx).Errorf("DEBUG inside UseAlloc(): fcounter > 0, err_c: %s", err_c)
-	//}
 	if err := tx.Commit(); err != nil {
-		return Allocation{}, err
+		return a, err
 	}
 	return a, nil
-
-	//c.Lock()
-	//newPool := c.Pool[netId]
-	//log.G(ctx).Debugf("UseAlloc() called with netId: %s; and c.Pool[netId] is: %s", netId, c.Pool[netId])
-	//newAllocs := make(map[string]Allocation)
-	//found := false
-	//var rId string
-	//for id, alloc := range newPool.Allocations {
-	//	if found {
-	//		newAllocs[id] = alloc
-	//		continue
-	//	}
-	//	if !newPool.Allocations[id].Used {
-	//		alloc.Used = true
-	//		newAllocs[id] = alloc
-	//		rId = id
-	//		found = true
-	//	}
-	//}
-	//if found {
-	//	newPool.Allocations = newAllocs
-	//	c.Pool[netId] = newPool
-	//	log.G(ctx).Debugf("UseAlloc() successfull ended for netId: %s with c.Pool[netId]: %s", netId, c.Pool[netId])
-	//	c.Unlock()
-	//	return c.Pool[netId].Allocations[rId], nil
-	//}
-	//c.Unlock()
-	//return Allocation{}, fmt.Errorf("BUG! Cant find free alloc in %s netid! newAllocs map is: %s", netId, newAllocs)
 }
 
 func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string) {
@@ -509,22 +464,5 @@ func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string) {
 		log.G(ctx).Errorf("BUG inside FreeDbAlloc()! error returned: %s.", err)
 	}
 	log.G(ctx).Debugf("UnuseAlloc() successfuly for: %s %s.", netId, id)
-	//c.Lock()
-	//newPool := c.Pool[netId]
-	//log.G(ctx).Debugf("UnuseAlloc() called with netId %s and id %s and c.Pool[netId]: %s.", netId, id, c.Pool[netId])
-	//newAllocs := make(map[string]Allocation)
-	//for cId, alloc := range newPool.Allocations {
-	//	if cId != id {
-	//		newAllocs[cId] = alloc
-	//		continue
-	//	}
-	//	alloc.Used = false
-	//	newAllocs[id] = alloc
-	//}
-	//newPool.Allocations = newAllocs
-	//c.Pool[netId] = newPool
-	//log.G(ctx).Debugf("UnuseAlloc() ended with netId %s and id %s and c.Pool[netId]: %s.", netId, id, c.Pool[netId])
-	//c.Unlock()
 }
-
 

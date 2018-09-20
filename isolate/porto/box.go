@@ -508,7 +508,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		if err != nil {
 			return fmt.Errorf("Cant bind mtn alllocaton at spool with profile: %s, and with state: %s, and error: %s", profile, b.GlobalState.Mtn, err)
 		}
-		log.G(ctx).Debugf("Successfully call b.GlobalState.Mtn.BindAllocs() at spool %s with project id %s. GlobalState.Mtn is: %s", name, profile.Network["netid"], b.GlobalState.Mtn.Pool)
+		log.G(ctx).Debugf("Successfully call b.GlobalState.Mtn.BindAllocs() at spool %s with project id %s.", name, profile.Network["netid"])
 	}
 	return nil
 }
@@ -618,6 +618,7 @@ func (b *Box) Inspect(ctx context.Context, workeruuid string) ([]byte, error) {
 // Close releases all resources such as idle connections from http.Transport
 func (b *Box) Close() error {
 	b.transport.CloseIdleConnections()
+	b.GlobalState.Mtn.Db.Close()
 	b.onClose()
 	return nil
 }
