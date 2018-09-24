@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -117,9 +118,29 @@ func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 					return false
 				}
 				log.G(ctx).Errorf("DB file exist, size %d and cant be opened. Try to recreate.", fSize)
-				err := os.Rename(c.Cfg.DbPath, corruptedBackupPath)
-				if err != nil {
-					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", err)
+				ioSrcDb, errSrcOpen := os.Open(c.Cfg.DbPath)
+				if errSrcOpen != nil {
+					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errSrcOpen)
+					return false
+				}
+				ioDstDb, errDstCreate := os.Create(corruptedBackupPath)
+				if errDstCreate != nil {
+					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errDstCreate)
+					ioSrcDb.Close()
+					return false
+				}
+				_, errCopy := io.Copy(ioSrcDb, ioDstDb)
+				if errCopy != nil {
+					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errCopy)
+					ioSrcDb.Close()
+					ioDstDb.Close()
+					return false
+				}
+				ioSrcDb.Close()
+				ioDstDb.Close()
+				errRemove := os.Remove(c.Cfg.DbPath)
+				if errRemove != nil {
+					log.G(ctx).Errorf("Cant remove old corrupted db file, err: %s", errRemove)
 					return false
 				}
 			} else {
@@ -306,28 +327,28 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 			}
 			a.Used = true
 			id := a.Id
-			value, err_m := json.Marshal(a)
-			if err_m != nil {
-				return a, err_m
+			value, errMrsh := json.Marshal(a)
+			if errMrsh != nil {
+				return a, errMrsh
 			}
-			err_p := b.Put([]byte(id), value)
-			if err_p != nil {
-				return a, err_p
+			errPut := b.Put([]byte(id), value)
+			if errPut != nil {
+				return a, errPut
 			}
 			return a, nil
 		}
 	}
-	fcounter, err_c := c.CountFreeAllocs(ctx, tx, netId)
-	log.G(ctx).Errorf("Normaly we must never be in GetDbAlloc() at that point. But ok, lets try fix situation. Free count for that netId %s is %d (possible counter error: %s).", netId, fcounter, err_c)
-	allocs, err_a := c.RequestAllocs(ctx, netId)
-	if err_a != nil {
+	fcounter, errCnt := c.CountFreeAllocs(ctx, tx, netId)
+	log.G(ctx).Errorf("Normaly we must never be in GetDbAlloc() at that point. But ok, lets try fix situation. Free count for that netId %s is %d (possible counter error: %s).", netId, fcounter, errCnt)
+	allocs, errAllocs := c.RequestAllocs(ctx, netId)
+	if errAllocs != nil {
 		log.G(ctx).Errorf("Last hope in GetDbAlloc() failed.")
-		return a, err_a
+		return a, errAllocs
 	}
 	gotcha := false
-	b, err_b := tx.CreateBucketIfNotExists([]byte(netId))
-	if err_b != nil {
-		return a, err_b
+	b, errCrBk := tx.CreateBucketIfNotExists([]byte(netId))
+	if errCrBk != nil {
+		return a, errCrBk
 	}
 	for id, alloc := range allocs {
 		if !gotcha {
@@ -335,13 +356,13 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 			a = alloc
 			gotcha = true
 		}
-		value, err_m := json.Marshal(alloc)
-		if err_m != nil {
-			return a, err_m
+		value, errMrsh := json.Marshal(alloc)
+		if errMrsh != nil {
+			return a, errMrsh
 		}
-		err_p := b.Put([]byte(id), value)
-		if err_p != nil {
-			return a, err_p
+		errPut := b.Put([]byte(id), value)
+		if errPut != nil {
+			return a, errPut
 		}
 	}
 	if gotcha {
@@ -351,10 +372,10 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 }
 
 func (c *MtnState) FreeDbAlloc(ctx context.Context, netId string, id string) error {
-	tx, err_t := c.Db.Begin(true)
-	if err_t != nil {
-		log.G(ctx).Errorf("Cant start transaction inside FreeDbAlloc(), err: %s", err_t)
-		return err_t
+	tx, errTx := c.Db.Begin(true)
+	if errTx != nil {
+		log.G(ctx).Errorf("Cant start transaction inside FreeDbAlloc(), err: %s", errTx)
+		return errTx
 	}
 	defer tx.Rollback()
 	b := tx.Bucket([]byte(netId))
@@ -367,16 +388,16 @@ func (c *MtnState) FreeDbAlloc(ctx context.Context, netId string, id string) err
 		return err
 	}
 	a.Used = false
-	value, err_m := json.Marshal(a)
-	if err_m != nil {
-		return err_m
+	value, errMrsh := json.Marshal(a)
+	if errMrsh != nil {
+		return errMrsh
 	}
-	err_p := b.Put([]byte(id), value)
-	if err_p != nil {
-		return err_p
+	errPut := b.Put([]byte(id), value)
+	if errPut != nil {
+		return errPut
 	}
-	if err_commit := tx.Commit(); err_commit != nil {
-		return err_commit
+	if errCommit := tx.Commit(); errCommit != nil {
+		return errCommit
 	}
 	return nil
 }
