@@ -169,6 +169,7 @@ func TestContainer(t *testing.T) {
 	}
 
 	cfg := containerConfig{
+		BoxName:  "porto",
 		Root:     dir,
 		ID:       "IsolateLinuxApline",
 		Layer:    "testalpine",

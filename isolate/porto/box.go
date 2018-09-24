@@ -68,6 +68,7 @@ func (c *portoBoxConfig) ContainerRootDir(name, containerID string) string {
 
 // Box operates with Porto to launch containers
 type Box struct {
+	Name	string
 	config  *portoBoxConfig
 	GlobalState   isolate.GlobalState
 	journal *journal
@@ -181,7 +182,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	}
 
 	ctx, onClose := context.WithCancel(ctx)
+	name := "porto"
 	box := &Box{
+		Name:	name,
 		config:     config,
 		GlobalState:      gstate,
 		journal:    newJournal(),
@@ -304,11 +307,48 @@ func (b *Box) waitLoop(ctx context.Context) {
 		if err != nil {
 			log.G(ctx).Warnf("unable to list porto containers for gc: %v", err)
 		}
+		usedAllocations, errUsedAllocs := b.GlobalState.Mtn.UsedAllocations(ctx)
+		if errUsedAllocs != nil {
+			log.G(ctx).Errorf("Cant get UsedAllocations(). Err: %s", errUsedAllocs)
+			return
+		}
+		var ips []string
 		for _, name := range containerNames {
 			containerState, _ := portoConn.GetProperty(name, "state")
 			if containerState == "dead" {
-				log.G(ctx).Debugf("At gc state destroy container: %s", name)
+				log.G(ctx).Debugf("At gc state destroy dead container: %s", name)
 				portoConn.Destroy(name)
+			} else if containerState == "stopped" {
+				log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
+				portoConn.Destroy(name)
+			} else if containerState == "meta" {
+				continue
+			} else if containerState == "running" {
+				containerIp, _ := portoConn.GetProperty(name, "ip")
+				if len(containerIp) > 2 {
+					ips = append(ips, containerIp)
+				}
+			}
+		}
+		if len(usedAllocations) > 0 && len(ips) > 0 {
+			for i := 0; i < len(usedAllocations); i++ {
+				usedAllocation := usedAllocations[i]
+				for _, ip := range ips {
+					if usedAllocation.Ip == ip {
+						log.G(ctx).Debugf("At gc state we found that already runned container use used mtn allocation: %s. Its fine.", usedAllocation)
+						usedAllocations = append(usedAllocations[:i], usedAllocations[i+1:]...)
+						i--
+						break
+					}
+				}
+			}
+		}
+		if len(usedAllocations) > 0 {
+			log.G(ctx).Debugf("At gc state some allocation still marked as \"used\": %s. So lets free them.", usedAllocations)
+			for _, usedAllocation := range usedAllocations {
+				if usedAllocation.Box == b.Name {
+					b.GlobalState.Mtn.UnuseAlloc(ctx, usedAllocation.NetId, usedAllocation.Id)
+				}
 			}
 		}
 	}
@@ -538,6 +578,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	ID := b.appGenLabel(config.Name) + "_" + config.Args["--uuid"]
 	cfg := containerConfig{
+		BoxName:	b.Name,
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          layers,

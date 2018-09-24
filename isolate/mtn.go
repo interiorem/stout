@@ -61,6 +61,8 @@ type Allocation struct {
 	Hostname string
 	Ip string
 	Id string
+	NetId string
+	Box string
 	Used bool
 }
 
@@ -202,7 +204,7 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 				return false
 			}
 			if b.Get([]byte(alloc.Id)) == nil {
-				if buf, err := json.Marshal(Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, false}); err != nil {
+				if buf, err := json.Marshal(Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, netId, "", false}); err != nil {
 					log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
 					return false
 				} else if err := b.Put([]byte(alloc.Id), buf); err != nil {
@@ -261,7 +263,7 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 		return nil, rErr
 	}
 	for _, a := range jresp {
-		r[a.Network] = append(r[a.Network], Allocation{a.Porto.Net, a.Porto.Hostname, a.Porto.Ip, a.Id, false})
+		r[a.Network] = append(r[a.Network], Allocation{a.Porto.Net, a.Porto.Hostname, a.Porto.Ip, a.Id, a.Network, "", false})
 	}
 	log.G(logCtx).Debugf("GetAllocations() successfull ended with ContentLength size %d.", req.ContentLength)
 	return r, nil
@@ -269,35 +271,35 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 
 func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]Allocation, error) {
 	r := make(map[string]Allocation)
-	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	httpCtx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
 	defer cancel()
 	jsonBody := PostAllocreq{netid, c.Cfg.Ident, c.Cfg.SchedLabel}
-	txtBody, mrshErr := json.Marshal(jsonBody)
-	if mrshErr != nil {
-		return nil, mrshErr
+	txtBody, errMrsh := json.Marshal(jsonBody)
+	if errMrsh != nil {
+		return nil, errMrsh
 	}
 	for i := 0; i < c.Cfg.Allocbuffer; i++ {
-		req, nrErr := http.NewRequest("POST", c.Cfg.Url, bytes.NewReader(txtBody))
-		if nrErr != nil {
-			return nil, nrErr
+		req, errNewReq := http.NewRequest("POST", c.Cfg.Url, bytes.NewReader(txtBody))
+		if errNewReq != nil {
+			return nil, errNewReq
 		}
 		for header, value := range c.Cfg.Headers {
 			req.Header.Set(header, value)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		req = req.WithContext(ctx)
-		rh, doErr := http.DefaultClient.Do(req)
-		if doErr != nil {
-			return nil, doErr
+		req = req.WithContext(httpCtx)
+		reqHttp, errDo := http.DefaultClient.Do(req)
+		if errDo != nil {
+			return nil, errDo
 		}
-		jresp := RawAlloc{}
-		decoder := json.NewDecoder(rh.Body)
-		rErr := decoder.Decode(&jresp)
-		rh.Body.Close()
-		if rErr != nil {
-			return nil, rErr
+		jsonResp := RawAlloc{}
+		decoder := json.NewDecoder(reqHttp.Body)
+		errDecode := decoder.Decode(&jsonResp)
+		reqHttp.Body.Close()
+		if errDecode != nil {
+			return nil, errDecode
 		}
-		r[jresp.Id] = Allocation{jresp.Porto.Net, jresp.Porto.Hostname, jresp.Porto.Ip, jresp.Id, false}
+		r[jsonResp.Id] = Allocation{jsonResp.Porto.Net, jsonResp.Porto.Hostname, jsonResp.Porto.Ip, jsonResp.Id, netid, "", false}
 	}
 	log.G(ctx).Debugf("RequestAllocs() successfull ended with %s.", r)
 	return r, nil
@@ -315,7 +317,38 @@ func (c *MtnState) DbAllocIsFree(ctx context.Context, value []byte) bool {
 	return true
 }
 
-func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (Allocation, error) {
+func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, error) {
+	tx, errTx := c.Db.Begin(true)
+	var allocs []Allocation
+	if errTx != nil {
+		return allocs, errTx
+	}
+	defer tx.Rollback()
+	errBkLs := tx.ForEach(func(netId []byte, b *bolt.Bucket) error {
+		errAllocsLs := b.ForEach(func(allocId []byte, value []byte) error {
+			if c.DbAllocIsFree(ctx, value) {
+				return nil
+			}
+			log.G(ctx).Warnf("Found used alloc for net id %s with id %s: %s", netId, allocId, value)
+			var a Allocation
+			if errUnmrsh := json.Unmarshal(value, &a); errUnmrsh != nil {
+				return errUnmrsh
+			}
+			allocs = append(allocs, a)
+			return nil
+		})
+		return errAllocsLs
+	})
+	if errBkLs != nil {
+		return allocs, errBkLs
+	}
+	if errCommit := tx.Commit(); errCommit != nil {
+		return allocs, errCommit
+	}
+	return allocs, nil
+}
+
+func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string, box string) (Allocation, error) {
 	b := tx.Bucket([]byte(netId))
 	if b == nil {
 		return Allocation{}, fmt.Errorf("BUG inside GetDbAlloc()! Backet %s not exist!", netId)
@@ -328,6 +361,7 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 				return a, err
 			}
 			a.Used = true
+			a.Box = box
 			id := a.Id
 			value, errMrsh := json.Marshal(a)
 			if errMrsh != nil {
@@ -355,6 +389,7 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string) (A
 	for id, alloc := range allocs {
 		if !gotcha {
 			alloc.Used = true
+			alloc.Box = box
 			a = alloc
 			gotcha = true
 		}
@@ -463,14 +498,14 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	return nil
 }
 
-func (c *MtnState) UseAlloc(ctx context.Context, netId string) (Allocation, error) {
+func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string) (Allocation, error) {
 	tx, errTx := c.Db.Begin(true)
 	if errTx != nil {
 		log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", errTx)
 		return Allocation{}, errTx
 	}
 	defer tx.Rollback()
-	a, e := c.GetDbAlloc(ctx, tx, netId)
+	a, e := c.GetDbAlloc(ctx, tx, netId, box)
 	log.G(ctx).Debugf("UseAlloc(): a, e: %s, %s.", a, e)
 	if e != nil {
 		return Allocation{}, e
