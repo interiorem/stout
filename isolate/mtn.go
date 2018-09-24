@@ -70,6 +70,28 @@ type PostAllocreq struct {
 	Scheduler string `json:"scheduler"`
 }
 
+func SaveRename(src, dst string) error {
+	ioSrcDb, errSrcOpen := os.Open(src)
+	if errSrcOpen != nil {
+		return errSrcOpen
+	}
+	defer ioSrcDb.Close()
+	ioDstDb, errDstCreate := os.Create(dst)
+	if errDstCreate != nil {
+		return errDstCreate
+	}
+	defer ioDstDb.Close()
+	_, errCopy := io.Copy(ioSrcDb, ioDstDb)
+	if errCopy != nil {
+		return errCopy
+	}
+	errRemove := os.Remove(src)
+	if errRemove != nil {
+		return errRemove
+	}
+	return nil
+}
+
 func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 	c.Cfg.Enable = cfg.Mtn.Enable
 	if !c.Cfg.Enable {
@@ -118,29 +140,9 @@ func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 					return false
 				}
 				log.G(ctx).Errorf("DB file exist, size %d and cant be opened. Try to recreate.", fSize)
-				ioSrcDb, errSrcOpen := os.Open(c.Cfg.DbPath)
-				if errSrcOpen != nil {
-					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errSrcOpen)
-					return false
-				}
-				ioDstDb, errDstCreate := os.Create(corruptedBackupPath)
-				if errDstCreate != nil {
-					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errDstCreate)
-					ioSrcDb.Close()
-					return false
-				}
-				_, errCopy := io.Copy(ioSrcDb, ioDstDb)
-				if errCopy != nil {
-					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errCopy)
-					ioSrcDb.Close()
-					ioDstDb.Close()
-					return false
-				}
-				ioSrcDb.Close()
-				ioDstDb.Close()
-				errRemove := os.Remove(c.Cfg.DbPath)
-				if errRemove != nil {
-					log.G(ctx).Errorf("Cant remove old corrupted db file, err: %s", errRemove)
+				errMove := SaveRename(c.Cfg.DbPath, corruptedBackupPath)
+				if errMove != nil {
+					log.G(ctx).Errorf("Cant move corrupted db file, err: %s", errMove)
 					return false
 				}
 			} else {
