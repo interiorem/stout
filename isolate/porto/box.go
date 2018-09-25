@@ -355,7 +355,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 
 LOOP:
 	for {
-		log.G(ctx).Infof("next iteration of waitLoop will started after %d second of sleep.", b.config.WaitLoopStepSec)
+		log.G(ctx).Debugf("next iteration of waitLoop will started after %d second of sleep.", b.config.WaitLoopStepSec)
 		time.Sleep(time.Duration(b.config.WaitLoopStepSec) * time.Second)
 		if closed(portoConn) {
 			return
