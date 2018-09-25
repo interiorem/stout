@@ -323,7 +323,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 				portoConn.Destroy(name)
 			} else if containerState == "meta" {
 				continue
-			} else if containerState == "running" {
+			} else if containerState == "running" || containerState == "starting" {
 				containerIp, _ := portoConn.GetProperty(name, "ip")
 				if len(containerIp) > 2 {
 					ips = append(ips, containerIp)
