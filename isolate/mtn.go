@@ -258,6 +258,7 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 	r := make(map[string][]Allocation)
 	jresp := []RawAlloc{}
 	decoder := json.NewDecoder(rh.Body)
+	log.G(ctx).Debugf("reqHttp.Body from allocator getted in GetAllocations(): %s", decoder)
 	rErr := decoder.Decode(&jresp)
 	if rErr != nil {
 		return nil, rErr
@@ -296,7 +297,7 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 		jsonResp := RawAlloc{}
 		decoder := json.NewDecoder(reqHttp.Body)
 		errDecode := decoder.Decode(&jsonResp)
-		log.G(ctx).Debugf("reqHttp.Body from allocator getted in RequestAllocs(): %s", reqHttp.Body)
+		log.G(ctx).Debugf("reqHttp.Body from allocator getted in RequestAllocs(): %s", decoder)
 		reqHttp.Body.Close()
 		if errDecode != nil {
 			return nil, errDecode
@@ -332,7 +333,7 @@ func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, error) {
 			if c.DbAllocIsFree(ctx, value) {
 				return nil
 			}
-			log.G(ctx).Warnf("Found used alloc for net id %s with id %s: %s", netId, allocId, value)
+			log.G(ctx).Infof("Found used alloc for net id %s with id %s: %s", netId, allocId, value)
 			var a Allocation
 			if errUnmrsh := json.Unmarshal(value, &a); errUnmrsh != nil {
 				return errUnmrsh
