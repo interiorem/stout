@@ -344,12 +344,21 @@ func (b *Box) waitLoop(ctx context.Context) {
 			}
 		}
 		if len(usedAllocations) > 0 {
-			log.G(ctx).Debugf("At gc state some allocation still marked as \"used\": %s. So lets free them.", usedAllocations)
+			log.G(ctx).Debugf("At gc state for %s some allocation still marked as \"used\": %s. So lets free them.", b.Name, usedAllocations)
 			for _, usedAllocation := range usedAllocations {
 				if usedAllocation.Box == b.Name {
+					log.G(ctx).Debugf("Try free alloc with b.GlobalState.Mtn.UnuseAlloc(ctx, %s, %s)", usedAllocation.NetId, usedAllocation.Id)
 					b.GlobalState.Mtn.UnuseAlloc(ctx, usedAllocation.NetId, usedAllocation.Id)
 				}
 			}
+		}
+		// Now try clean unused volumes
+		volumes, errLv := portoConn.ListVolumes("", "")
+		if errLv != nil {
+			log.G(ctx).Debugf("At gc state for ListVolumes() we get that error: %s", errLv)
+		}
+		for _, volume := range volumes {
+			portoConn.UnlinkVolume(volume.Path, "***")
 		}
 	}
 
@@ -375,7 +384,6 @@ LOOP:
 				}
 			}
 		}
-
 
 		ourContainers := []string{}
 		b.muContainers.Lock()
@@ -546,7 +554,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	if b.GlobalState.Mtn.Cfg.Enable && profile.Network["mtn"] == "enable" {
 		err := b.GlobalState.Mtn.BindAllocs(ctx, profile.Network["netid"])
 		if err != nil {
-			return fmt.Errorf("Cant bind mtn alllocaton at spool with state: %s, and error: %s", b.GlobalState.Mtn, err)
+			return fmt.Errorf("Cant bind mtn alllocaton at spool with netid: %s, and error: %s", profile.Network["netid"], err)
 		}
 		log.G(ctx).Debugf("Successfully call b.GlobalState.Mtn.BindAllocs() at spool %s with project id %s.", name, profile.Network["netid"])
 	}

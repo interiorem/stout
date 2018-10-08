@@ -278,6 +278,7 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 	if errMrsh != nil {
 		return nil, errMrsh
 	}
+	log.G(ctx).Debugf("c.Cfg.Allocbuffer inside RequestAllocs() is %d.", c.Cfg.Allocbuffer)
 	for i := 0; i < c.Cfg.Allocbuffer; i++ {
 		req, errNewReq := http.NewRequest("POST", c.Cfg.Url, bytes.NewReader(txtBody))
 		if errNewReq != nil {
@@ -295,10 +296,12 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 		jsonResp := RawAlloc{}
 		decoder := json.NewDecoder(reqHttp.Body)
 		errDecode := decoder.Decode(&jsonResp)
+		log.G(ctx).Debugf("reqHttp.Body from allocator getted in RequestAllocs(): %s", reqHttp.Body)
 		reqHttp.Body.Close()
 		if errDecode != nil {
 			return nil, errDecode
 		}
+		log.G(ctx).Debugf("Allocation from allocator getted in RequestAllocs(): %s", jsonResp)
 		r[jsonResp.Id] = Allocation{jsonResp.Porto.Net, jsonResp.Porto.Hostname, jsonResp.Porto.Ip, jsonResp.Id, netid, "", false}
 	}
 	log.G(ctx).Debugf("RequestAllocs() successfull ended with %s.", r)
@@ -475,19 +478,24 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	if c.Cfg.Allocbuffer > fCount {
 		allocs, err := c.RequestAllocs(ctx, netId)
 		if err != nil {
+			log.G(ctx).Errorf("Cant do c.RequestAllocs(%s) inside BindAllocs(), err: %s", netId, err)
 			return err
 		}
+		log.G(ctx).Debugf("c.RequestAllocs(ctx, %s) end sucessfully with: %s.", netId, allocs)
 		b, errBk := tx.CreateBucketIfNotExists([]byte(netId))
 		if errBk != nil {
+			log.G(ctx).Errorf("Cant create bucket inside BindAllocs(), err: %s", errBk)
 			return errBk
 		}
 		for id, alloc := range allocs {
 			value, errMrsh := json.Marshal(alloc)
 			if errMrsh != nil {
+				log.G(ctx).Errorf("Cant Marshal(%s).", alloc)
 				return errMrsh
 			}
 			errPut := b.Put([]byte(id), value)
 			if errPut != nil {
+				log.G(ctx).Errorf("Cant b.Put(%s,%s)", id, value)
 				return errPut
 			}
 		}
