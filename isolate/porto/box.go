@@ -68,6 +68,7 @@ func (c *portoBoxConfig) ContainerRootDir(name, containerID string) string {
 
 // Box operates with Porto to launch containers
 type Box struct {
+	Name	string
 	config  *portoBoxConfig
 	GlobalState   isolate.GlobalState
 	journal *journal
@@ -181,7 +182,9 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	}
 
 	ctx, onClose := context.WithCancel(ctx)
+	name := "porto"
 	box := &Box{
+		Name:	name,
 		config:     config,
 		GlobalState:      gstate,
 		journal:    newJournal(),
@@ -304,18 +307,64 @@ func (b *Box) waitLoop(ctx context.Context) {
 		if err != nil {
 			log.G(ctx).Warnf("unable to list porto containers for gc: %v", err)
 		}
+		usedAllocations, errUsedAllocs := b.GlobalState.Mtn.UsedAllocations(ctx)
+		if errUsedAllocs != nil {
+			log.G(ctx).Errorf("Cant get UsedAllocations(). Err: %s", errUsedAllocs)
+			return
+		}
+		var ips []string
 		for _, name := range containerNames {
 			containerState, _ := portoConn.GetProperty(name, "state")
 			if containerState == "dead" {
-				log.G(ctx).Debugf("At gc state destroy container: %s", name)
+				log.G(ctx).Debugf("At gc state destroy dead container: %s", name)
 				portoConn.Destroy(name)
+			} else if containerState == "stopped" {
+				log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
+				portoConn.Destroy(name)
+			} else if containerState == "meta" {
+				continue
+			} else if containerState == "running" || containerState == "starting" {
+				containerIp, _ := portoConn.GetProperty(name, "ip")
+				if len(containerIp) > 2 {
+					ips = append(ips, containerIp)
+				}
 			}
+		}
+		if len(usedAllocations) > 0 && len(ips) > 0 {
+			for i := 0; i < len(usedAllocations); i++ {
+				usedAllocation := usedAllocations[i]
+				for _, ip := range ips {
+					if usedAllocation.Ip == ip {
+						log.G(ctx).Debugf("At gc state we found that already runned container use used mtn allocation: %s. Its fine.", usedAllocation)
+						usedAllocations = append(usedAllocations[:i], usedAllocations[i+1:]...)
+						i--
+						break
+					}
+				}
+			}
+		}
+		if len(usedAllocations) > 0 {
+			log.G(ctx).Debugf("At gc state for %s some allocation still marked as \"used\": %s. So lets free them.", b.Name, usedAllocations)
+			for _, usedAllocation := range usedAllocations {
+				if usedAllocation.Box == b.Name {
+					log.G(ctx).Debugf("Try free alloc with b.GlobalState.Mtn.UnuseAlloc(ctx, %s, %s)", usedAllocation.NetId, usedAllocation.Id)
+					b.GlobalState.Mtn.UnuseAlloc(ctx, usedAllocation.NetId, usedAllocation.Id)
+				}
+			}
+		}
+		// Now try clean unused volumes
+		volumes, errLv := portoConn.ListVolumes("", "")
+		if errLv != nil {
+			log.G(ctx).Debugf("At gc state for ListVolumes() we get that error: %s", errLv)
+		}
+		for _, volume := range volumes {
+			portoConn.UnlinkVolume(volume.Path, "***")
 		}
 	}
 
 LOOP:
 	for {
-		log.G(ctx).Infof("next iteration of waitLoop will started after %d second of sleep.", b.config.WaitLoopStepSec)
+		log.G(ctx).Debugf("next iteration of waitLoop will started after %d second of sleep.", b.config.WaitLoopStepSec)
 		time.Sleep(time.Duration(b.config.WaitLoopStepSec) * time.Second)
 		if closed(portoConn) {
 			return
@@ -335,7 +384,6 @@ LOOP:
 				}
 			}
 		}
-
 
 		ourContainers := []string{}
 		b.muContainers.Lock()
@@ -506,7 +554,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	if b.GlobalState.Mtn.Cfg.Enable && profile.Network["mtn"] == "enable" {
 		err := b.GlobalState.Mtn.BindAllocs(ctx, profile.Network["netid"])
 		if err != nil {
-			return fmt.Errorf("Cant bind mtn alllocaton at spool with state: %s, and error: %s", b.GlobalState.Mtn, err)
+			return fmt.Errorf("Cant bind mtn alllocaton at spool with netid: %s, and error: %s", profile.Network["netid"], err)
 		}
 		log.G(ctx).Debugf("Successfully call b.GlobalState.Mtn.BindAllocs() at spool %s with project id %s.", name, profile.Network["netid"])
 	}
@@ -538,6 +586,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	ID := b.appGenLabel(config.Name) + "_" + config.Args["--uuid"]
 	cfg := containerConfig{
+		BoxName:	b.Name,
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          layers,
