@@ -307,11 +307,12 @@ func (b *Box) waitLoop(ctx context.Context) {
 		if err != nil {
 			log.G(ctx).Warnf("unable to list porto containers for gc: %v", err)
 		}
-		usedAllocations, errUsedAllocs := b.GlobalState.Mtn.UsedAllocations(ctx)
+		usedAllocations, stat, errUsedAllocs := b.GlobalState.Mtn.UsedAllocations(ctx)
 		if errUsedAllocs != nil {
-			log.G(ctx).Errorf("Cant get UsedAllocations(). Err: %s", errUsedAllocs)
+			log.G(ctx).Errorf("Cant get UsedAllocations(). Err: %s. Stat: %s.", errUsedAllocs, stat)
 			return
 		}
+		log.G(ctx).Debugf("Allocation statistic: %s.", stat)
 		var ips []string
 		for _, name := range containerNames {
 			containerState, _ := portoConn.GetProperty(name, "state")

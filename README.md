@@ -26,10 +26,14 @@ See configuration example:
     "mtn": {
         "enable": false,
         "allocbuffer": 4,
+        "label": "somelabelforallocation",
+        "ident": "someidentforallocation",
         "url": "http://net.allocator.service.local/api",
         "headers": {
           "Authorization": "OAuth youroauthkeyfornetallocator"
-        }
+        },
+        "dbpath": "/path/to/state/db",
+        "allowlocalstate": false
     },
     "isolate": {
         "porto": {

@@ -72,6 +72,12 @@ type PostAllocreq struct {
 	Scheduler string `json:"scheduler"`
 }
 
+type AllocsStat struct {
+	Total int
+	Free int
+	Used int
+}
+
 func SaveRename(src, dst string) error {
 	ioSrcDb, errSrcOpen := os.Open(src)
 	if errSrcOpen != nil {
@@ -179,20 +185,18 @@ func (c *MtnState) CfgInit(ctx context.Context, cfg *Config) bool {
 	return true
 }
 
-func (c *MtnState) PoolInit(ctx context.Context) bool {
+func (c *MtnState) PoolInit(ctx context.Context) error {
 	if !c.Cfg.Enable {
-		return true
+		return nil
 	}
 	allAllocs, err := c.GetAllocations(ctx)
 	if err != nil {
-		log.G(ctx).Errorf("Cant init pool inside PoolInit(), err: %s", err)
-		return false
+		return &MtnError{fmt.Sprint("Cant init pool inside PoolInit(), err: %s", err), ErrIpbr}
 	}
 
 	tx, err := c.Db.Begin(true)
 	if err != nil {
-		log.G(ctx).Errorf("Cant start transaction inside PoolInit(), err: %s", err)
-		return false
+		return &MtnError{fmt.Sprint("Cant start transaction inside PoolInit(), err: %s", err), ErrStdb}
 	}
 	defer tx.Rollback()
 
@@ -200,68 +204,68 @@ func (c *MtnState) PoolInit(ctx context.Context) bool {
 		for _, alloc := range allocs {
 			b, err := tx.CreateBucketIfNotExists([]byte(netId))
 			if err != nil {
-				log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
-				return false
+				return &MtnError{fmt.Sprint("Cant continue transaction inside PoolInit(), err: %s", err), ErrStdb}
 			}
 			if b.Get([]byte(alloc.Id)) == nil {
 				if buf, err := json.Marshal(Allocation{alloc.Net, alloc.Hostname, alloc.Ip, alloc.Id, netId, "", false}); err != nil {
-					log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
-					return false
+					return &MtnError{fmt.Sprint("Cant continue transaction inside PoolInit(), err: %s", err), ErrStdb}
 				} else if err := b.Put([]byte(alloc.Id), buf); err != nil {
-					log.G(ctx).Errorf("Cant continue transaction inside PoolInit(), err: %s", err)
-					return false
+					return &MtnError{fmt.Sprint("Cant continue transaction inside PoolInit(), err: %s", err), ErrStdb}
 				}
 			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		log.G(ctx).Errorf("Cant commit transaction inside PoolInit(), err: %s", err)
-		return false
+		return &MtnError{fmt.Sprint("Cant commit transaction inside PoolInit(), err: %s", err), ErrStdb}
 	}
-	return true
+	return nil
 }
 
 func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocation, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
 	defer cancel()
-	req, nrErr := http.NewRequest("GET", c.Cfg.Url + "?scheduler=" + c.Cfg.SchedLabel, nil)
-	if nrErr != nil {
-		return nil, nrErr
+	req, errReq := http.NewRequest("GET", c.Cfg.Url + "?scheduler=" + c.Cfg.SchedLabel, nil)
+	if errReq != nil {
+		return nil, errReq
 	}
 	for header, value := range c.Cfg.Headers {
 		req.Header.Set(header, value)
 	}
 	req = req.WithContext(ctx)
-	rh, doErr := http.DefaultClient.Do(req)
-	if doErr != nil {
+	rh, errDo := http.DefaultClient.Do(req)
+	var bufBody bytes.Buffer
+	io.Copy(&bufBody, rh.Body)
+	if errDo != nil {
 		if rh.StatusCode == 400 {
 			errResp := AllocError{}
 			decoder := json.NewDecoder(rh.Body)
-			rErr := decoder.Decode(&errResp)
-			if rErr != nil {
+			errDecode := decoder.Decode(&errResp)
+			if errDecode != nil {
 				return nil, fmt.Errorf(
-					"Cant allocate. Request error: %s. Internal error: %s. Caused: %s.",
-					doErr,
+					"Cant allocate. Request error: %s. Internal error: %s. Caused: %s. Raw body: %s.",
+					errDo,
 					errResp.Message[0],
 					errResp.Cause.Message[0],
+					bufBody,
 				)
 			}
 			return nil, fmt.Errorf(
-				"Cant allocate. Request error: %s. Body parse error: %s.",
-				doErr,
-				rErr,
+				"Cant allocate. Request error: %s. Body parse error: %s. Raw body: %s.",
+				errDo,
+				errDecode,
+				bufBody,
 			)
 		}
-		return nil, doErr
+		return nil, errDo
 	}
 	defer rh.Body.Close()
 	r := make(map[string][]Allocation)
 	jresp := []RawAlloc{}
 	decoder := json.NewDecoder(rh.Body)
-	log.G(ctx).Debugf("reqHttp.Body from allocator getted in GetAllocations(): %s", decoder)
-	rErr := decoder.Decode(&jresp)
-	if rErr != nil {
-		return nil, rErr
+	log.G(ctx).Debugf("reqHttp.Body from allocator getted in GetAllocations(): %s", bufBody)
+	errDecode := decoder.Decode(&jresp)
+	if errDecode != nil {
+		return nil, errDecode
 	}
 	for _, a := range jresp {
 		r[a.Network] = append(r[a.Network], Allocation{a.Porto.Net, a.Porto.Hostname, a.Porto.Ip, a.Id, a.Network, "", false})
@@ -291,13 +295,16 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 		req.Header.Set("Content-Type", "application/json")
 		req = req.WithContext(httpCtx)
 		reqHttp, errDo := http.DefaultClient.Do(req)
+		var bufBody bytes.Buffer
+		io.Copy(&bufBody, reqHttp.Body)
 		if errDo != nil {
+			log.G(ctx).Errorf("Inside RequestAllocs(), erro: %s. Body: %s.", errDo, bufBody)
 			return nil, errDo
 		}
 		jsonResp := RawAlloc{}
 		decoder := json.NewDecoder(reqHttp.Body)
 		errDecode := decoder.Decode(&jsonResp)
-		log.G(ctx).Debugf("reqHttp.Body from allocator getted in RequestAllocs(): %s", decoder)
+		log.G(ctx).Debugf("RequestAllocs() reqHttp.Body from allocator getted in RequestAllocs(): %s", bufBody)
 		reqHttp.Body.Close()
 		if errDecode != nil {
 			return nil, errDecode
@@ -321,19 +328,23 @@ func (c *MtnState) DbAllocIsFree(ctx context.Context, value []byte) bool {
 	return true
 }
 
-func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, error) {
+func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, AllocsStat, error) {
 	tx, errTx := c.Db.Begin(true)
 	var allocs []Allocation
+	stat := AllocsStat{0, 0, 0}
 	if errTx != nil {
-		return allocs, errTx
+		return allocs, stat, errTx
 	}
 	defer tx.Rollback()
 	errBkLs := tx.ForEach(func(netId []byte, b *bolt.Bucket) error {
 		errAllocsLs := b.ForEach(func(allocId []byte, value []byte) error {
+			stat.Total =+ 1
 			if c.DbAllocIsFree(ctx, value) {
+				stat.Free =+ 1
 				return nil
 			}
 			log.G(ctx).Infof("Found used alloc for net id %s with id %s: %s", netId, allocId, value)
+			stat.Used =+ 1
 			var a Allocation
 			if errUnmrsh := json.Unmarshal(value, &a); errUnmrsh != nil {
 				return errUnmrsh
@@ -344,12 +355,12 @@ func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, error) {
 		return errAllocsLs
 	})
 	if errBkLs != nil {
-		return allocs, errBkLs
+		return allocs, stat, errBkLs
 	}
 	if errCommit := tx.Commit(); errCommit != nil {
-		return allocs, errCommit
+		return allocs, stat, errCommit
 	}
-	return allocs, nil
+	return allocs, stat, nil
 }
 
 func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string, box string) (Allocation, error) {
@@ -379,7 +390,7 @@ func (c *MtnState) GetDbAlloc(ctx context.Context, tx *bolt.Tx, netId string, bo
 		}
 	}
 	fcounter, errCnt := c.CountFreeAllocs(ctx, tx, netId)
-	log.G(ctx).Errorf("Normaly we must never be in GetDbAlloc() at that point. But ok, lets try fix situation. Free count for that netId %s is %d (possible counter error: %s).", netId, fcounter, errCnt)
+	log.G(ctx).Warnf("Normaly we must never be in GetDbAlloc() at that point. But ok, lets try fix situation. Free count for that netId %s is %d (possible counter error: %s).", netId, fcounter, errCnt)
 	allocs, errAllocs := c.RequestAllocs(ctx, netId)
 	if errAllocs != nil {
 		log.G(ctx).Errorf("Last hope in GetDbAlloc() failed.")

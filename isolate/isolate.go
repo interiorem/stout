@@ -72,6 +72,7 @@ type (
 			Label string `json:"label,omitempty"`
 			Ident string `json:"ident,omitempty"`
 			DbPath string `json:"dbpath,omitempty"`
+			AllowLocalState bool `json:"allowlocalstate,omitempty"`
 			Headers map[string]string `json:"headers,omitempty"`
 		} `json:"mtn,omitempty"`
 	}
