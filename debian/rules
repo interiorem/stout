@@ -20,8 +20,8 @@ override_dh_auto_build:
 	export GOPATH=${CPWD}/debian/tmp/go
 	mkdir -p ${CPWD}/debian/tmp/go/src/github.com/noxiouz
 	ln -s ${CPWD} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout
-
-	GOPATH=${CPWD}/debian/tmp/go go build ${LDFLAGS} -o ${NAME} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/cmd/stout/main.go
+	GOTOOLDIR=${CPWD}/debian/tmp/go/src/github.com/noxiouz/vendor GOPATH=${CPWD}/debian/tmp/go go get -d go.etcd.io/bbolt/...
+	GOTOOLDIR=${CPWD}/debian/tmp/go/src/github.com/noxiouz/vendor GOPATH=${CPWD}/debian/tmp/go go build ${LDFLAGS} -o ${NAME} ${CPWD}/debian/tmp/go/src/github.com/noxiouz/stout/cmd/stout/main.go
 
 override_dh_auto_test:
 	@echo "no tests could be run during build"

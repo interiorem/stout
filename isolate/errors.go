@@ -37,3 +37,22 @@ var (
 var (
 	ErrSpawningCancelled = errors.New("spawning has been cancelled")
 )
+
+const (
+	ErrStdb = iota
+	ErrIpbr
+	ErrUnkn
+)
+
+type MtnError struct {
+	err string
+	Errno int
+}
+
+func (e *MtnError) Error() string {
+	return e.err
+}
+
+func (e *MtnError) GetErrno() int {
+	return e.Errno
+}

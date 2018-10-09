@@ -36,8 +36,13 @@ func New(ctx context.Context, configuration *isolate.Config) (*Daemon, error) {
 	if !d.State.Mtn.CfgInit(ctx, configuration) {
 		return nil, fmt.Errorf("%s ERROR: Cant do cfgInit() inside daemon.New() for MTN with configuration: %s", time.Now().UTC().Format(time.RFC3339), configuration)
 	}
-	if !d.State.Mtn.PoolInit(ctx) {
-		return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), d.State.Mtn)
+	errInited := d.State.Mtn.PoolInit(ctx)
+	if errInited != nil {
+		if errInited.(*isolate.MtnError).Errno == isolate.ErrIpbr && configuration.Mtn.AllowLocalState == true {
+			log.G(ctx).WithError(errInited).Warn("Cant get allocations from remote service, run with local allocation.")
+		} else {
+			return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), errInited)
+		}
 	}
 
 	boxTypes := map[string]struct{}{}
