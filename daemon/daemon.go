@@ -41,7 +41,7 @@ func New(ctx context.Context, configuration *isolate.Config) (*Daemon, error) {
 		if errInited.(*isolate.MtnError).Errno == isolate.ErrIpbr && configuration.Mtn.AllowLocalState == true {
 			log.G(ctx).WithError(errInited).Warn("Cant get allocations from remote service, run with local allocation.")
 		} else {
-			return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), d.State.Mtn)
+			return nil, fmt.Errorf("%s ERROR: Cant do poolInit() inside daemon.New() for MTN: %s", time.Now().UTC().Format(time.RFC3339), errInited)
 		}
 	}
 

@@ -76,6 +76,7 @@ type AllocsStat struct {
 	Total int
 	Free int
 	Used int
+	MtnEnabled bool
 }
 
 func SaveRename(src, dst string) error {
@@ -234,11 +235,11 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 	req = req.WithContext(ctx)
 	rh, errDo := http.DefaultClient.Do(req)
 	var bufBody bytes.Buffer
-	io.Copy(&bufBody, rh.Body)
+	Body := io.TeeReader(rh.Body, &bufBody)
 	if errDo != nil {
 		if rh.StatusCode == 400 {
 			errResp := AllocError{}
-			decoder := json.NewDecoder(rh.Body)
+			decoder := json.NewDecoder(Body)
 			errDecode := decoder.Decode(&errResp)
 			if errDecode != nil {
 				return nil, fmt.Errorf(
@@ -246,14 +247,14 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 					errDo,
 					errResp.Message[0],
 					errResp.Cause.Message[0],
-					bufBody,
+					&bufBody,
 				)
 			}
 			return nil, fmt.Errorf(
 				"Cant allocate. Request error: %s. Body parse error: %s. Raw body: %s.",
 				errDo,
 				errDecode,
-				bufBody,
+				&bufBody,
 			)
 		}
 		return nil, errDo
@@ -261,8 +262,8 @@ func (c *MtnState) GetAllocations(logCtx context.Context) (map[string][]Allocati
 	defer rh.Body.Close()
 	r := make(map[string][]Allocation)
 	jresp := []RawAlloc{}
-	decoder := json.NewDecoder(rh.Body)
-	log.G(ctx).Debugf("reqHttp.Body from allocator getted in GetAllocations(): %s", bufBody)
+	decoder := json.NewDecoder(Body)
+	log.G(ctx).Debugf("reqHttp.Body from allocator getted in GetAllocations(): %s", &bufBody)
 	errDecode := decoder.Decode(&jresp)
 	if errDecode != nil {
 		return nil, errDecode
@@ -296,15 +297,15 @@ func (c *MtnState) RequestAllocs(ctx context.Context, netid string) (map[string]
 		req = req.WithContext(httpCtx)
 		reqHttp, errDo := http.DefaultClient.Do(req)
 		var bufBody bytes.Buffer
-		io.Copy(&bufBody, reqHttp.Body)
+		Body := io.TeeReader(reqHttp.Body, &bufBody)
 		if errDo != nil {
-			log.G(ctx).Errorf("Inside RequestAllocs(), erro: %s. Body: %s.", errDo, bufBody)
+			log.G(ctx).Errorf("Inside RequestAllocs(), erro: %s. Body: %s.", errDo, &bufBody)
 			return nil, errDo
 		}
 		jsonResp := RawAlloc{}
-		decoder := json.NewDecoder(reqHttp.Body)
+		decoder := json.NewDecoder(Body)
 		errDecode := decoder.Decode(&jsonResp)
-		log.G(ctx).Debugf("RequestAllocs() reqHttp.Body from allocator getted in RequestAllocs(): %s", bufBody)
+		log.G(ctx).Debugf("RequestAllocs() reqHttp.Body from allocator getted in RequestAllocs(): %s", &bufBody)
 		reqHttp.Body.Close()
 		if errDecode != nil {
 			return nil, errDecode
@@ -329,22 +330,25 @@ func (c *MtnState) DbAllocIsFree(ctx context.Context, value []byte) bool {
 }
 
 func (c *MtnState) UsedAllocations(ctx context.Context) ([]Allocation, AllocsStat, error) {
-	tx, errTx := c.Db.Begin(true)
 	var allocs []Allocation
-	stat := AllocsStat{0, 0, 0}
+	stat := AllocsStat{0, 0, 0, c.Cfg.Enable}
+	if !c.Cfg.Enable {
+		return allocs, stat, nil
+	}
+	tx, errTx := c.Db.Begin(true)
 	if errTx != nil {
 		return allocs, stat, errTx
 	}
 	defer tx.Rollback()
 	errBkLs := tx.ForEach(func(netId []byte, b *bolt.Bucket) error {
 		errAllocsLs := b.ForEach(func(allocId []byte, value []byte) error {
-			stat.Total =+ 1
+			stat.Total++
 			if c.DbAllocIsFree(ctx, value) {
-				stat.Free =+ 1
+				stat.Free++
 				return nil
 			}
 			log.G(ctx).Infof("Found used alloc for net id %s with id %s: %s", netId, allocId, value)
-			stat.Used =+ 1
+			stat.Used++
 			var a Allocation
 			if errUnmrsh := json.Unmarshal(value, &a); errUnmrsh != nil {
 				return errUnmrsh
