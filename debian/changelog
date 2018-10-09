@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.0.9) unstable; urgency=low
+
+  * mtn: add option for try run with local mtn state
+  * mtn: tune logging
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Tue, 09 Oct 2018 19:14:51 +0300
+
 cocaine-isolate-daemon (0.2.0.8) unstable; urgency=low
 
   * mtn: bugfixes abd impove logging
