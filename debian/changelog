@@ -1,3 +1,11 @@
+cocaine-isolate-daemon (0.2.0.8) unstable; urgency=low
+
+  * mtn: bugfixes abd impove logging
+  * update Build-Depends section
+  * isolate(porto): improve porto box wait loop gc stage and add volumes cleanup
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Tue, 09 Oct 2018 11:56:55 +0300
+
 cocaine-isolate-daemon (0.2.0.7) unstable; urgency=low
 
   * mtn: switch mtn state to boltdb
