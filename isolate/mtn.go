@@ -460,13 +460,13 @@ func (c *MtnState) FreeDbAlloc(ctx context.Context, netId string, id string) err
 
 func (c *MtnState) CountFreeAllocs(ctx context.Context, tx *bolt.Tx, netId string) (int, error) {
 	b, errBk := tx.CreateBucketIfNotExists([]byte(netId))
-	if errBk == nil {
+	if errBk != nil {
 		return 0, errBk
 	}
 	counter := 0
 	e := b.ForEach(func(_, v []byte) error {
 		if c.DbAllocIsFree(ctx, v) {
-			counter+=1
+			counter++
 		}
 		return nil
 	})
