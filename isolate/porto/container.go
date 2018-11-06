@@ -28,6 +28,7 @@ type container struct {
 	volume       Volume
 	extraVolumes []Volume
 	output       io.Writer
+	VolumeLabel  string
 
 	mtn               bool
 	netId             string
@@ -67,6 +68,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 		volume:           volume,
 		extraVolumes:     extravolumes,
 		output:           ioutil.Discard,
+		VolumeLabel:      cfg.VolumeLabel,
 
 		mtn:              cfg.Mtn,
 		netId:            cfg.Network["netid"],

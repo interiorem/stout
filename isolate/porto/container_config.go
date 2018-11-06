@@ -108,13 +108,14 @@ type containerConfig struct {
 	VolumeBackend   string
 	Mtn             bool
 	MtnAllocationId string
+	VolumeLabel     string
 }
 
 func (c *containerConfig) CreateRootVolume(ctx context.Context, portoConn porto.API) (Volume, error) {
 	properties := map[string]string{
 		"backend": c.VolumeBackend,
 		"layers":  c.Layer,
-		"private": "cocaine-app",
+		"private": c.VolumeLabel,
 	}
 
 	logger := log.G(ctx).WithField("container", c.ID)

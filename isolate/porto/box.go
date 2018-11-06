@@ -41,17 +41,18 @@ type portoBoxConfig struct {
 	// Path to a journal file
 	Journal string `json:"journal"`
 
-	SpawnConcurrency   uint              `json:"concurrency"`
-	RegistryAuth       map[string]string `json:"registryauth"`
-	DialRetries        int               `json:"dialretries"`
-	CleanupEnabled     bool              `json:"cleanupenabled"`
-	SetImgURI          bool              `json:"setimguri"`
-	WeakEnabled        bool              `json:"weakenabled"`
-	Gc                 bool              `json:"gc"`
-	WaitLoopStepSec    uint              `json:"waitloopstepsec"`
-	DefaultUlimits     string            `json:"defaultulimits"`
-	VolumeBackend      string            `json:"volumebackend"`
-	DefaultResolvConf  string            `json:"defaultresolv_conf"`
+	SpawnConcurrency      uint              `json:"concurrency"`
+	RegistryAuth          map[string]string `json:"registryauth"`
+	DialRetries           int               `json:"dialretries"`
+	CleanupEnabled        bool              `json:"cleanupenabled"`
+	SetImgURI             bool              `json:"setimguri"`
+	WeakEnabled           bool              `json:"weakenabled"`
+	Gc                    bool              `json:"gc"`
+	WaitLoopStepSec       uint              `json:"waitloopstepsec"`
+	DefaultUlimits        string            `json:"defaultulimits"`
+	VolumeBackend         string            `json:"volumebackend"`
+	DefaultResolvConf     string            `json:"defaultresolv_conf"`
+	CocaineAppVolumeLabel string            `json:"cocaineappvolumelabel"`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -92,13 +93,14 @@ const defaultVolumeBackend = "overlay"
 func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
 	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
-		SpawnConcurrency: 5,
-		DialRetries:      10,
-		WaitLoopStepSec:  10,
+		SpawnConcurrency:      5,
+		DialRetries:           10,
+		WaitLoopStepSec:       10,
 
-		CleanupEnabled: true,
-		WeakEnabled:    false,
-		Gc:             true,
+		CleanupEnabled:        true,
+		WeakEnabled:           false,
+		Gc:                    true,
+		CocaineAppVolumeLabel: "cocaine-app",
 	}
 	decoderConfig := mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
@@ -357,9 +359,12 @@ func (b *Box) waitLoop(ctx context.Context) {
 		volumes, errLv := portoConn.ListVolumes("", "")
 		if errLv != nil {
 			log.G(ctx).Debugf("At gc state for ListVolumes() we get that error: %s", errLv)
-		}
-		for _, volume := range volumes {
-			portoConn.UnlinkVolume(volume.Path, "***")
+		} else {
+			for _, volume := range volumes {
+				if volume.Properties["Private"] == b.config.CocaineAppVolumeLabel {
+					portoConn.UnlinkVolume(volume.Path, "***")
+				}
+			}
 		}
 	}
 
@@ -595,6 +600,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 		CleanupEnabled: b.config.CleanupEnabled,
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,
+		VolumeLabel:    b.config.CocaineAppVolumeLabel,
 		execInfo: execInfo{
 			Profile:     profile,
 			name:        config.Name,
