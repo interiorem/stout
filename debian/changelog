@@ -1,3 +1,9 @@
+cocaine-isolate-daemon (0.2.1.1) unstable; urgency=low
+
+  * isolate(porto): Check that volume have cocaine app label before vunlink at GC state.
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Tue, 06 Nov 2018 18:23:28 +0300
+
 cocaine-isolate-daemon (0.2.1.0) unstable; urgency=low
 
   * mtn: fix free allocation counting
