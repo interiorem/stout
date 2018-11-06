@@ -362,7 +362,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 			log.G(ctx).Debugf("At gc state for ListVolumes() we get that error: %s", errLv)
 		} else {
 			for _, volume := range volumes {
-				if volume.Properties["Private"] == "cocaine-app" {
+				if volume.Properties["Private"] == b.config.CocaineAppVolumeLabel {
 					portoConn.UnlinkVolume(volume.Path, "***")
 				}
 			}
