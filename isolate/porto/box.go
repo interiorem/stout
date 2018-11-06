@@ -357,7 +357,6 @@ func (b *Box) waitLoop(ctx context.Context) {
 		}
 		// Now try clean unused volumes
 		volumes, errLv := portoConn.ListVolumes("", "")
-		//volumes, errLv := portoConn.ListVolumeProperties()
 		if errLv != nil {
 			log.G(ctx).Debugf("At gc state for ListVolumes() we get that error: %s", errLv)
 		} else {
