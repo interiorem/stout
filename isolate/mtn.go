@@ -540,11 +540,11 @@ func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string) (Allo
 	return a, nil
 }
 
-func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string) {
+func (c *MtnState) UnuseAlloc(ctx context.Context, netId string, id string, ident string) {
 	err := c.FreeDbAlloc(ctx, netId, id)
 	if err != nil {
 		log.G(ctx).Errorf("BUG inside FreeDbAlloc()! error returned: %s.", err)
 	}
-	log.G(ctx).Debugf("UnuseAlloc() successfuly for: %s %s.", netId, id)
+	log.G(ctx).Debugf("UnuseAlloc() successfuly for: %s %s.", netId, id, ident)
 }
 

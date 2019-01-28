@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ type container struct {
 	State          isolate.GlobalState
 	uuid           string
 	containerID    string
+	mtnIp          string
 	rootDir        string
 	cleanupEnabled bool
 	SetImgURI      bool
@@ -73,6 +75,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 		mtn:              cfg.Mtn,
 		netId:            cfg.Network["netid"],
 		mtnAllocationId:  cfg.MtnAllocationId,
+		mtnIp:            cfg.MtnIp,
 	}
 	return cnt, nil
 }
@@ -91,9 +94,6 @@ func (c *container) Kill() (err error) {
 		return err
 	}
 	defer portoConn.Close()
-	if c.mtn {
-		defer c.State.Mtn.UnuseAlloc(c.ctx, c.netId, c.mtnAllocationId)
-	}
 	defer c.Cleanup(portoConn)
 
 	// After Kill the container must be in `dead` state
@@ -129,6 +129,9 @@ func (c *container) Kill() (err error) {
 }
 
 func (c *container) Cleanup(portoConn porto.API) {
+	if c.mtn {
+		defer c.State.Mtn.UnuseAlloc(c.ctx, c.netId, c.mtnAllocationId, strings.Join([]string{c.mtnIp, c.containerID}, " "))
+	}
 	if !c.cleanupEnabled {
 		return
 	}

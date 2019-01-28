@@ -108,6 +108,7 @@ type containerConfig struct {
 	VolumeBackend   string
 	Mtn             bool
 	MtnAllocationId string
+	MtnIp		string
 	VolumeLabel     string
 }
 
@@ -294,6 +295,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 			properties["ip"] = alloc.Ip
 			c.Mtn = true
 			c.MtnAllocationId = alloc.Id
+			c.MtnIp = alloc.Ip
 		}
 	}
 
