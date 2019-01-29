@@ -522,7 +522,7 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 	return nil
 }
 
-func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string) (Allocation, error) {
+func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string, ident string) (Allocation, error) {
 	tx, errTx := c.Db.Begin(true)
 	if errTx != nil {
 		log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", errTx)
@@ -530,7 +530,7 @@ func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string) (Allo
 	}
 	defer tx.Rollback()
 	a, e := c.GetDbAlloc(ctx, tx, netId, box)
-	log.G(ctx).Debugf("UseAlloc(): a, e: %s, %s.", a, e)
+	log.G(ctx).Debugf("UseAlloc(): a, e: %s, %s. By %s.", a, e, ident)
 	if e != nil {
 		return Allocation{}, e
 	}
