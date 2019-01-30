@@ -108,6 +108,7 @@ type containerConfig struct {
 	VolumeBackend   string
 	Mtn             bool
 	MtnAllocationId string
+	MtnIp		string
 	VolumeLabel     string
 }
 
@@ -284,7 +285,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 		properties["net"] = pickNetwork(c.NetworkMode)
 	} else {
 		if c.Network["mtn"] == "enable" {
-			alloc, err := c.State.Mtn.UseAlloc(ctx, string(c.Network["netid"]), c.BoxName)
+			alloc, err := c.State.Mtn.UseAlloc(ctx, string(c.Network["netid"]), c.BoxName, c.ID)
 			if err != nil {
 				logger.WithError(err).Errorf("get error from c.State.Mtn.UseAlloc, with netid: %s", c.Network["netid"])
 				return err
@@ -294,6 +295,7 @@ func (c *containerConfig) CreateContainer(ctx context.Context, portoConn porto.A
 			properties["ip"] = alloc.Ip
 			c.Mtn = true
 			c.MtnAllocationId = alloc.Id
+			c.MtnIp = alloc.Ip
 		}
 	}
 

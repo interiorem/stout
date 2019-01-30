@@ -351,7 +351,7 @@ func (b *Box) waitLoop(ctx context.Context) {
 			for _, usedAllocation := range usedAllocations {
 				if usedAllocation.Box == b.Name {
 					log.G(ctx).Debugf("Try free alloc with b.GlobalState.Mtn.UnuseAlloc(ctx, %s, %s)", usedAllocation.NetId, usedAllocation.Id)
-					b.GlobalState.Mtn.UnuseAlloc(ctx, usedAllocation.NetId, usedAllocation.Id)
+					b.GlobalState.Mtn.UnuseAlloc(ctx, usedAllocation.NetId, usedAllocation.Id, "GC state")
 				}
 			}
 		}
