@@ -35,6 +35,7 @@ type container struct {
 	mtn               bool
 	netId             string
 	mtnAllocationId   string
+	mtnAllocCleaned   bool
 }
 
 // NOTE: is it better to have some kind of our own init inside Porto container to handle output?
@@ -73,6 +74,7 @@ func newContainer(ctx context.Context, portoConn porto.API, cfg containerConfig)
 		VolumeLabel:      cfg.VolumeLabel,
 
 		mtn:              cfg.Mtn,
+		mtnAllocCleaned:  !cfg.Mtn,
 		netId:            cfg.Network["netid"],
 		mtnAllocationId:  cfg.MtnAllocationId,
 		mtnIp:            cfg.MtnIp,
@@ -130,7 +132,10 @@ func (c *container) Kill() (err error) {
 
 func (c *container) Cleanup(portoConn porto.API) {
 	if c.mtn {
-		defer c.State.Mtn.UnuseAlloc(c.ctx, c.netId, c.mtnAllocationId, strings.Join([]string{c.mtnIp, c.containerID}, " "))
+		if !c.mtnAllocCleaned {
+			c.State.Mtn.UnuseAlloc(c.ctx, c.netId, c.mtnAllocationId, strings.Join([]string{c.mtnIp, c.containerID}, " "))
+			c.mtnAllocCleaned = true
+		}
 	}
 	if !c.cleanupEnabled {
 		return
