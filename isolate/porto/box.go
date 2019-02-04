@@ -467,7 +467,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	var profile = new(Profile)
 
 	if err = opts.DecodeTo(profile); err != nil {
-		log.G(ctx).WithError(err).WithField("name", name).Info("unbale to convert raw profile to Porto/Docker specific profile")
+		log.G(ctx).WithError(err).WithField("name", name).Info("unable to convert raw profile to Porto/Docker specific profile")
 		return err
 	}
 
