@@ -7,6 +7,218 @@ import (
 )
 
 // DecodeMsg implements msgp.Decodable
+func (z *ExtendedInfo) DecodeMsg(dc *msgp.Reader) (err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, err = dc.ReadMapHeader()
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, err = dc.ReadMapKeyPtr()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Layers":
+			var zb0002 uint32
+			zb0002, err = dc.ReadMapHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "Layers")
+				return
+			}
+			if z.Layers == nil {
+				z.Layers = make(map[string][]string, zb0002)
+			} else if len(z.Layers) > 0 {
+				for key := range z.Layers {
+					delete(z.Layers, key)
+				}
+			}
+			for zb0002 > 0 {
+				zb0002--
+				var za0001 string
+				var za0002 []string
+				za0001, err = dc.ReadString()
+				if err != nil {
+					err = msgp.WrapError(err, "Layers")
+					return
+				}
+				var zb0003 uint32
+				zb0003, err = dc.ReadArrayHeader()
+				if err != nil {
+					err = msgp.WrapError(err, "Layers", za0001)
+					return
+				}
+				if cap(za0002) >= int(zb0003) {
+					za0002 = (za0002)[:zb0003]
+				} else {
+					za0002 = make([]string, zb0003)
+				}
+				for za0003 := range za0002 {
+					za0002[za0003], err = dc.ReadString()
+					if err != nil {
+						err = msgp.WrapError(err, "Layers", za0001, za0003)
+						return
+					}
+				}
+				z.Layers[za0001] = za0002
+			}
+		default:
+			err = dc.Skip()
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z *ExtendedInfo) EncodeMsg(en *msgp.Writer) (err error) {
+	// map header, size 1
+	// write "Layers"
+	err = en.Append(0x81, 0xa6, 0x4c, 0x61, 0x79, 0x65, 0x72, 0x73)
+	if err != nil {
+		return
+	}
+	err = en.WriteMapHeader(uint32(len(z.Layers)))
+	if err != nil {
+		err = msgp.WrapError(err, "Layers")
+		return
+	}
+	for za0001, za0002 := range z.Layers {
+		err = en.WriteString(za0001)
+		if err != nil {
+			err = msgp.WrapError(err, "Layers")
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(za0002)))
+		if err != nil {
+			err = msgp.WrapError(err, "Layers", za0001)
+			return
+		}
+		for za0003 := range za0002 {
+			err = en.WriteString(za0002[za0003])
+			if err != nil {
+				err = msgp.WrapError(err, "Layers", za0001, za0003)
+				return
+			}
+		}
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z *ExtendedInfo) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	// map header, size 1
+	// string "Layers"
+	o = append(o, 0x81, 0xa6, 0x4c, 0x61, 0x79, 0x65, 0x72, 0x73)
+	o = msgp.AppendMapHeader(o, uint32(len(z.Layers)))
+	for za0001, za0002 := range z.Layers {
+		o = msgp.AppendString(o, za0001)
+		o = msgp.AppendArrayHeader(o, uint32(len(za0002)))
+		for za0003 := range za0002 {
+			o = msgp.AppendString(o, za0002[za0003])
+		}
+	}
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *ExtendedInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var zb0001 uint32
+	zb0001, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for zb0001 > 0 {
+		zb0001--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "Layers":
+			var zb0002 uint32
+			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Layers")
+				return
+			}
+			if z.Layers == nil {
+				z.Layers = make(map[string][]string, zb0002)
+			} else if len(z.Layers) > 0 {
+				for key := range z.Layers {
+					delete(z.Layers, key)
+				}
+			}
+			for zb0002 > 0 {
+				var za0001 string
+				var za0002 []string
+				zb0002--
+				za0001, bts, err = msgp.ReadStringBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Layers")
+					return
+				}
+				var zb0003 uint32
+				zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Layers", za0001)
+					return
+				}
+				if cap(za0002) >= int(zb0003) {
+					za0002 = (za0002)[:zb0003]
+				} else {
+					za0002 = make([]string, zb0003)
+				}
+				for za0003 := range za0002 {
+					za0002[za0003], bts, err = msgp.ReadStringBytes(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Layers", za0001, za0003)
+						return
+					}
+				}
+				z.Layers[za0001] = za0002
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z *ExtendedInfo) Msgsize() (s int) {
+	s = 1 + 7 + msgp.MapHeaderSize
+	if z.Layers != nil {
+		for za0001, za0002 := range z.Layers {
+			_ = za0002
+			s += msgp.StringPrefixSize + len(za0001) + msgp.ArrayHeaderSize
+			for za0003 := range za0002 {
+				s += msgp.StringPrefixSize + len(za0002[za0003])
+			}
+		}
+	}
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
 func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 	var field []byte
 	_ = field
@@ -71,6 +283,12 @@ func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 				z.Network[za0001] = za0002
+			}
+		case "extended_info":
+			err = z.ExtendedInfo.DecodeMsg(dc)
+			if err != nil {
+				err = msgp.WrapError(err, "ExtendedInfo")
+				return
 			}
 		case "cwd":
 			z.Cwd, err = dc.ReadString()
@@ -189,9 +407,9 @@ func (z *Profile) DecodeMsg(dc *msgp.Reader) (err error) {
 
 // EncodeMsg implements msgp.Encodable
 func (z *Profile) EncodeMsg(en *msgp.Writer) (err error) {
-	// map header, size 9
+	// map header, size 10
 	// write "registry"
-	err = en.Append(0x89, 0xa8, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79)
+	err = en.Append(0x8a, 0xa8, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79)
 	if err != nil {
 		return
 	}
@@ -241,6 +459,16 @@ func (z *Profile) EncodeMsg(en *msgp.Writer) (err error) {
 			err = msgp.WrapError(err, "Network", za0001)
 			return
 		}
+	}
+	// write "extended_info"
+	err = en.Append(0xad, 0x65, 0x78, 0x74, 0x65, 0x6e, 0x64, 0x65, 0x64, 0x5f, 0x69, 0x6e, 0x66, 0x6f)
+	if err != nil {
+		return
+	}
+	err = z.ExtendedInfo.EncodeMsg(en)
+	if err != nil {
+		err = msgp.WrapError(err, "ExtendedInfo")
+		return
 	}
 	// write "cwd"
 	err = en.Append(0xa3, 0x63, 0x77, 0x64)
@@ -336,9 +564,9 @@ func (z *Profile) EncodeMsg(en *msgp.Writer) (err error) {
 // MarshalMsg implements msgp.Marshaler
 func (z *Profile) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 9
+	// map header, size 10
 	// string "registry"
-	o = append(o, 0x89, 0xa8, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79)
+	o = append(o, 0x8a, 0xa8, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79)
 	o = msgp.AppendString(o, z.Registry)
 	// string "repository"
 	o = append(o, 0xaa, 0x72, 0x65, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x6f, 0x72, 0x79)
@@ -352,6 +580,13 @@ func (z *Profile) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001, za0002 := range z.Network {
 		o = msgp.AppendString(o, za0001)
 		o = msgp.AppendString(o, za0002)
+	}
+	// string "extended_info"
+	o = append(o, 0xad, 0x65, 0x78, 0x74, 0x65, 0x6e, 0x64, 0x65, 0x64, 0x5f, 0x69, 0x6e, 0x66, 0x6f)
+	o, err = z.ExtendedInfo.MarshalMsg(o)
+	if err != nil {
+		err = msgp.WrapError(err, "ExtendedInfo")
+		return
 	}
 	// string "cwd"
 	o = append(o, 0xa3, 0x63, 0x77, 0x64)
@@ -454,6 +689,12 @@ func (z *Profile) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 				z.Network[za0001] = za0002
+			}
+		case "extended_info":
+			bts, err = z.ExtendedInfo.UnmarshalMsg(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ExtendedInfo")
+				return
 			}
 		case "cwd":
 			z.Cwd, bts, err = msgp.ReadStringBytes(bts)
@@ -580,7 +821,7 @@ func (z *Profile) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.StringPrefixSize + len(za0002)
 		}
 	}
-	s += 4 + msgp.StringPrefixSize + len(z.Cwd) + 6 + msgp.ArrayHeaderSize
+	s += 14 + z.ExtendedInfo.Msgsize() + 4 + msgp.StringPrefixSize + len(z.Cwd) + 6 + msgp.ArrayHeaderSize
 	for za0003 := range z.Binds {
 		s += msgp.StringPrefixSize + len(z.Binds[za0003])
 	}

@@ -11,12 +11,18 @@ type VolumeProfile struct {
 	Properties map[string]string `msg:"properties"`
 }
 
+type ExtendedInfo struct {
+	Layers	map[string][]string
+}
+
 type Profile struct {
 	Registry   string `msg:"registry"`
 	Repository string `msg:"repository"`
 
 	NetworkMode string `msg:"network_mode"`
 	Network map[string]string `msg:"network"`
+
+	ExtendedInfo ExtendedInfo `msg:"extended_info"`
 
 	Cwd         string `msg:"cwd"`
 
