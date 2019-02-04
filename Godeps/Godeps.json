@@ -248,8 +248,8 @@
 		},
 		{
 			"ImportPath": "github.com/tinylib/msgp/msgp",
-			"Comment": "v1.0-1-g362bfb3",
-			"Rev": "362bfb3384d53ae4d5dd745983a4d70b6d23628c"
+			"Comment": "v1.1.1",
+			"Rev": "af6442a0fcf6e2a1b824f70dd0c734f01e817751"
 		},
 		{
 			"ImportPath": "github.com/yandex/porto/src/api/go",
