@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 	bolt "go.etcd.io/bbolt"
 	"github.com/noxiouz/stout/pkg/log"
@@ -52,6 +53,7 @@ type MtnCfg struct {
 }
 
 type MtnState struct {
+	AllocMu sync.Mutex
 	Cfg MtnCfg
 	Db *bolt.DB
 }
@@ -523,6 +525,9 @@ func (c *MtnState) BindAllocs(ctx context.Context, netId string) error {
 }
 
 func (c *MtnState) UseAlloc(ctx context.Context, netId string, box string, ident string) (Allocation, error) {
+	c.AllocMu.Lock()
+	defer c.AllocMu.Unlock()
+	log.G(ctx).Debugf("UseAlloc() successfuly get lock for: %s %s %s.", netId, box, ident)
 	tx, errTx := c.Db.Begin(true)
 	if errTx != nil {
 		log.G(ctx).Errorf("Cant start transaction inside UseAlloc(), err: %s", errTx)
