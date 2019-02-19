@@ -12,7 +12,14 @@ type VolumeProfile struct {
 }
 
 type ExtendedInfo struct {
-	Layers	map[string][]string
+	Layers	[]Layer  `msg:"layers"`
+}
+
+type Layer struct {
+	Digest      string `msg:"digest"`
+	DigestType string `msg:"digest_type"`
+	Size        uint `msg:"size"`
+	TorrentId  string `msg:"torrent_id"`
 }
 
 type Profile struct {
