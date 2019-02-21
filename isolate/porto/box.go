@@ -1,6 +1,7 @@
 package porto
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -53,6 +55,7 @@ type portoBoxConfig struct {
 	VolumeBackend         string            `json:"volumebackend"`
 	DefaultResolvConf     string            `json:"defaultresolv_conf"`
 	CocaineAppVolumeLabel string            `json:"cocaineappvolumelabel"`
+	DownloadHelperCmd     string            `json:"download_helper_cmd",omitempty`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -69,16 +72,17 @@ func (c *portoBoxConfig) ContainerRootDir(name, containerID string) string {
 
 // Box operates with Porto to launch containers
 type Box struct {
-	Name	string
-	config  *portoBoxConfig
-	GlobalState   isolate.GlobalState
-	journal *journal
+	Name        string
+	config      *portoBoxConfig
+	GlobalState isolate.GlobalState
+	journal     *journal
 
 	spawnSM      semaphore.Semaphore
 	transport    *http.Transport
 	muContainers sync.Mutex
 	containers   map[string]*container
 	blobRepo     BlobRepository
+	dhEnable     bool
 
 	rootPrefix string
 
@@ -93,13 +97,13 @@ const defaultVolumeBackend = "overlay"
 func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalState) (isolate.Box, error) {
 	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
-		SpawnConcurrency:      5,
-		DialRetries:           10,
-		WaitLoopStepSec:       10,
+		SpawnConcurrency: 5,
+		DialRetries:      10,
+		WaitLoopStepSec:  10,
 
-		CleanupEnabled:        true,
-		WeakEnabled:           false,
-		Gc:                    true,
+		CleanupEnabled: true,
+		WeakEnabled:    false,
+		Gc:             true,
 		CocaineAppVolumeLabel: "cocaine-app",
 	}
 	decoderConfig := mapstructure.DecoderConfig{
@@ -185,18 +189,25 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 
 	ctx, onClose := context.WithCancel(ctx)
 	name := "porto"
-	box := &Box{
-		Name:	name,
-		config:     config,
-		GlobalState:      gstate,
-		journal:    newJournal(),
-		transport:  tr,
-		spawnSM:    semaphore.New(config.SpawnConcurrency),
-		containers: make(map[string]*container),
-		onClose:    onClose,
-		rootPrefix: rootPrefix,
 
-		blobRepo: blobRepo,
+	var dhEnable bool = false
+	if config.DownloadHelperCmd != "" {
+		dhEnable = true
+	}
+	log.G(ctx).Debugf("download_helper is %s: %s.", dhEnable, config.DownloadHelperCmd)
+
+	box := &Box{
+		Name:        name,
+		config:      config,
+		GlobalState: gstate,
+		journal:     newJournal(),
+		transport:   tr,
+		spawnSM:     semaphore.New(config.SpawnConcurrency),
+		containers:  make(map[string]*container),
+		onClose:     onClose,
+		rootPrefix:  rootPrefix,
+		dhEnable:    dhEnable,
+		blobRepo:    blobRepo,
 	}
 
 	body, err := json.Marshal(config)
@@ -461,33 +472,66 @@ func (b *Box) addRootNamespacePrefix(container string) string {
 	return filepath.Join(b.rootPrefix, container)
 }
 
-// Spool downloades Docker images from Distribution, builds base layer for Porto container
-func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
-	defer log.G(ctx).WithField("name", name).Trace("spool").Stop(&err)
-	var profile = new(Profile)
-
-	if err = opts.DecodeTo(profile); err != nil {
-		log.G(ctx).WithError(err).WithField("name", name).Info("unable to convert raw profile to Porto/Docker specific profile")
-		return err
-	}
-
-	if profile.Registry == "" {
-		log.G(ctx).WithField("name", name).Error("Registry must be non empty")
-		return fmt.Errorf("Registry must be non empty")
-	}
+// get layers from registy
+func (b *Box) getLayersViaDownloadHelper(ctx context.Context, name string, profile Profile) error {
+	layers := make([]string, 0)
 
 	portoConn, err := portoConnect()
 	if err != nil {
 		log.G(ctx).WithError(err).WithField("name", name).Error("Porto connection error")
 		return err
 	}
+	defer portoConn.Close()
+	for _, layer := range profile.ExtendedInfo.Layers {
+		portoLayerName := fmt.Sprintf("%s_%s", layer.DigestType, layer.Digest)
+		wctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
+		defer cancel()
+		timeout := fmt.Sprint(300 + uint(60 * (layer.Size / (100 * 1024 * 1024) )))
+		cmd := exec.CommandContext(wctx, b.config.DownloadHelperCmd, "get", "-d", b.config.Layers,
+			"-t", timeout, layer.TorrentId)
+		stdoutStderr, err := cmd.CombinedOutput()
+		if err != nil {
+			log.G(ctx).WithError(err).WithField("name", name).Errorf("When download layer via download helper. output is: %s.", stdoutStderr)
+			return err
+		}
+		blobPath := filepath.Join(b.config.Layers, layer.Digest)
+		f, err := os.Open(blobPath)
+		if err != nil {
+			return fmt.Errorf("ERROR when open layer %s for check hashsumm.", blobPath)
+		}
+		defer f.Close()
+		hashSum := sha256.New()
+		if _, err := io.Copy(hashSum, f); err != nil {
+			return fmt.Errorf("ERROR when copy layer %s for check hashsumm.", blobPath)
+		}
+		digest := fmt.Sprintf("%x", hashSum.Sum(nil))
+		log.G(ctx).Debugf("Layer digest: %s; Layer sha256sum: %s;", layer.Digest, digest)
+		if digest != layer.Digest {
+			return fmt.Errorf("ERROR hashsum missmatch, hashSum.Sum(): %s, Digest: %s.", digest, layer.Digest)
+		}
+		entry := log.G(ctx).WithField("layer", blobPath).Trace("Try to import layer")
+		err = portoConn.ImportLayer(portoLayerName, blobPath, false)
+		if err != nil && !isEqualPortoError(err, portorpc.EError_LayerAlreadyExists) {
+			entry.Stop(&err)
+			return err
+		}
+		layers = append(layers, portoLayerName)
+	}
+	b.journal.InsertManifestLayers(name, strings.Join(layers, ";"))
+	return nil
+}
 
+// get layers from registy
+func (b *Box) getLayersViaRegistry(ctx context.Context, name string, profile Profile) error {
+	if profile.Registry == "" {
+		log.G(ctx).WithField("name", name).Error("Registry must be non empty")
+		return fmt.Errorf("Registry must be non empty")
+	}
 	named, err := reference.ParseNamed(filepath.Join(profile.Repository, profile.Repository, name))
 	if err != nil {
 		log.G(ctx).WithError(err).WithField("name", name).Error("name is invalid")
 		return err
 	}
-
 	var tr http.RoundTripper
 	if registryAuth, ok := b.config.RegistryAuth[profile.Registry]; ok {
 		tr = transport.NewTransport(b.transport, transport.NewHeaderRequestModifier(http.Header{
@@ -502,6 +546,7 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		registry = "https://" + registry
 	}
 	log.G(ctx).Debugf("Image URI generated at spawn with data: %s and %s", registry, named)
+
 	repo, err := client.NewRepository(ctx, named, registry, tr)
 	if err != nil {
 		return err
@@ -534,6 +579,13 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 
 	layers := make([]string, 0)
 
+	portoConn, err := portoConnect()
+	if err != nil {
+		log.G(ctx).WithError(err).WithField("name", name).Error("Porto connection error")
+		return err
+	}
+	defer portoConn.Close()
+
 	for _, descriptor := range order(manifest.References()) {
 		// TODO: Add support for __weak__ layers
 		layerName := descriptor.Digest.String()
@@ -554,6 +606,41 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		layers = append(layers, portoLayerName)
 	}
 	b.journal.InsertManifestLayers(name, strings.Join(layers, ";"))
+
+	return nil
+}
+
+// Spool downloades Docker images from Distribution, builds base layer for Porto container
+func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (err error) {
+	defer log.G(ctx).WithField("name", name).Trace("spool").Stop(&err)
+	var profile = new(Profile)
+
+	if err = opts.DecodeTo(profile); err != nil {
+		log.G(ctx).WithError(err).WithField("name", name).Info("unable to convert raw profile to Porto/Docker specific profile")
+		return err
+	}
+
+	var errGet error
+	layersImported := false
+	if len(profile.ExtendedInfo.Layers) > 0 && b.dhEnable {
+		log.G(ctx).Debugf("Try get layers via download_helper cmd: %s.", b.config.DownloadHelperCmd)
+		errGet = b.getLayersViaDownloadHelper(ctx, name, *profile)
+		if errGet != nil {
+			log.G(ctx).Warnf("Cant get layers via download helper, name: %s, error: %s.", name, errGet)
+		} else {
+			layersImported = true
+		}
+	}
+	if !layersImported {
+		log.G(ctx).Debugf("Try get layers via  registry. No layers in ExtendedInfo: %s or download helper not enabled: %s.",
+			profile.ExtendedInfo.Layers, b.dhEnable)
+		errGet = b.getLayersViaRegistry(ctx, name, *profile)
+	}
+	if errGet != nil {
+		log.G(ctx).Errorf("Cant Spool(), name: %s, error: %s.", name, errGet)
+		return errGet
+	}
+
 	// NOTE: Not so fast, but it's important for debug
 	journalContent.Set(b.journal.String())
 
@@ -592,11 +679,11 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 
 	ID := b.appGenLabel(config.Name) + "_" + config.Args["--uuid"]
 	cfg := containerConfig{
-		BoxName:	b.Name,
+		BoxName:        b.Name,
 		Root:           filepath.Join(b.config.Containers, ID),
 		ID:             b.addRootNamespacePrefix(ID),
 		Layer:          layers,
-		State:		b.GlobalState,
+		State:          b.GlobalState,
 		CleanupEnabled: b.config.CleanupEnabled,
 		SetImgURI:      b.config.SetImgURI,
 		VolumeBackend:  b.config.VolumeBackend,
