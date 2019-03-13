@@ -1,3 +1,10 @@
+cocaine-isolate-daemon (0.2.1.5) unstable; urgency=low
+
+  * isolate(porto): make fallback for external download helper optional
+    and disabled by default
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Wed, 13 Mar 2019 16:14:34 +0300
+
 cocaine-isolate-daemon (0.2.1.4) unstable; urgency=low
 
   * isolate(porto): add feature external download helper
