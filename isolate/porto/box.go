@@ -659,9 +659,12 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 }
 
 // ReleaseLock release spawn lock by configurable timeout
-func (b *Box) ReleaseLock(timeout uint) {
-	time.Sleep(timeout * time.Second)
-	b.spawnSM.Release(b.config.SpawnTimeout)
+func (b *Box) ReleaseLock() {
+	if b.config.SpawnTimeout > 0 {
+		log.G(ctx).Debugf("start spawn timeout for next porto container: %d", b.config.SpawnTimeout)
+	}
+	time.Sleep(b.config.SpawnTimeout * time.Second)
+	b.spawnSM.Release()
 }
 
 // Spawn spawns new Porto container
