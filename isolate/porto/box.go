@@ -44,6 +44,7 @@ type portoBoxConfig struct {
 	Journal string `json:"journal"`
 
 	SpawnConcurrency      uint              `json:"concurrency"`
+	SpawnTimeout          uint              `json:"spawn_timeout_sec"`
 	RegistryAuth          map[string]string `json:"registryauth"`
 	DialRetries           int               `json:"dialretries"`
 	CleanupEnabled        bool              `json:"cleanupenabled"`
@@ -98,6 +99,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 5,
+		SpawnTimeout:     0,
 		DialRetries:      10,
 		WaitLoopStepSec:  10,
 
@@ -195,6 +197,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		dhEnable = true
 	}
 	log.G(ctx).Debugf("download_helper is %s: %s.", dhEnable, config.DownloadHelperCmd)
+
+	log.G(ctx).Debugf("porto box config: %s", config)
 
 	box := &Box{
 		Name:        name,
@@ -654,6 +658,12 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	return nil
 }
 
+// ReleaseLock release spawn lock by configurable timeout
+func (b *Box) ReleaseLock(timeout uint) {
+	time.Sleep(timeout * time.Second)
+	b.spawnSM.Release(b.config.SpawnTimeout)
+}
+
 // Spawn spawns new Porto container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
 	var profile = new(Profile)
@@ -710,7 +720,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	if err != nil {
 		return nil, isolate.ErrSpawningCancelled
 	}
-	defer b.spawnSM.Release()
+	defer b.ReleaseLock()
 
 	log.G(ctx).WithFields(apexlog.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 
