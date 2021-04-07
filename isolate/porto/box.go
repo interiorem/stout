@@ -57,6 +57,8 @@ type portoBoxConfig struct {
 	DefaultResolvConf     string            `json:"defaultresolv_conf"`
 	CocaineAppVolumeLabel string            `json:"cocaineappvolumelabel"`
 	DownloadHelperCmd     string            `json:"download_helper_cmd",omitempty`
+	MetaName              string            `json:"meta_name",omitempty`
+	MetaProp              map[string]string `json:"meta_prop",omitempty`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -84,6 +86,8 @@ type Box struct {
 	containers   map[string]*container
 	blobRepo     BlobRepository
 	dhEnable     bool
+	prefixEnable bool
+	prefixProp  map[string]string
 
 	rootPrefix string
 
@@ -196,22 +200,42 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	if config.DownloadHelperCmd != "" {
 		dhEnable = true
 	}
-	log.G(ctx).Debugf("download_helper is %s: %s.", dhEnable, config.DownloadHelperCmd)
+
+	// Configure after rootPrefix part
+	var prefixEnable bool = false
+	if config.MetaName != "" {
+		prefixEnable = true
+		rootPrefix = rootPrefix + config.MetaName
+		err := portoConn.Create(rootPrefix)
+		if err != nil {
+			if err.ErrName != "ContainerAlreadyExists" {
+				return nil, err
+			}
+		}
+		// Don't recreate meta container, just set right properties
+		for key, value := range config.MetaProp {
+			err := portoConn.SetProperty(rootPrefix, key, value)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	log.G(ctx).Debugf("porto box config: %s", config)
 
 	box := &Box{
-		Name:        name,
-		config:      config,
-		GlobalState: gstate,
-		journal:     newJournal(),
-		transport:   tr,
-		spawnSM:     semaphore.New(config.SpawnConcurrency),
-		containers:  make(map[string]*container),
-		onClose:     onClose,
-		rootPrefix:  rootPrefix,
-		dhEnable:    dhEnable,
-		blobRepo:    blobRepo,
+		Name:         name,
+		config:       config,
+		GlobalState:  gstate,
+		journal:      newJournal(),
+		transport:    tr,
+		spawnSM:      semaphore.New(config.SpawnConcurrency),
+		containers:   make(map[string]*container),
+		onClose:      onClose,
+		rootPrefix:   rootPrefix,
+		dhEnable:     dhEnable,
+		prefixEnable: prefixEnable,
+		blobRepo:     blobRepo,
 	}
 
 	body, err := json.Marshal(config)
