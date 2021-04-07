@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/testsuite"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/isolate/testsuite"
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"

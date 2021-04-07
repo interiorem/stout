@@ -11,8 +11,8 @@ import (
 	apexlog "github.com/apex/log"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/log"
 )
 
 type Daemon struct {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 
 	"golang.org/x/net/context"
 	check "gopkg.in/check.v1"

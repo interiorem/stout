@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 	bolt "go.etcd.io/bbolt"
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 )
 
 

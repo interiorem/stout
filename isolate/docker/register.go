@@ -1,6 +1,6 @@
 package docker
 
-import "github.com/noxiouz/stout/isolate"
+import "github.com/interiorem/stout/isolate"
 
 func init() {
 	isolate.RegisterBox("docker", NewBox)

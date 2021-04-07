@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 	"golang.org/x/net/context"
 )
 

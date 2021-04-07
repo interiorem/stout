@@ -8,7 +8,7 @@ import (
 
 	cocaine "github.com/cocaine/cocaine-framework-go/cocaine12"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 
 	"github.com/tinylib/msgp/msgp"
 )

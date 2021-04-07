@@ -70,7 +70,7 @@ See configuration example:
 ### Build
 
 ```
-go get -u github.com/noxiouz/stout/cmd/stout
+go get -u github.com/interiorem/stout/cmd/stout
 cd $GOPATH/src/github.com/noxiouz/stout
 go build -o cocaine-isolate-daemon cmd/stout/main.go
 ```
@@ -78,7 +78,7 @@ go build -o cocaine-isolate-daemon cmd/stout/main.go
 if `$GOPATH/bin` is added to `$PATH`, you can use:
 
 ```
-go install github.com/noxiouz/stout/cmd/stout
+go install github.com/interiorem/stout/cmd/stout
 ```
 
 ### Run it

@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 	"golang.org/x/net/context"
 
 	apexlog "github.com/apex/log"
@@ -21,8 +21,8 @@ import (
 	"github.com/docker/engine-api/types/filters"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/semaphore"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/semaphore"
 )
 
 const (

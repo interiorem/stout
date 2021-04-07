@@ -21,9 +21,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/log"
-	"github.com/noxiouz/stout/pkg/semaphore"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/semaphore"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
