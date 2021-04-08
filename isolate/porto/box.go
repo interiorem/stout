@@ -57,6 +57,7 @@ type portoBoxConfig struct {
 	DefaultResolvConf     string            `json:"defaultresolv_conf"`
 	CocaineAppVolumeLabel string            `json:"cocaineappvolumelabel"`
 	DownloadHelperCmd     string            `json:"download_helper_cmd",omitempty`
+  DownloadHelperFallback  bool            `json:"download_helper_fallback",omitempty`
 	MetaName              string            `json:"meta_name",omitempty`
 	MetaProp              map[string]string `json:"meta_prop",omitempty`
 }
@@ -86,8 +87,10 @@ type Box struct {
 	containers   map[string]*container
 	blobRepo     BlobRepository
 	dhEnable     bool
+  dhfEnable    bool
 	prefixEnable bool
 	prefixProp  map[string]string
+
 
 	rootPrefix string
 
@@ -200,6 +203,8 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	if config.DownloadHelperCmd != "" {
 		dhEnable = true
 	}
+	dhfEnable := config.DownloadHelperFallback
+	log.G(ctx).Debugf("download_helper is %s: %s. fallback is %s.", dhEnable, config.DownloadHelperCmd, dhfEnable)
 
 	// Configure after rootPrefix part
 	var prefixEnable bool = false
@@ -241,6 +246,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		onClose:      onClose,
 		rootPrefix:   rootPrefix,
 		dhEnable:     dhEnable,
+    dhfEnable:    dhfEnable,
 		prefixEnable: prefixEnable,
 		blobRepo:     blobRepo,
 	}
@@ -664,6 +670,9 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 		errGet = b.getLayersViaDownloadHelper(ctx, name, *profile)
 		if errGet != nil {
 			log.G(ctx).Warnf("Cant get layers via download helper, name: %s, error: %s.", name, errGet)
+			if !b.dhfEnable {
+				return errGet
+			}
 		} else {
 			layersImported = true
 		}
