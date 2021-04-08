@@ -43,23 +43,23 @@ type portoBoxConfig struct {
 	// Path to a journal file
 	Journal string `json:"journal"`
 
-	SpawnConcurrency      uint              `json:"concurrency"`
-	SpawnTimeout          uint              `json:"spawn_timeout_sec"`
-	RegistryAuth          map[string]string `json:"registryauth"`
-	DialRetries           int               `json:"dialretries"`
-	CleanupEnabled        bool              `json:"cleanupenabled"`
-	SetImgURI             bool              `json:"setimguri"`
-	WeakEnabled           bool              `json:"weakenabled"`
-	Gc                    bool              `json:"gc"`
-	WaitLoopStepSec       uint              `json:"waitloopstepsec"`
-	DefaultUlimits        string            `json:"defaultulimits"`
-	VolumeBackend         string            `json:"volumebackend"`
-	DefaultResolvConf     string            `json:"defaultresolv_conf"`
-	CocaineAppVolumeLabel string            `json:"cocaineappvolumelabel"`
-	DownloadHelperCmd     string            `json:"download_helper_cmd",omitempty`
-  DownloadHelperFallback  bool            `json:"download_helper_fallback",omitempty`
-	MetaName              string            `json:"meta_name",omitempty`
-	MetaProp              map[string]string `json:"meta_prop",omitempty`
+	SpawnConcurrency       uint              `json:"concurrency"`
+	SpawnTimeout           uint              `json:"spawn_timeout_sec"`
+	RegistryAuth           map[string]string `json:"registryauth"`
+	DialRetries            int               `json:"dialretries"`
+	CleanupEnabled         bool              `json:"cleanupenabled"`
+	SetImgURI              bool              `json:"setimguri"`
+	WeakEnabled            bool              `json:"weakenabled"`
+	Gc                     bool              `json:"gc"`
+	WaitLoopStepSec        uint              `json:"waitloopstepsec"`
+	DefaultUlimits         string            `json:"defaultulimits"`
+	VolumeBackend          string            `json:"volumebackend"`
+	DefaultResolvConf      string            `json:"defaultresolv_conf"`
+	CocaineAppVolumeLabel  string            `json:"cocaineappvolumelabel"`
+	DownloadHelperCmd      string            `json:"download_helper_cmd",omitempty`
+	DownloadHelperFallback bool              `json:"download_helper_fallback",omitempty`
+	MetaName               string            `json:"meta_name",omitempty`
+	MetaProp               map[string]string `json:"meta_prop",omitempty`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -87,10 +87,9 @@ type Box struct {
 	containers   map[string]*container
 	blobRepo     BlobRepository
 	dhEnable     bool
-  dhfEnable    bool
+	dhfEnable    bool
 	prefixEnable bool
-	prefixProp  map[string]string
-
+	prefixProp   map[string]string
 
 	rootPrefix string
 
@@ -246,7 +245,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		onClose:      onClose,
 		rootPrefix:   rootPrefix,
 		dhEnable:     dhEnable,
-    dhfEnable:    dhfEnable,
+		dhfEnable:    dhfEnable,
 		prefixEnable: prefixEnable,
 		blobRepo:     blobRepo,
 	}
@@ -529,7 +528,7 @@ func (b *Box) getLayersViaDownloadHelper(ctx context.Context, name string, profi
 		portoLayerName := fmt.Sprintf("%s_%s", layer.DigestType, layer.Digest)
 		wctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 		defer cancel()
-		timeout := fmt.Sprint(300 + uint(60 * (layer.Size / (100 * 1024 * 1024) )))
+		timeout := fmt.Sprint(300 + uint(60*(layer.Size/(100*1024*1024))))
 		cmd := exec.CommandContext(wctx, b.config.DownloadHelperCmd, "get", "-d", b.config.Layers,
 			"-t", timeout, layer.TorrentId)
 		stdoutStderr, err := cmd.CombinedOutput()
