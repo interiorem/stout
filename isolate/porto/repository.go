@@ -11,7 +11,7 @@ import (
 	"github.com/docker/distribution"
 	"github.com/docker/distribution/digest"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 	"golang.org/x/net/context"
 )
 

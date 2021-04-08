@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/isolate/testsuite"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/isolate/testsuite"
 
 	"golang.org/x/net/context"
 

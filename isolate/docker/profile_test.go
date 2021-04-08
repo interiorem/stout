@@ -3,7 +3,7 @@ package docker
 import (
 	"testing"
 
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

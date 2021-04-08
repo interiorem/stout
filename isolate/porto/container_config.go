@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/log"
 
 	porto "github.com/yandex/porto/src/api/go"
 	"golang.org/x/net/context"

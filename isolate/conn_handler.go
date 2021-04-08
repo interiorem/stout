@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 	"github.com/tinylib/msgp/msgp"
 	"golang.org/x/net/context"
 )

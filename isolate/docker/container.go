@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
@@ -16,7 +16,7 @@ import (
 	"github.com/docker/engine-api/types/network"
 	"github.com/docker/engine-api/types/strslice"
 
-	"github.com/noxiouz/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/log"
 	"golang.org/x/net/context"
 )
 

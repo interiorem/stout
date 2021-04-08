@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/logutils"
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/pkg/logutils"
+	"github.com/interiorem/stout/isolate"
 )
 
 type JSONEncodedDuration time.Duration

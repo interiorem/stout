@@ -2,7 +2,7 @@ package docker
 
 import (
 	"github.com/docker/engine-api/types/container"
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 	"github.com/tinylib/msgp/msgp"
 )
 

@@ -14,7 +14,7 @@ import (
 
 	"github.com/docker/engine-api/client"
 	"github.com/docker/engine-api/types"
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 	"github.com/tinylib/msgp/msgp"
 
 	"github.com/stretchr/testify/assert"

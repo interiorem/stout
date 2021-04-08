@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/log"
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/pkg/log"
+	"github.com/interiorem/stout/isolate"
 	"golang.org/x/net/context"
 
 	porto "github.com/yandex/porto/src/api/go"

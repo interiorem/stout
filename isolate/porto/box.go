@@ -21,9 +21,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/log"
-	"github.com/noxiouz/stout/pkg/semaphore"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/semaphore"
 
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
@@ -43,20 +43,23 @@ type portoBoxConfig struct {
 	// Path to a journal file
 	Journal string `json:"journal"`
 
-	SpawnConcurrency        uint              `json:"concurrency"`
-	RegistryAuth            map[string]string `json:"registryauth"`
-	DialRetries             int               `json:"dialretries"`
-	CleanupEnabled          bool              `json:"cleanupenabled"`
-	SetImgURI               bool              `json:"setimguri"`
-	WeakEnabled             bool              `json:"weakenabled"`
-	Gc                      bool              `json:"gc"`
-	WaitLoopStepSec         uint              `json:"waitloopstepsec"`
-	DefaultUlimits          string            `json:"defaultulimits"`
-	VolumeBackend           string            `json:"volumebackend"`
-	DefaultResolvConf       string            `json:"defaultresolv_conf"`
-	CocaineAppVolumeLabel   string            `json:"cocaineappvolumelabel"`
-	DownloadHelperCmd       string            `json:"download_helper_cmd",omitempty`
-	DownloadHelperFallback  bool              `json:"download_helper_fallback",omitempty`
+	SpawnConcurrency       uint              `json:"concurrency"`
+	SpawnTimeout           uint              `json:"spawn_timeout_sec"`
+	RegistryAuth           map[string]string `json:"registryauth"`
+	DialRetries            int               `json:"dialretries"`
+	CleanupEnabled         bool              `json:"cleanupenabled"`
+	SetImgURI              bool              `json:"setimguri"`
+	WeakEnabled            bool              `json:"weakenabled"`
+	Gc                     bool              `json:"gc"`
+	WaitLoopStepSec        uint              `json:"waitloopstepsec"`
+	DefaultUlimits         string            `json:"defaultulimits"`
+	VolumeBackend          string            `json:"volumebackend"`
+	DefaultResolvConf      string            `json:"defaultresolv_conf"`
+	CocaineAppVolumeLabel  string            `json:"cocaineappvolumelabel"`
+	DownloadHelperCmd      string            `json:"download_helper_cmd",omitempty`
+	DownloadHelperFallback bool              `json:"download_helper_fallback",omitempty`
+	MetaName               string            `json:"meta_name",omitempty`
+	MetaProp               map[string]string `json:"meta_prop",omitempty`
 }
 
 func (c *portoBoxConfig) String() string {
@@ -85,6 +88,8 @@ type Box struct {
 	blobRepo     BlobRepository
 	dhEnable     bool
 	dhfEnable    bool
+	prefixEnable bool
+	prefixProp   map[string]string
 
 	rootPrefix string
 
@@ -100,6 +105,7 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	log.G(ctx).Info("Porto Box Initiate")
 	var config = &portoBoxConfig{
 		SpawnConcurrency: 5,
+		SpawnTimeout:     0,
 		DialRetries:      10,
 		WaitLoopStepSec:  10,
 
@@ -199,19 +205,49 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 	dhfEnable := config.DownloadHelperFallback
 	log.G(ctx).Debugf("download_helper is %s: %s. fallback is %s.", dhEnable, config.DownloadHelperCmd, dhfEnable)
 
+	// Configure after rootPrefix part
+	var prefixEnable bool = false
+	if config.MetaName != "" {
+		prefixEnable = true
+		rootPrefix = rootPrefix + config.MetaName
+		err := portoConn.Create(rootPrefix)
+		if err != nil {
+			if ferr, ok := err.(*porto.Error); ok {
+				if ferr.ErrName != "ContainerAlreadyExists" {
+					return nil, err
+				}
+				log.G(ctx).Debugf("porto meta container %s already created", rootPrefix)
+			} else {
+				return nil, err
+			}
+		}
+		log.G(ctx).Debugf("porto meta container created: %s", rootPrefix)
+		// Don't recreate meta container, just set right properties
+		for key, value := range config.MetaProp {
+			err := portoConn.SetProperty(rootPrefix, key, value)
+			if err != nil {
+				return nil, err
+			}
+			log.G(ctx).Debugf("set property: %s, with value: %s, at meta container: %s", key, value, rootPrefix)
+		}
+	}
+
+	log.G(ctx).Debugf("porto box config: %s", config)
+
 	box := &Box{
-		Name:        name,
-		config:      config,
-		GlobalState: gstate,
-		journal:     newJournal(),
-		transport:   tr,
-		spawnSM:     semaphore.New(config.SpawnConcurrency),
-		containers:  make(map[string]*container),
-		onClose:     onClose,
-		rootPrefix:  rootPrefix,
-		dhEnable:    dhEnable,
-		dhfEnable:   dhfEnable,
-		blobRepo:    blobRepo,
+		Name:         name,
+		config:       config,
+		GlobalState:  gstate,
+		journal:      newJournal(),
+		transport:    tr,
+		spawnSM:      semaphore.New(config.SpawnConcurrency),
+		containers:   make(map[string]*container),
+		onClose:      onClose,
+		rootPrefix:   rootPrefix,
+		dhEnable:     dhEnable,
+		dhfEnable:    dhfEnable,
+		prefixEnable: prefixEnable,
+		blobRepo:     blobRepo,
 	}
 
 	body, err := json.Marshal(config)
@@ -337,8 +373,10 @@ func (b *Box) waitLoop(ctx context.Context) {
 				log.G(ctx).Debugf("At gc state destroy dead container: %s", name)
 				portoConn.Destroy(name)
 			} else if containerState == "stopped" {
-				log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
-				portoConn.Destroy(name)
+				if name != b.config.MetaName {
+					log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
+					portoConn.Destroy(name)
+				}
 			} else if containerState == "meta" {
 				continue
 			} else if containerState == "running" || containerState == "starting" {
@@ -490,7 +528,7 @@ func (b *Box) getLayersViaDownloadHelper(ctx context.Context, name string, profi
 		portoLayerName := fmt.Sprintf("%s_%s", layer.DigestType, layer.Digest)
 		wctx, cancel := context.WithTimeout(context.Background(), 1*time.Hour)
 		defer cancel()
-		timeout := fmt.Sprint(300 + uint(60 * (layer.Size / (100 * 1024 * 1024) )))
+		timeout := fmt.Sprint(300 + uint(60*(layer.Size/(100*1024*1024))))
 		cmd := exec.CommandContext(wctx, b.config.DownloadHelperCmd, "get", "-d", b.config.Layers,
 			"-t", timeout, layer.TorrentId)
 		stdoutStderr, err := cmd.CombinedOutput()
@@ -661,6 +699,15 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 	return nil
 }
 
+// ReleaseLock release spawn lock by configurable timeout
+func (b *Box) ReleaseLock(ctx context.Context) {
+	if b.config.SpawnTimeout > 0 {
+		log.G(ctx).Debugf("start spawn timeout for next porto container: %d", b.config.SpawnTimeout)
+	}
+	time.Sleep(time.Duration(b.config.SpawnTimeout) * time.Second)
+	b.spawnSM.Release()
+}
+
 // Spawn spawns new Porto container
 func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.Writer) (isolate.Process, error) {
 	var profile = new(Profile)
@@ -717,7 +764,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	if err != nil {
 		return nil, isolate.ErrSpawningCancelled
 	}
-	defer b.spawnSM.Release()
+	defer b.ReleaseLock(ctx)
 
 	log.G(ctx).WithFields(apexlog.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 

@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/isolate"
+	"github.com/interiorem/stout/isolate"
 )
 
 func BenchmarkSpawnSeq(b *testing.B) {

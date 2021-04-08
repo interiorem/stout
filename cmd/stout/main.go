@@ -12,16 +12,16 @@ import (
 	metrics "github.com/rcrowley/go-metrics"
 	"golang.org/x/net/context"
 
-	"github.com/noxiouz/stout/daemon"
-	_ "github.com/noxiouz/stout/isolate/docker"
-	_ "github.com/noxiouz/stout/isolate/porto"
-	_ "github.com/noxiouz/stout/isolate/process"
+	"github.com/interiorem/stout/daemon"
+	_ "github.com/interiorem/stout/isolate/docker"
+	_ "github.com/interiorem/stout/isolate/porto"
+	_ "github.com/interiorem/stout/isolate/process"
 
-	"github.com/noxiouz/stout/isolate"
-	"github.com/noxiouz/stout/pkg/exportmetrics"
-	"github.com/noxiouz/stout/pkg/log"
-	"github.com/noxiouz/stout/pkg/logutils"
-	"github.com/noxiouz/stout/version"
+	"github.com/interiorem/stout/isolate"
+	"github.com/interiorem/stout/pkg/exportmetrics"
+	"github.com/interiorem/stout/pkg/log"
+	"github.com/interiorem/stout/pkg/logutils"
+	"github.com/interiorem/stout/version"
 
 	flag "github.com/ogier/pflag"
 )

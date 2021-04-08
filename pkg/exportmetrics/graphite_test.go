@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	_ "github.com/noxiouz/stout/isolate/process"
+	_ "github.com/interiorem/stout/isolate/process"
 	"github.com/rcrowley/go-metrics"
 )
 

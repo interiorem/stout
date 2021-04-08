@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/exportmetrics"
-	"github.com/noxiouz/stout/pkg/fds"
-	"github.com/noxiouz/stout/pkg/log"
-	"github.com/noxiouz/stout/version"
+	"github.com/interiorem/stout/pkg/exportmetrics"
+	"github.com/interiorem/stout/pkg/fds"
+	"github.com/interiorem/stout/pkg/log"
+	"github.com/interiorem/stout/version"
 	metrics "github.com/rcrowley/go-metrics"
 )
 

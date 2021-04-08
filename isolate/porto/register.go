@@ -1,6 +1,6 @@
 package porto
 
-import "github.com/noxiouz/stout/isolate"
+import "github.com/interiorem/stout/isolate"
 
 func init() {
 	isolate.RegisterBox("porto", NewBox)

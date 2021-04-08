@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/noxiouz/stout/pkg/logutils"
+	"github.com/interiorem/stout/pkg/logutils"
 	"golang.org/x/net/context"
 )
 
