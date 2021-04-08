@@ -5,13 +5,13 @@ BUILDDT=$(shell date -u +%F@%H:%M:%S)
 VERSION=$(shell git show-ref --head --hash head)
 TAG=$(shell git describe --tags --always)
 DEBVER=$(shell dpkg-parsechangelog | sed -n -e 's/^Version: //p')
-LDFLAGS=-ldflags "-X github.com/interiorem/stout/version.GitTag=${TAG} -X github.com/noxiouz/stout/version.Version=${DEBVER} -X github.com/noxiouz/stout/version.Build=${BUILDDT} -X github.com/noxiouz/stout/version.GitHash=${VERSION}"
+LDFLAGS=-ldflags "-X github.com/interiorem/stout/version.GitTag=${TAG} -X github.com/interiorem/stout/version.Version=${DEBVER} -X github.com/interiorem/stout/version.Build=${BUILDDT} -X github.com/interiorem/stout/version.GitHash=${VERSION}"
 
 
 .DEFAULT: all
 .PHONY: fmt vet test
 
-PKGS := $(shell go list ./... | grep -v ^github.com/interiorem/stout/vendor/ | grep -v ^github.com/noxiouz/stout/version)
+PKGS := $(shell go list ./... | grep -v ^github.com/interiorem/stout/vendor/ | grep -v ^github.com/interiorem/stout/version)
 
 all: fmt vet test
 
