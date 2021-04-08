@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/noxiouz/stout",
+	"ImportPath": "github.com/interiorem/stout",
 	"GoVersion": "go1.8",
 	"GodepVersion": "v79",
 	"Packages": [
@@ -254,12 +254,12 @@
 		{
 			"ImportPath": "github.com/yandex/porto/src/api/go",
 			"Comment": "v3.2.9-1-g4051f5c",
-			"Rev": "4051f5ca95fa0750dd31aa589a306a33cb1f734e"
+			"Rev": "v4.20.8"
 		},
 		{
 			"ImportPath": "github.com/yandex/porto/src/api/go/rpc",
 			"Comment": "v3.2.9-1-g4051f5c",
-			"Rev": "4051f5ca95fa0750dd31aa589a306a33cb1f734e"
+			"Rev": "v4.20.8"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
