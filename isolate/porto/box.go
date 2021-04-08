@@ -208,16 +208,23 @@ func NewBox(ctx context.Context, cfg isolate.BoxConfig, gstate isolate.GlobalSta
 		rootPrefix = rootPrefix + config.MetaName
 		err := portoConn.Create(rootPrefix)
 		if err != nil {
-			if err.ErrName != "ContainerAlreadyExists" {
+			if ferr, ok := err.(*porto.Error); ok {
+				if ferr.ErrName != "ContainerAlreadyExists" {
+					return nil, err
+				}
+				log.G(ctx).Debugf("porto meta container %s already created", rootPrefix)
+			} else {
 				return nil, err
 			}
 		}
+		log.G(ctx).Debugf("porto meta container created: %s", rootPrefix)
 		// Don't recreate meta container, just set right properties
 		for key, value := range config.MetaProp {
 			err := portoConn.SetProperty(rootPrefix, key, value)
 			if err != nil {
 				return nil, err
 			}
+			log.G(ctx).Debugf("set property: %s, with value: %s, at meta container: %s", key, value, rootPrefix)
 		}
 	}
 
@@ -361,8 +368,10 @@ func (b *Box) waitLoop(ctx context.Context) {
 				log.G(ctx).Debugf("At gc state destroy dead container: %s", name)
 				portoConn.Destroy(name)
 			} else if containerState == "stopped" {
-				log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
-				portoConn.Destroy(name)
+				if name != b.config.MetaName {
+					log.G(ctx).Debugf("At gc state destroy stopped container: %s", name)
+					portoConn.Destroy(name)
+				}
 			} else if containerState == "meta" {
 				continue
 			} else if containerState == "running" || containerState == "starting" {
@@ -683,11 +692,11 @@ func (b *Box) Spool(ctx context.Context, name string, opts isolate.RawProfile) (
 }
 
 // ReleaseLock release spawn lock by configurable timeout
-func (b *Box) ReleaseLock() {
+func (b *Box) ReleaseLock(ctx context.Context) {
 	if b.config.SpawnTimeout > 0 {
 		log.G(ctx).Debugf("start spawn timeout for next porto container: %d", b.config.SpawnTimeout)
 	}
-	time.Sleep(b.config.SpawnTimeout * time.Second)
+	time.Sleep(time.Duration(b.config.SpawnTimeout) * time.Second)
 	b.spawnSM.Release()
 }
 
@@ -747,7 +756,7 @@ func (b *Box) Spawn(ctx context.Context, config isolate.SpawnConfig, output io.W
 	if err != nil {
 		return nil, isolate.ErrSpawningCancelled
 	}
-	defer b.ReleaseLock()
+	defer b.ReleaseLock(ctx)
 
 	log.G(ctx).WithFields(apexlog.Fields{"name": config.Name, "layer": cfg.Layer, "root": cfg.Root, "id": cfg.ID}).Info("Create container")
 
