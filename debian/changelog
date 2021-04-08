@@ -1,3 +1,11 @@
+cocaine-isolate-daemon (0.2.1.6) unstable; urgency=low
+
+  * isolate(porto): add SpawnTimeout for porto box
+  * isolate(porto): support for meta container
+  * build: update paths and Godeps/Godeps.json
+
+ -- Dmitriy Karpukhin <dmitriy.karpukhin@gmail.com>  Thu, 08 Apr 2021 15:58:59 +0300
+
 cocaine-isolate-daemon (0.2.1.5) unstable; urgency=low
 
   * isolate(porto): make fallback for external download helper optional
